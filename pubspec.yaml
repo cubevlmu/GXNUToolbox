@@ -1,0 +1,56 @@
+name: class_tool
+description: "GXNU class table app"
+
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  get: ^4.7.3
+  dio: ^5.3.2
+  dio_cookie_manager: ^3.2.0
+  cookie_jar: ^4.0.8
+  connectivity_plus: ^4.0.2
+  path_provider: 2.1.5
+
+  path: ^1.9.0
+  logger: ^2.4.0
+  hive: ^2.2.3
+  easy_refresh: ^3.5.0
+  html: ^0.15.6
+  flutter_secure_storage: ^9.2.4
+  dynamic_color: ^1.7.0
+  package_info_plus: ^8.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_launcher_icons: ^0.14.4
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/icon.png
+
+analyzer:
+  strong-mode:
+    implicit-casts: false
+    implicit-dynamic: false
+
+flutter_launcher_icons:
+  android: true
+  windows:
+    generate: true
+  image_path: "assets/images/app_icon.png"
+  adaptive_icon_background: "#6750A4"
+  adaptive_icon_foreground: "assets/images/app_icon_foreground.png"
