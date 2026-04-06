@@ -63,7 +63,7 @@ class SettingsController extends GetxController {
       case 'system':
         return ThemeMode.system;
       default:
-        return ThemeMode.light;
+        return ThemeMode.system;
     }
   }
 }
