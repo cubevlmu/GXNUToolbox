@@ -103,7 +103,7 @@ flutter doctor
 1. 克隆仓库。
 
    ```sh
-   git clone <your-repo-url>
+   git clone github.com/cubevlmu/GXNUTool.git
    cd class_tool
    ```
 

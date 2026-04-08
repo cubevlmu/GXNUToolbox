@@ -1,3 +1,4 @@
+import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
 import 'package:class_tool/pages/login/view.dart';
 import 'package:class_tool/pages/main/view.dart';
@@ -6,16 +7,11 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 
-enum SplashStage {
-  checkingNetwork,
-  syncingLogin,
-  offlineAvailable,
-  syncFailed,
-}
+enum SplashStage { checkingNetwork, syncingLogin, offlineAvailable, syncFailed }
 
 class SplashController extends GetxController {
   SplashController({UserRepo? userRepo})
-      : _userRepo = userRepo ?? Get.find<UserRepo>();
+    : _userRepo = userRepo ?? Get.find<UserRepo>();
 
   final UserRepo _userRepo;
   final Rx<SplashStage> stage = SplashStage.checkingNetwork.obs;
@@ -88,7 +84,9 @@ class SplashController extends GetxController {
     }
   }
 
-  void _navigateToMain() {
+  void _navigateToMain() async {
+    LogUtil.info("[Splash] Init courses repo.");
+    await Get.find<TodayCoursesWidgetRepo>().initialize();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!Get.isOverlaysOpen) {
         Get.offAll(() => const MainPage());

@@ -2,12 +2,19 @@ import 'dart:async';
 
 import 'package:class_tool/data/model/class_meta.dart';
 import 'package:class_tool/data/model/class_table.dart';
+import 'package:class_tool/data/model/class_table_context.dart';
 import 'package:class_tool/data/model/class_table_course.dart';
-import 'package:class_tool/pages/main/controller.dart';
+import 'package:class_tool/data/model/today_course_snapshot.dart';
+import 'package:class_tool/data/repo/class_repo.dart';
+import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
+import 'package:class_tool/data/repo/user_repo.dart';
+import 'package:class_tool/data/services/today_snapshot_cache.dart';
+import 'package:class_tool/utils/log_util.dart';
 import 'package:easy_refresh/easy_refresh.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+@immutable
 class ScheduleOption {
   const ScheduleOption({required this.label, this.extra = ''});
 
@@ -15,6 +22,7 @@ class ScheduleOption {
   final String extra;
 }
 
+@immutable
 class ScheduleDay {
   const ScheduleDay({
     required this.dateText,
@@ -27,6 +35,7 @@ class ScheduleDay {
   final bool isToday;
 }
 
+@immutable
 class CourseBlock {
   const CourseBlock({
     required this.dayIndex,
@@ -50,22 +59,39 @@ class CourseBlock {
 }
 
 class ClassesController extends GetxController {
-  ClassesController({MainController? mainController})
-    : _mainController = mainController ?? Get.find<MainController>();
+  ClassesController({
+    ClassRepo? classRepo,
+    UserRepo? userRepo,
+    TodayCoursesWidgetRepo? todayCoursesWidgetRepo,
+  }) : _classRepo = classRepo ?? Get.find<ClassRepo>(),
+       _userRepo = userRepo ?? Get.find<UserRepo>(),
+       _todayCoursesWidgetRepo =
+           todayCoursesWidgetRepo ?? Get.find<TodayCoursesWidgetRepo>();
 
-  final MainController _mainController;
+  final ClassRepo _classRepo;
+  final UserRepo _userRepo;
+  final TodayCoursesWidgetRepo _todayCoursesWidgetRepo;
   final EasyRefreshController easyRefreshController = EasyRefreshController(
     controlFinishRefresh: true,
   );
 
+  final RxBool _isLoading = false.obs;
+  final RxString _scheduleError = ''.obs;
   final RxList<ScheduleOption> _semesters = <ScheduleOption>[].obs;
   final RxList<ScheduleOption> _weeks = <ScheduleOption>[].obs;
   final RxList<ScheduleDay> _days = <ScheduleDay>[].obs;
   final RxList<CourseBlock> _courseBlocks = <CourseBlock>[].obs;
   final RxInt _sectionCount = 12.obs;
   final RxString _monthLabel = ''.obs;
-
-  late final Worker _syncWorker;
+  final RxString _selectedSemester = ''.obs;
+  final RxInt _selectedWeek = 0.obs;
+  final Rx<ClassTableMeta?> _classTableMeta = Rx<ClassTableMeta?>(null);
+  final RxList<ClassTableSemester> _rawSemesters = <ClassTableSemester>[].obs;
+  final RxList<ClassMeta> _currentWeekMeta = <ClassMeta>[].obs;
+  final RxList<ClassTableCourse> _currentWeekCourses = <ClassTableCourse>[].obs;
+  final RxInt syncTick = 0.obs;
+  final RxInt homeSyncTick = 0.obs;
+  final Rx<TodayCourseSnapshot?> _homeSnapshot = Rx<TodayCourseSnapshot?>(null);
 
   List<ScheduleOption> get semesters => _semesters;
   List<ScheduleOption> get weeks => _weeks;
@@ -74,29 +100,125 @@ class ClassesController extends GetxController {
   List<CourseBlock> get visibleCourseBlocks => _courseBlocks;
   int get sectionCount => _sectionCount.value;
   String get monthLabel => _monthLabel.value.isEmpty ? '月' : _monthLabel.value;
-  String get selectedSemester => _mainController.selectedSemester;
-  String get selectedWeek => _mainController.selectedWeekLabel;
-  bool get isLoading => _mainController.isScheduleLoading;
-  String get scheduleError => _mainController.scheduleError;
-  bool get hasScheduleData => _mainController.hasScheduleData;
+  String get selectedSemester => _selectedSemester.value;
+  int get selectedWeekNumber => _selectedWeek.value;
+  String get selectedWeek =>
+      _selectedWeek.value > 0 ? '第${_selectedWeek.value}周' : '';
+  bool get isLoading => _isLoading.value;
+  String get scheduleError => _scheduleError.value;
+  bool get hasScheduleData =>
+      _semesters.isNotEmpty ||
+      _classTableMeta.value != null ||
+      _currentWeekCourses.isNotEmpty;
+  ClassTableMeta? get classTableMeta => _classTableMeta.value;
+  List<ClassMeta> get currentWeekMeta => _currentWeekMeta;
+  List<ClassTableCourse> get currentWeekCourses => _currentWeekCourses;
+  TodayCourseSnapshot? get homeSnapshot => _homeSnapshot.value;
 
   @override
   void onInit() {
     super.onInit();
-    _syncFromMainController();
-    _syncWorker = ever<int>(_mainController.scheduleSyncTick, (_) {
-      _syncFromMainController();
-    });
+    if (_userRepo.isLogin && !_userRepo.isOfflineMode) {
+      unawaited(syncScheduleOverview(syncExternalOutputs: true));
+    }
   }
 
-  void _syncFromMainController() {
+  Future<void> syncScheduleOverview({
+    bool forceRefresh = false,
+    bool syncExternalOutputs = false,
+  }) async {
+    if (!_userRepo.isLogin) {
+      LogUtil.warn(
+        '[ClassesController] skip schedule sync because user is not logged in',
+      );
+      return;
+    }
+
+    _isLoading.value = true;
+    _scheduleError.value = '';
+    syncTick.value++;
+    update(<Object>['classes-header', 'schedule-table']);
+
+    try {
+      LogUtil.info('[ClassesController] syncScheduleOverview start');
+      final requestedSemester = selectedSemester;
+      final context = await _classRepo.syncBaseContext(
+        semester: requestedSemester,
+        forceRefresh: forceRefresh,
+      );
+
+      final effectiveSemester = requestedSemester.isNotEmpty
+          ? requestedSemester
+          : context.userContext.selectedSemester;
+
+      final metaResponse = await _classRepo.fetchMeta(
+        semester: effectiveSemester,
+        forceRefresh: forceRefresh,
+      );
+      final meta = metaResponse.data;
+
+      final resolvedWeek = meta.currentWeek > 0
+          ? meta.currentWeek
+          : (meta.weekRanges.isNotEmpty ? meta.weekRanges.first.week : 1);
+
+      final weekMeta = await _classRepo.fetchWeekMeta(
+        resolvedWeek,
+        semester: effectiveSemester,
+        forceRefresh: forceRefresh,
+      );
+      final courseResponse = await _classRepo.fetchCourses(
+        resolvedWeek,
+        semester: effectiveSemester,
+        forceRefresh: forceRefresh,
+      );
+      final courses = courseResponse.data.courses;
+
+      _selectedSemester.value = effectiveSemester;
+      _selectedWeek.value = resolvedWeek;
+      _classTableMeta.value = meta;
+      _rawSemesters.assignAll(context.semesters);
+      _currentWeekMeta.assignAll(weekMeta);
+      _currentWeekCourses.assignAll(courses);
+      _scheduleError.value = '';
+      _isLoading.value = false;
+
+      _syncDerivedState(context.semesters);
+      if (syncExternalOutputs) {
+        final snapshot = buildTodayCourseSnapshot(
+          semester: effectiveSemester,
+          currentWeek: resolvedWeek,
+          weekMeta: weekMeta,
+          weekCourses: courses,
+          meta: meta,
+        );
+        _homeSnapshot.value = snapshot;
+        homeSyncTick.value++;
+        unawaited(TodaySnapshotCache.save(snapshot));
+        unawaited(_todayCoursesWidgetRepo.updateFromSnapshot(snapshot));
+      }
+
+      syncTick.value++;
+      update(<Object>['classes-header', 'schedule-table']);
+      LogUtil.info(
+        '[ClassesController] syncScheduleOverview success semester=$selectedSemester week=$selectedWeek courses=${currentWeekCourses.length}',
+      );
+    } catch (e, s) {
+      _isLoading.value = false;
+      _scheduleError.value = e.toString();
+      syncTick.value++;
+      update(<Object>['classes-header', 'schedule-table']);
+      LogUtil.errorE('[ClassesController] syncScheduleOverview failed', e, s);
+    }
+  }
+
+  void _syncDerivedState(List<ClassTableSemester> rawSemesters) {
     _semesters.assignAll(
-      _mainController.scheduleSemesters
+      rawSemesters
           .map((item) => ScheduleOption(label: item.value))
           .toList(growable: false),
     );
 
-    final meta = _mainController.classTableMeta;
+    final meta = classTableMeta;
     _weeks.assignAll(
       (meta?.weekRanges ?? const <ClassWeekRange>[])
           .map(
@@ -107,31 +229,74 @@ class ClassesController extends GetxController {
     );
 
     _sectionCount.value = meta?.periodSettings.length ?? 12;
-    _days.assignAll(_buildScheduleDays(_mainController.currentWeekMeta));
-    _monthLabel.value = _resolveMonthLabel(_mainController.currentWeekMeta);
-    _courseBlocks.assignAll(
-      _buildCourseBlocks(_mainController.currentWeekCourses),
-    );
-    update(<Object>['classes-header', 'schedule-table']);
+    _days.assignAll(_buildScheduleDays(currentWeekMeta));
+    _monthLabel.value = _resolveMonthLabel(currentWeekMeta);
+    _courseBlocks.assignAll(_buildCourseBlocks(currentWeekCourses));
   }
 
-  Future<void> changeSemester(String value) {
-    return _mainController.changeScheduleSemester(value);
+  Future<void> changeSemester(String value) async {
+    if (value.isEmpty || value == selectedSemester) {
+      return;
+    }
+    _selectedSemester.value = value;
+    await syncScheduleOverview(forceRefresh: true, syncExternalOutputs: false);
   }
 
   Future<void> changeWeek(String value) async {
     final parsed = int.tryParse(
       value.replaceAll('第', '').replaceAll('周', '').trim(),
     );
-    if (parsed == null) {
+    if (parsed == null || parsed <= 0 || parsed == _selectedWeek.value) {
       return;
     }
-    await _mainController.changeScheduleWeek(parsed);
+    if (!_userRepo.isLogin) {
+      return;
+    }
+
+    _isLoading.value = true;
+    _scheduleError.value = '';
+    _selectedWeek.value = parsed;
+    syncTick.value++;
+    update(<Object>['classes-header', 'schedule-table']);
+
+    try {
+      LogUtil.info('[ClassesController] changeWeek start week=$parsed');
+      final weekMeta = await _classRepo.fetchWeekMeta(
+        parsed,
+        semester: selectedSemester,
+        forceRefresh: false,
+      );
+      final courseResponse = await _classRepo.fetchCourses(
+        parsed,
+        semester: selectedSemester,
+        forceRefresh: false,
+      );
+
+      _currentWeekMeta.assignAll(weekMeta);
+      _currentWeekCourses.assignAll(courseResponse.data.courses);
+      _isLoading.value = false;
+      _scheduleError.value = '';
+      _syncDerivedState(_rawSemesters);
+      syncTick.value++;
+      update(<Object>['classes-header', 'schedule-table']);
+      LogUtil.info(
+        '[ClassesController] changeWeek success week=$parsed courses=${currentWeekCourses.length}',
+      );
+    } catch (e, s) {
+      _isLoading.value = false;
+      _scheduleError.value = e.toString();
+      syncTick.value++;
+      update(<Object>['classes-header', 'schedule-table']);
+      LogUtil.errorE('[ClassesController] changeWeek failed', e, s);
+    }
   }
 
   Future<void> refreshSchedule() async {
     try {
-      await _mainController.syncScheduleOverview(forceRefresh: true);
+      await syncScheduleOverview(
+        forceRefresh: true,
+        syncExternalOutputs: false,
+      );
     } finally {
       easyRefreshController.finishRefresh();
     }
@@ -294,7 +459,6 @@ class ClassesController extends GetxController {
 
   @override
   void onClose() {
-    _syncWorker.dispose();
     easyRefreshController.dispose();
     super.onClose();
   }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:class_tool/pages/classes/controller.dart';
 import 'package:class_tool/pages/classes/view.dart';
 import 'package:class_tool/pages/home/controller.dart';
@@ -22,8 +24,13 @@ class _MainPageState extends State<MainPage> {
   void initState() {
     super.initState();
     controller = Get.put(MainController());
+    final classesController = Get.put(ClassesController());
     Get.put(HomeController());
-    Get.put(ClassesController());
+    if (!classesController.isLoading && !classesController.hasScheduleData) {
+      unawaited(
+        classesController.syncScheduleOverview(syncExternalOutputs: true),
+      );
+    }
     if (Get.isRegistered<SettingsController>()) {
       Get.find<SettingsController>().refreshUserInfo();
     }

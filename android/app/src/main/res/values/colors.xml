@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#6750A4</color>
+    <color name="widget_card_background">#FFF7F2FA</color>
+    <color name="widget_card_border">#1F6750A4</color>
+    <color name="widget_course_background">#59E7E0EC</color>
+    <color name="widget_time_badge_background">#FFE9DDFF</color>
+    <color name="widget_icon_button_background">#6BFFFFFF</color>
+    <color name="widget_text_primary">#FF1D1B20</color>
+    <color name="widget_text_secondary">#FF655A6F</color>
+    <color name="widget_text_tertiary">#80655A6F</color>
+    <color name="widget_text_accent">#FF6750A4</color>
+    <color name="widget_badge_text">#FF4F378B</color>
 </resources>

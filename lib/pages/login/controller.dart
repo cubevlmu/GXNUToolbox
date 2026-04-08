@@ -1,12 +1,22 @@
+/*
+ * @Author: cubevlmu khfahqp@gmail.com
+ * @LastEditors: cubevlmu khfahqp@gmail.com
+ * Copyright (c) 2026 by FlybirdGames, All Rights Reserved. 
+ */
+import 'dart:async';
+
+import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
-import 'package:class_tool/pages/main/view.dart';
 import 'package:class_tool/pages/settings/controller.dart';
+import 'package:class_tool/pages/splash/view.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:class_tool/utils/snackbar_utils.dart';
 import 'package:get/get.dart';
 
 class LoginController extends GetxController {
   final UserRepo _userRepo = Get.find<UserRepo>();
+  final TodayCoursesWidgetRepo _todayCoursesWidgetRepo =
+      Get.find<TodayCoursesWidgetRepo>();
 
   String account = '';
   String password = '';
@@ -79,7 +89,8 @@ class LoginController extends GetxController {
       if (Get.isRegistered<SettingsController>()) {
         Get.find<SettingsController>().refreshUserInfo();
       }
-      Get.offAll(() => const MainPage());
+      unawaited(_todayCoursesWidgetRepo.syncAndUpdate(reason: 'login'));
+      Get.offAll(() => const SplashPage());
     } finally {
       isLoading.value = false;
     }

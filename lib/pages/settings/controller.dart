@@ -1,3 +1,5 @@
+import 'package:class_tool/data/services/morning_briefing_service.dart';
+import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
 import 'package:class_tool/utils/storage_utils.dart';
 import 'package:flutter/material.dart';
@@ -11,16 +13,21 @@ const Map<String, String> _campusNameMap = <String, String>{
 
 class SettingsController extends GetxController {
   SettingsController({UserRepo? userRepo})
-    : _userRepo = userRepo ?? Get.find<UserRepo>();
+    : _userRepo = userRepo ?? Get.find<UserRepo>(),
+      _todayCoursesWidgetRepo = Get.find<TodayCoursesWidgetRepo>();
 
   static const String _themeModeKey = 'theme_mode';
 
   final UserRepo _userRepo;
+  final TodayCoursesWidgetRepo _todayCoursesWidgetRepo;
 
   final RxString studentName = ''.obs;
   final RxString campus = ''.obs;
   final RxString semester = ''.obs;
   final Rx<ThemeMode> themeMode = _loadThemeMode().obs;
+  final RxBool autoWidgetSyncEnabled =
+      Get.find<TodayCoursesWidgetRepo>().isAutoSyncEnabled.obs;
+  final RxBool morningBriefingEnabled = MorningBriefingService.isEnabled.obs;
 
   @override
   void onInit() {
@@ -48,9 +55,37 @@ class SettingsController extends GetxController {
     Get.changeThemeMode(nextMode);
   }
 
+  Future<void> changeAutoWidgetSync(bool enabled) async {
+    if (autoWidgetSyncEnabled.value == enabled) {
+      return;
+    }
+    autoWidgetSyncEnabled.value = enabled;
+    await _todayCoursesWidgetRepo.setAutoSyncEnabled(enabled);
+    if (!enabled && morningBriefingEnabled.value) {
+      morningBriefingEnabled.value = false;
+      await MorningBriefingService.setEnabled(false);
+    }
+  }
+
+  Future<void> changeMorningBriefing(bool enabled) async {
+    if (!autoWidgetSyncEnabled.value && enabled) {
+      return;
+    }
+    if (morningBriefingEnabled.value == enabled) {
+      return;
+    }
+    final actual = await MorningBriefingService.setEnabled(enabled);
+    morningBriefingEnabled.value = actual;
+  }
+
+  Future<void> runMorningSyncDebug() async {
+    await _todayCoursesWidgetRepo.debugRunScheduledSync();
+  }
+
   Future<void> logout() async {
     await _userRepo.logout();
     refreshUserInfo();
+    await _todayCoursesWidgetRepo.clearAndUpdate();
   }
 
   static ThemeMode _loadThemeMode() {
