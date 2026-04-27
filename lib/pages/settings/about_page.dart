@@ -75,6 +75,13 @@ class AboutPage extends StatelessWidget {
                 ),
                 Divider(height: 1),
                 _AboutInfoTile(
+                  icon: Icons.devices_outlined,
+                  title: '平台支持说明',
+                  subtitle:
+                      '自动同步、早安提醒、小组件与相关后台任务目前仅支持 Android 端；桌面端不提供这些功能入口。',
+                ),
+                Divider(height: 1),
+                _AboutInfoTile(
                   icon: Icons.privacy_tip_outlined,
                   title: '隐私与安全提示',
                   subtitle:

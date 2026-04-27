@@ -91,6 +91,14 @@ class AuthStorage {
     await _secure.delete(key: AuthStorageKeys.password);
   }
 
+  Future<void> clearSession() async {
+    await _box.put(AuthStorageKeys.hasLogin, false);
+    await _box.delete(AuthStorageKeys.userId);
+    await _box.delete(AuthStorageKeys.selectedSemester);
+    await _box.delete(AuthStorageKeys.campusId);
+    await _box.delete(AuthStorageKeys.selectedCampusId);
+  }
+
   Future<void> clearAutoLogin() async {
     await _box.put(AuthStorageKeys.autoRelogin, false);
     await _box.delete(AuthStorageKeys.lastInputPwd);

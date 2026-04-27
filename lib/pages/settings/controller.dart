@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:class_tool/data/services/morning_briefing_service.dart';
 import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
@@ -29,10 +31,18 @@ class SettingsController extends GetxController {
       Get.find<TodayCoursesWidgetRepo>().isAutoSyncEnabled.obs;
   final RxBool morningBriefingEnabled = MorningBriefingService.isEnabled.obs;
 
+  bool get supportsScheduledSync => Platform.isAndroid;
+  bool get supportsMorningBriefing => Platform.isAndroid;
+
   @override
   void onInit() {
     super.onInit();
     refreshUserInfo();
+    if (!supportsScheduledSync) {
+      autoWidgetSyncEnabled.value = false;
+      morningBriefingEnabled.value = false;
+      _normalizePlatformSpecificSettings();
+    }
   }
 
   void refreshUserInfo() {
@@ -56,6 +66,10 @@ class SettingsController extends GetxController {
   }
 
   Future<void> changeAutoWidgetSync(bool enabled) async {
+    if (!supportsScheduledSync) {
+      autoWidgetSyncEnabled.value = false;
+      return;
+    }
     if (autoWidgetSyncEnabled.value == enabled) {
       return;
     }
@@ -68,6 +82,10 @@ class SettingsController extends GetxController {
   }
 
   Future<void> changeMorningBriefing(bool enabled) async {
+    if (!supportsMorningBriefing) {
+      morningBriefingEnabled.value = false;
+      return;
+    }
     if (!autoWidgetSyncEnabled.value && enabled) {
       return;
     }
@@ -79,6 +97,9 @@ class SettingsController extends GetxController {
   }
 
   Future<void> runMorningSyncDebug() async {
+    if (!supportsScheduledSync) {
+      return;
+    }
     await _todayCoursesWidgetRepo.debugRunScheduledSync();
   }
 
@@ -100,5 +121,10 @@ class SettingsController extends GetxController {
       default:
         return ThemeMode.system;
     }
+  }
+
+  Future<void> _normalizePlatformSpecificSettings() async {
+    await _todayCoursesWidgetRepo.setAutoSyncEnabled(false);
+    await MorningBriefingService.setEnabled(false);
   }
 }

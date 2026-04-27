@@ -25,7 +25,13 @@ class SplashController extends GetxController {
     _start();
   }
 
-  Future<void> retry() => _start();
+  Future<void> retry() async {
+    if (stage.value == SplashStage.syncFailed) {
+      await _retryLoginSync();
+      return;
+    }
+    await _start();
+  }
 
   Future<void> goOffline() async {
     await _userRepo.restoreOfflineSession();
@@ -45,6 +51,16 @@ class SplashController extends GetxController {
     if (!_hasStoredLogin) {
       LogUtil.info('[SplashController] no stored login, go to login page');
       _navigateToLogin();
+      return;
+    }
+
+    if (_userRepo.isLogin &&
+        !_userRepo.isOfflineMode &&
+        _userRepo.pageContext != null) {
+      LogUtil.info(
+        '[SplashController] reuse in-memory login context, go to main page',
+      );
+      _navigateToMain();
       return;
     }
 
@@ -81,6 +97,34 @@ class SplashController extends GetxController {
       LogUtil.errorE('[SplashController] startup sync failed', e, s);
       stage.value = SplashStage.syncFailed;
       message.value = '同步登录状态失败，请重试或重新登录';
+    }
+  }
+
+  Future<void> _retryLoginSync() async {
+    _hasStoredLogin = _userRepo.storage.hasLogin;
+    if (!_hasStoredLogin) {
+      LogUtil.info('[SplashController] retry skipped because no stored login');
+      _navigateToLogin();
+      return;
+    }
+
+    stage.value = SplashStage.syncingLogin;
+    message.value = '正在重新尝试登录';
+
+    try {
+      final success = await _userRepo.retryLoginSync();
+      if (success) {
+        LogUtil.info('[SplashController] retry login synced, go to main page');
+        _navigateToMain();
+        return;
+      }
+
+      stage.value = SplashStage.syncFailed;
+      message.value = '重新尝试登录失败，请重试或重新登录';
+    } catch (e, s) {
+      LogUtil.errorE('[SplashController] retry login failed', e, s);
+      stage.value = SplashStage.syncFailed;
+      message.value = '重新尝试登录失败，请重试或重新登录';
     }
   }
 

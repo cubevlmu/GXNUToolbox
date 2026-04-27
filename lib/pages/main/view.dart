@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:class_tool/pages/classes/controller.dart';
 import 'package:class_tool/pages/classes/view.dart';
+import 'package:class_tool/pages/features/view.dart';
 import 'package:class_tool/pages/home/controller.dart';
 import 'package:class_tool/pages/home/view.dart';
 import 'package:class_tool/pages/main/controller.dart';
@@ -52,15 +53,15 @@ class _MainPageState extends State<MainPage> {
 
   @override
   Widget build(BuildContext context) {
-    const pages = [HomePage(), ClassesPage(), SettingsPage()];
-    const titles = ['首页', '课表', '设置'];
+    const pages = [HomePage(), ClassesPage(), FeaturesPage(), SettingsPage()];
+    const titles = ['首页', '课表', '功能', '设置'];
 
     return Obx(() {
       final selectedIndex = controller.selectedIndex.value;
-      final isClassesPage = selectedIndex == 1;
+      final hasOwnAppBar = selectedIndex == 1 || selectedIndex == 2;
 
       return Scaffold(
-        appBar: isClassesPage
+        appBar: hasOwnAppBar
             ? null
             : AppBar(title: Text(titles[selectedIndex])),
         body: RepaintBoundary(
@@ -80,6 +81,11 @@ class _MainPageState extends State<MainPage> {
               icon: Icon(Icons.calendar_view_week_outlined),
               selectedIcon: Icon(Icons.calendar_view_week_rounded),
               label: '课表',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.apps_outlined),
+              selectedIcon: Icon(Icons.apps_rounded),
+              label: '功能',
             ),
             NavigationDestination(
               icon: Icon(Icons.settings_outlined),

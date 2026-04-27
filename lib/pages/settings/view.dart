@@ -94,54 +94,82 @@ class SettingsPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Card(
-          clipBehavior: Clip.antiAlias,
-          child: Obx(
-            () => Column(
-              children: [
-                _ToggleTile(
-                  icon: Icons.schedule_rounded,
-                  title: '自动同步',
-                  subtitle: '每天早上 7 点自动刷新小组件',
-                  description: '开启后，系统会按计划执行后台任务；部分机型可能将应用显示为存在后台活动。',
-                  value: controller.autoWidgetSyncEnabled.value,
-                  onChanged: controller.changeAutoWidgetSync,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(28),
+        if (!controller.supportsScheduledSync) ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2),
+                    child: Icon(Icons.info_outline_rounded),
                   ),
-                ),
-                const Divider(height: 1),
-                _ToggleTile(
-                  icon: Icons.notifications_active_outlined,
-                  title: '早安提醒',
-                  subtitle: '同步成功后发送今日课程通知',
-                  description: '通知会突出显示今天共有几节课，并给出第一节课的时间、教室和课程名。',
-                  value: controller.morningBriefingEnabled.value,
-                  enabled: controller.autoWidgetSyncEnabled.value,
-                  onChanged: controller.changeMorningBriefing,
-                  borderRadius: kDebugMode
-                      ? BorderRadius.zero
-                      : const BorderRadius.vertical(
-                          bottom: Radius.circular(28),
-                        ),
-                ),
-                if (kDebugMode) ...[
-                  const Divider(height: 1),
-                  _ActionTile(
-                    borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '自动同步、早安提醒和相关后台任务仅在 Android 端提供，当前桌面端不支持这些功能。',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        height: 1.45,
+                      ),
                     ),
-                    leading: const Icon(Icons.bug_report_outlined),
-                    title: const Text('测试每日同步'),
-                    subtitle: const Text('仅调试包显示，手动触发一次早晨同步与提醒'),
-                    onTap: controller.runMorningSyncDebug,
                   ),
                 ],
-              ],
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 12),
+          const SizedBox(height: 12),
+        ],
+        if (controller.supportsScheduledSync) ...[
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: Obx(
+              () => Column(
+                children: [
+                  _ToggleTile(
+                    icon: Icons.schedule_rounded,
+                    title: '自动同步',
+                    subtitle: '每天早上 7 点自动刷新小组件',
+                    description: '开启后，系统会按计划执行后台任务；部分机型可能将应用显示为存在后台活动。',
+                    value: controller.autoWidgetSyncEnabled.value,
+                    onChanged: controller.changeAutoWidgetSync,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(28),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  _ToggleTile(
+                    icon: Icons.notifications_active_outlined,
+                    title: '早安提醒',
+                    subtitle: '同步成功后发送今日课程通知',
+                    description: '通知会突出显示今天共有几节课，并给出第一节课的时间、教室和课程名。',
+                    value: controller.morningBriefingEnabled.value,
+                    enabled: controller.autoWidgetSyncEnabled.value,
+                    onChanged: controller.changeMorningBriefing,
+                    borderRadius: kDebugMode
+                        ? BorderRadius.zero
+                        : const BorderRadius.vertical(
+                            bottom: Radius.circular(28),
+                          ),
+                  ),
+                  if (kDebugMode) ...[
+                    const Divider(height: 1),
+                    _ActionTile(
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(28),
+                      ),
+                      leading: const Icon(Icons.bug_report_outlined),
+                      title: const Text('测试每日同步'),
+                      subtitle: const Text('仅调试包显示，手动触发一次早晨同步与提醒'),
+                      onTap: controller.runMorningSyncDebug,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         Card(
           clipBehavior: Clip.antiAlias,
           child: Column(

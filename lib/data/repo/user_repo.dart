@@ -20,7 +20,6 @@ class UserRepo {
   final HttpUtils _http = HttpUtils();
   bool _offlineMode = false;
 
-  bool _setupCalled = false;
   Future<void>? _setupTask;
   bool _isHandling = false;
 
@@ -55,12 +54,12 @@ class UserRepo {
     }
   }
 
-  Future<void> _performSetup() async {
-    if (_setupCalled) {
-      return;
-    }
-    _setupCalled = true;
+  Future<bool> retryLoginSync() async {
+    await _performSetup(forceAutoRelogin: true);
+    return isLogin;
+  }
 
+  Future<void> _performSetup({bool forceAutoRelogin = false}) async {
     if (!storage.hasLogin) {
       _setNotLogin();
       return;
@@ -79,17 +78,39 @@ class UserRepo {
       await _applyPageContext(context);
       _state = UserRepoState.loggedIn;
     } on ApiLoginExpiredException {
-      await handleLoginExpired();
+      LogUtil.warn(
+        '[UserRepo] setup detected expired login, trying auto relogin',
+      );
+      await handleLoginExpired(ignorePasswordExpiry: forceAutoRelogin);
+    } on StateError catch (e, s) {
+      if (_isInvalidContextError(e)) {
+        LogUtil.warnE(
+          '[UserRepo] setup received invalid context, treating as expired login',
+          e,
+          s,
+        );
+        await handleLoginExpired(ignorePasswordExpiry: forceAutoRelogin);
+        return;
+      }
+      LogUtil.errorE('[UserRepo] setup failed', e, s);
+      await _clearRuntimeSession();
     } catch (e, s) {
       LogUtil.errorE('[UserRepo] setup failed', e, s);
-      await _clearLogin(forceNotLogin: true);
+      await _clearRuntimeSession();
     }
+  }
+
+  bool _isInvalidContextError(StateError error) {
+    return error.message.toString().startsWith(
+      'Invalid class table context response',
+    );
   }
 
   Future<bool> login(
     String username,
     String password, {
     bool autoRelogin = true,
+    bool clearStoredSessionOnFailure = true,
   }) async {
     try {
       final loginResult = await Api.login(
@@ -115,11 +136,19 @@ class UserRepo {
       _state = UserRepoState.loggedIn;
       return true;
     } on ApiLoginExpiredException {
-      await handleLoginExpired();
+      if (clearStoredSessionOnFailure) {
+        await handleLoginExpired(allowAutoRelogin: false);
+      } else {
+        await _clearRuntimeSession();
+      }
       return false;
     } catch (e, s) {
       LogUtil.errorE('[UserRepo] login failed', e, s);
-      await _clearLogin(forceNotLogin: true);
+      if (clearStoredSessionOnFailure) {
+        await _clearLogin(forceNotLogin: true, preserveCredentials: true);
+      } else {
+        await _clearRuntimeSession();
+      }
       return false;
     }
   }
@@ -155,24 +184,31 @@ class UserRepo {
     }
     _isHandling = true;
     try {
-      await storage.clearAutoLogin();
-      await _clearLogin(forceNotLogin: true);
+      await _clearLogin(forceNotLogin: true, preserveCredentials: true);
     } finally {
       _isHandling = false;
     }
   }
 
-  Future<void> handleLoginExpired() async {
+  Future<void> handleLoginExpired({
+    bool allowAutoRelogin = true,
+    bool ignorePasswordExpiry = false,
+  }) async {
     _state = UserRepoState.expired;
 
-    if (storage.autoRelogin) {
-      final relogin = await _autoRelogin();
+    if (allowAutoRelogin && storage.autoRelogin) {
+      LogUtil.info('[UserRepo] login expired, trying auto relogin');
+      final relogin = await _autoRelogin(
+        ignorePasswordExpiry: ignorePasswordExpiry,
+      );
       if (relogin) {
+        LogUtil.info('[UserRepo] auto relogin success');
         return;
       }
+      LogUtil.warn('[UserRepo] auto relogin failed');
     }
 
-    await _clearLogin(forceNotLogin: true);
+    await _clearRuntimeSession();
   }
 
   Future<bool> recoverFromExpiredLogin() async {
@@ -215,9 +251,13 @@ class UserRepo {
     await _applyContext(context.userContext);
   }
 
-  Future<bool> _autoRelogin() async {
+  Future<bool> _autoRelogin({bool ignorePasswordExpiry = false}) async {
     final last = storage.lastInputPwdTime;
-    if (last == null || DateTime.now().difference(last).inDays > 7) {
+    if (!ignorePasswordExpiry &&
+        (last == null || DateTime.now().difference(last).inDays > 7)) {
+      LogUtil.warn(
+        '[UserRepo] skip auto relogin because saved password expired',
+      );
       return false;
     }
 
@@ -227,10 +267,27 @@ class UserRepo {
         savedUsername.isEmpty ||
         savedPassword == null ||
         savedPassword.isEmpty) {
+      LogUtil.warn(
+        '[UserRepo] skip auto relogin because saved credentials are missing',
+      );
       return false;
     }
 
-    return login(savedUsername, savedPassword, autoRelogin: true);
+    LogUtil.info('[UserRepo] auto relogin start username=$savedUsername');
+    return login(
+      savedUsername,
+      savedPassword,
+      autoRelogin: true,
+      clearStoredSessionOnFailure: false,
+    );
+  }
+
+  Future<void> _clearRuntimeSession() async {
+    await _http.clearCookies();
+    _pageContext = null;
+    _userContext = null;
+    _offlineMode = false;
+    _state = storage.hasLogin ? UserRepoState.expired : UserRepoState.notLogin;
   }
 
   Future<void> _applyContext(ClassTableUserContext context) async {
@@ -239,7 +296,9 @@ class UserRepo {
         storage.selectedSemester == context.selectedSemester &&
         storage.campusId == context.campusId &&
         storage.selectedCampusId == context.selectedCampusId) {
-      LogUtil.debug('[UserRepo] skip applyContext because context is unchanged');
+      LogUtil.debug(
+        '[UserRepo] skip applyContext because context is unchanged',
+      );
       return;
     }
 
@@ -255,8 +314,15 @@ class UserRepo {
     );
   }
 
-  Future<void> _clearLogin({required bool forceNotLogin}) async {
-    await storage.clear();
+  Future<void> _clearLogin({
+    required bool forceNotLogin,
+    bool preserveCredentials = false,
+  }) async {
+    if (preserveCredentials) {
+      await storage.clearSession();
+    } else {
+      await storage.clear();
+    }
     await _http.clearCookies();
     _pageContext = null;
     _userContext = null;
@@ -270,10 +336,7 @@ class UserRepo {
     _state = UserRepoState.notLogin;
   }
 
-  bool _sameContext(
-    ClassTableUserContext? a,
-    ClassTableUserContext b,
-  ) {
+  bool _sameContext(ClassTableUserContext? a, ClassTableUserContext b) {
     if (a == null) {
       return false;
     }

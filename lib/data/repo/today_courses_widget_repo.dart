@@ -15,6 +15,7 @@ import 'package:class_tool/data/services/today_snapshot_cache.dart';
 import 'package:class_tool/utils/http_utils.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:class_tool/utils/storage_utils.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:get/get.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:workmanager/workmanager.dart';
@@ -37,6 +38,7 @@ class TodayCoursesWidgetRepo {
   final ClassRepo _classRepo;
 
   bool _initialized = false;
+  Future<void>? _syncTask;
 
   bool get isAutoSyncEnabled =>
       StorageUtils.settings.get(_autoSyncEnabledKey) == true;
@@ -110,6 +112,33 @@ class TodayCoursesWidgetRepo {
       return;
     }
 
+    final activeTask = _syncTask;
+    if (activeTask != null) {
+      LogUtil.info(
+        '[TodayCoursesWidget] sync joined existing task reason=$reason',
+      );
+      await activeTask;
+      return;
+    }
+
+    final task = _performSyncAndUpdate(
+      showLoading: showLoading,
+      reason: reason,
+    );
+    _syncTask = task;
+    try {
+      await task;
+    } finally {
+      if (identical(_syncTask, task)) {
+        _syncTask = null;
+      }
+    }
+  }
+
+  Future<void> _performSyncAndUpdate({
+    required bool showLoading,
+    required String reason,
+  }) async {
     LogUtil.info('[TodayCoursesWidget] sync start reason=$reason');
     await StorageUtils.ensureInitialized();
 
@@ -122,10 +151,32 @@ class TodayCoursesWidgetRepo {
     }
 
     try {
+      if (!await _hasNetworkConnection()) {
+        LogUtil.warn('[TodayCoursesWidget] sync skipped because network is unavailable');
+        await _showCachedOrError(
+          cachedStatusText: '当前无网络，已显示上次结果',
+          emptyStatusText: '当前无网络，暂无课程缓存',
+          fallbackState: TodayCoursesWidgetState.error,
+        );
+        return;
+      }
+
       await HttpUtils().init();
       await _userRepo.setup();
       if (!_userRepo.isLogin) {
-        await clearAndUpdate(statusText: '登录后可查看今日课程');
+        if (!_userRepo.storage.hasLogin) {
+          LogUtil.warn('[TodayCoursesWidget] sync aborted because user is not logged in');
+          await clearAndUpdate(statusText: '登录后可查看今日课程');
+        } else {
+          LogUtil.warn(
+            '[TodayCoursesWidget] sync aborted because stored login exists but current session is invalid',
+          );
+          await _showCachedOrError(
+            cachedStatusText: '登录状态失效，请打开 App 重新登录',
+            emptyStatusText: '登录状态失效，请打开 App 重新登录',
+            fallbackState: TodayCoursesWidgetState.error,
+          );
+        }
         return;
       }
 
@@ -139,11 +190,12 @@ class TodayCoursesWidgetRepo {
       );
     } catch (e, s) {
       LogUtil.errorE('[TodayCoursesWidget] sync failed', e, s);
-      await _writeState(
-        state: TodayCoursesWidgetState.error,
-        statusText: '刷新失败',
+      final hasNetwork = await _hasNetworkConnection();
+      await _showCachedOrError(
+        cachedStatusText: hasNetwork ? '刷新失败，已显示上次结果' : '当前无网络，已显示上次结果',
+        emptyStatusText: hasNetwork ? '刷新失败，请稍后重试' : '当前无网络，暂无课程缓存',
+        fallbackState: TodayCoursesWidgetState.error,
       );
-      await _updateWidget();
     } finally {
       await scheduleNextDailyRefresh();
     }
@@ -207,14 +259,16 @@ class TodayCoursesWidgetRepo {
       return;
     }
 
-    final snapshot = loadCachedTodaySnapshot();
-    if (snapshot == null) {
+    final entry = loadCachedTodaySnapshotEntry();
+    if (entry == null) {
       return;
     }
-    await _saveCoreData(snapshot);
+    await _saveCoreData(entry.snapshot, updatedAt: entry.savedAt);
     await _writeState(
       state: TodayCoursesWidgetState.ready,
-      statusText: snapshot.items.isEmpty ? '今天没有课程安排' : snapshot.headlineText,
+      statusText: entry.snapshot.items.isEmpty
+          ? '今天没有课程安排'
+          : entry.snapshot.headlineText,
     );
     await _updateWidget();
   }
@@ -225,6 +279,10 @@ class TodayCoursesWidgetRepo {
 
   TodayCourseSnapshot? loadCachedTodaySnapshot() {
     return TodaySnapshotCache.load();
+  }
+
+  TodaySnapshotCacheEntry? loadCachedTodaySnapshotEntry() {
+    return TodaySnapshotCache.loadEntry();
   }
 
   Future<void> saveSnapshot(TodayCourseSnapshot snapshot) async {
@@ -266,11 +324,47 @@ class TodayCoursesWidgetRepo {
     );
   }
 
-  Future<void> _saveCoreData(TodayCourseSnapshot snapshot) async {
+  Future<bool> _hasNetworkConnection() async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    return connectivityResult != ConnectivityResult.none;
+  }
+
+  Future<void> _showCachedOrError({
+    required String cachedStatusText,
+    required String emptyStatusText,
+    required TodayCoursesWidgetState fallbackState,
+  }) async {
+    final entry = loadCachedTodaySnapshotEntry();
+    if (entry != null) {
+      await _saveCoreData(entry.snapshot, updatedAt: entry.savedAt);
+      await _writeState(
+        state: TodayCoursesWidgetState.ready,
+        statusText: cachedStatusText,
+      );
+      await _updateWidget();
+      return;
+    }
+
+    await _clearItems();
+    await _saveString('semesterText', '当前学期');
+    await _saveString('weekText', '--');
+    await _saveString('headlineText', '今日课程');
+    await _saveString('updatedAtText', '');
+    await _writeState(state: fallbackState, statusText: emptyStatusText);
+    await _updateWidget();
+  }
+
+  Future<void> _saveCoreData(
+    TodayCourseSnapshot snapshot, {
+    DateTime? updatedAt,
+  }) async {
     await _saveString('semesterText', snapshot.semesterText);
     await _saveString('weekText', snapshot.currentWeekText);
     await _saveString('headlineText', snapshot.headlineText);
-    await _saveString('updatedAtText', _buildUpdateTimeText(DateTime.now()));
+    await _saveString(
+      'updatedAtText',
+      _buildUpdateTimeText(updatedAt ?? DateTime.now()),
+    );
     await _saveInt('courseCount', snapshot.items.length);
     await _saveString(
       'coursesJson',

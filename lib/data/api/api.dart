@@ -7,7 +7,9 @@ import 'package:class_tool/data/model/class_meta.dart';
 import 'package:class_tool/data/model/class_table.dart';
 import 'package:class_tool/data/model/class_table_context.dart';
 import 'package:class_tool/data/model/class_table_course.dart';
+import 'package:class_tool/data/model/grade.dart';
 import 'package:class_tool/utils/http_utils.dart';
+import 'package:class_tool/utils/log_util.dart';
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' as html_parser;
 
@@ -32,6 +34,16 @@ class Api {
   Api._();
 
   static final HttpUtils _http = HttpUtils();
+  static Future<void> _htmlRequestQueue = Future<void>.value();
+  static DateTime? _lastHtmlRequestAt;
+  static const Duration _htmlRequestMinInterval = Duration(milliseconds: 450);
+  static const List<Duration> _tooManyRequestsBackoff = [
+    Duration(seconds: 1),
+    Duration(seconds: 2),
+    Duration(seconds: 4),
+  ];
+  static const String _gradeQueryFields =
+      'id,xnxq,kcmc,kclx,bkbz,xf,kcxz,ksxs,xdxz,zhcj,tscjzwmc,cjfxms,hdxf,jd,glcj,cxzkcj,bkcj,cxcj,fxcj,kkyxmc,';
 
   static Future<ChaoxingLoginResult> login({
     required String username,
@@ -55,7 +67,10 @@ class Api {
     final formFields = _extractFormInputs(casPage.response.data ?? '');
     final formAction =
         _extractFormAction(casPage.response.data ?? '') ?? '/cas/login';
-    final postUrl = _resolveUrl(casPage.response.realUri.toString(), formAction);
+    final postUrl = _resolveUrl(
+      casPage.response.realUri.toString(),
+      formAction,
+    );
 
     final rsaKey = await _fetchPubKey(casPage.response.realUri.toString());
     final encryptedPassword = _encryptPasswordJsCompatible(password, rsaKey);
@@ -77,10 +92,17 @@ class Api {
       referer: casPage.response.realUri.toString(),
     );
 
-    final finalResponse = await _getHtmlWithRedirects(
+    final finalCheckRedirectChain = <String>[];
+    if (!_isSameUrl(
+      loginResponse.response.realUri.toString(),
       ApiConstants.chaoxingFinalCheckUrl,
-      referer: ApiConstants.chaoxingFinalCheckUrl,
-    );
+    )) {
+      final finalResponse = await _getHtmlWithRedirects(
+        ApiConstants.chaoxingFinalCheckUrl,
+        referer: ApiConstants.chaoxingFinalCheckUrl,
+      );
+      finalCheckRedirectChain.addAll(finalResponse.redirectChain);
+    }
 
     final jwjxBootstrapResponse = await _bootstrapJwjxSession();
 
@@ -92,7 +114,7 @@ class Api {
       redirectChain: [
         ...casPage.redirectChain,
         ...loginResponse.redirectChain,
-        ...finalResponse.redirectChain,
+        ...finalCheckRedirectChain,
         ...jwjxBootstrapResponse.redirectChain,
       ],
     );
@@ -106,10 +128,7 @@ class Api {
 
     final response = await _http.get<List<dynamic>>(
       ApiConstants.jwjxWeekMetaUrl,
-      queryParameters: {
-        'xnxq': semester,
-        'week': week.toString(),
-      },
+      queryParameters: {'xnxq': semester, 'week': week.toString()},
       options: Options(
         responseType: ResponseType.json,
         headers: {
@@ -117,7 +136,8 @@ class Api {
           HttpHeaders.refererHeader: ApiConstants.jwjxBaseUrl,
         },
         followRedirects: true,
-        validateStatus: (status) => status != null && status >= 200 && status < 400,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
       ),
     );
 
@@ -156,7 +176,8 @@ class Api {
           HttpHeaders.refererHeader: ApiConstants.jwjxBaseUrl,
         },
         followRedirects: true,
-        validateStatus: (status) => status != null && status >= 200 && status < 400,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
       ),
     );
 
@@ -169,6 +190,140 @@ class Api {
     return ClassTableCourseResponse.fromJson(json);
   }
 
+  static Future<GradeQueryResponse> getGradeList({
+    String startSemester = '001',
+    String endSemester = '001',
+    int page = 1,
+    int pageSize = 20,
+    String passStatus = '',
+    String courseNature = '',
+    String courseType = '',
+    String retakeFlag = '',
+    String showFollowed = '1',
+    String courseAttribution = '',
+    String sort = 'kcmc asc,id',
+    String order = 'asc',
+  }) async {
+    await _http.init();
+
+    final response = await _http.get<Map<String, dynamic>>(
+      ApiConstants.jwjxGradeListUrl,
+      queryParameters: {
+        'fxbz': '0',
+        'gridtype': 'jqgrid',
+        'queryFields': _gradeQueryFields,
+        '_search': 'false',
+        'nd': DateTime.now().millisecondsSinceEpoch.toString(),
+        'page.size': pageSize.toString(),
+        'page.pn': page.toString(),
+        'sort': sort,
+        'order': order,
+        'startXnxq': startSemester,
+        'endXnxq': endSemester,
+        'sfjg': passStatus,
+        'kcxz': courseNature,
+        'kclx': courseType,
+        'bkbz': retakeFlag,
+        'sfxsgz': showFollowed,
+        'kcgs': courseAttribution,
+        'query.startXnxq||': startSemester,
+        'query.endXnxq||': endSemester,
+        'query.sfjg||': passStatus,
+        'query.kcxz||': courseNature,
+        'query.kclx||': courseType,
+        'query.bkbz||': retakeFlag,
+        'query.sfxsgz||': showFollowed,
+        'query.kcgs||': courseAttribution,
+      },
+      options: Options(
+        responseType: ResponseType.json,
+        headers: {
+          HttpHeaders.acceptHeader:
+              'application/json, text/javascript, */*; q=0.01',
+          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+          HttpHeaders.refererHeader: ApiConstants.jwjxGradePageUrl,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        followRedirects: true,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
+      ),
+    );
+
+    final json = response.data ?? const <String, dynamic>{};
+    final ret = _asInt(json['ret']);
+    if (ret == -1 || _isCasLoginPage(response.realUri.toString(), '')) {
+      throw const ApiLoginExpiredException();
+    }
+    if (ret != 0) {
+      throw StateError(json['msg']?.toString() ?? 'Invalid grade response');
+    }
+
+    return GradeQueryResponse.fromJson(json);
+  }
+
+  static Future<GradeFilterOptions> getGradeFilterOptions() async {
+    await _http.init();
+
+    final response = await _http.get<String>(
+      ApiConstants.jwjxGradeFilterPageUrl,
+      options: Options(
+        responseType: ResponseType.plain,
+        headers: {
+          HttpHeaders.acceptHeader:
+              'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+          HttpHeaders.refererHeader: ApiConstants.jwjxGradePageUrl,
+        },
+        followRedirects: true,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
+      ),
+    );
+
+    final html = response.data ?? '';
+    if (_isCasLoginPage(response.realUri.toString(), html)) {
+      throw const ApiLoginExpiredException();
+    }
+
+    return GradeFilterOptions.fromHtml(html);
+  }
+
+  static Future<GradeRankResponse> getGradeRank() async {
+    await _http.init();
+
+    final response = await _http.get<Map<String, dynamic>>(
+      ApiConstants.jwjxGradeRankUrl,
+      options: Options(
+        responseType: ResponseType.json,
+        headers: {
+          HttpHeaders.acceptHeader:
+              'application/json, text/javascript, */*; q=0.01',
+          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+          HttpHeaders.refererHeader:
+              '${ApiConstants.jwjxGradePageUrl}?fxtype=1',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        followRedirects: true,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
+      ),
+    );
+
+    final json = response.data ?? const <String, dynamic>{};
+    final ret = _asInt(json['ret']);
+    if (ret == -1 || _isCasLoginPage(response.realUri.toString(), '')) {
+      throw const ApiLoginExpiredException();
+    }
+    if (ret != 0) {
+      throw StateError(
+        json['msg']?.toString() ?? 'Invalid grade rank response',
+      );
+    }
+
+    return GradeRankResponse.fromJson(json);
+  }
+
   static Future<ClassTableMetaResponse> getClassTableMeta({
     required String semester,
     required String userId,
@@ -179,11 +334,7 @@ class Api {
 
     final response = await _http.get<Map<String, dynamic>>(
       '${ApiConstants.jwjxBaseUrl}/jw/admin/api/getZclistByXnxq',
-      queryParameters: {
-        'xnxq': semester,
-        'role': role,
-        'userId': userId,
-      },
+      queryParameters: {'xnxq': semester, 'role': role, 'userId': userId},
       options: Options(
         responseType: ResponseType.json,
         headers: {
@@ -191,7 +342,8 @@ class Api {
           HttpHeaders.refererHeader: ApiConstants.jwjxBaseUrl,
         },
         followRedirects: true,
-        validateStatus: (status) => status != null && status >= 200 && status < 400,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
       ),
     );
 
@@ -201,7 +353,9 @@ class Api {
       throw const ApiLoginExpiredException();
     }
     if (ret != 0 || json['data'] == null) {
-      throw StateError(json['msg']?.toString() ?? 'Invalid class table meta response');
+      throw StateError(
+        json['msg']?.toString() ?? 'Invalid class table meta response',
+      );
     }
 
     return ClassTableMetaResponse.fromJson(json);
@@ -231,10 +385,11 @@ class Api {
           HttpHeaders.acceptHeader:
               'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
-          HttpHeaders.refererHeader: ApiConstants.jwjxBaseUrl,
+          HttpHeaders.refererHeader: ApiConstants.jwjxClassTableContextUrl,
         },
         followRedirects: true,
-        validateStatus: (status) => status != null && status >= 200 && status < 400,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
       ),
     );
 
@@ -267,10 +422,7 @@ class Api {
     return context;
   }
 
-  static Future<Response<String>> _getHtml(
-    String url, {
-    String? referer,
-  }) {
+  static Future<Response<String>> _getHtml(String url, {String? referer}) {
     final headers = <String, Object>{
       HttpHeaders.acceptHeader:
           'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -286,20 +438,17 @@ class Api {
         responseType: ResponseType.plain,
         headers: headers,
         followRedirects: true,
-        validateStatus: (status) => status != null && status >= 200 && status < 400,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
       ),
     );
   }
 
   static Future<_RedirectedHtmlResponse> _bootstrapJwjxSession() async {
-    await _getHtml(
-      ApiConstants.jwjxEntryUrl,
-      referer: ApiConstants.jwjxEntryUrl,
-    );
-
+    const targetUrl = ApiConstants.jwjxClassTableContextUrl;
     final firstResponse = await _getHtmlWithRedirects(
-      ApiConstants.jwjxClassTableContextUrl,
-      referer: ApiConstants.jwjxBaseUrl,
+      targetUrl,
+      referer: targetUrl,
     );
     if (_isCasLoginPage(
       firstResponse.response.realUri.toString(),
@@ -308,15 +457,24 @@ class Api {
       throw const ApiLoginExpiredException();
     }
 
+    if (_isValidClassTableContextHtml(firstResponse.response.data ?? '')) {
+      return firstResponse;
+    }
+
     final secondResponse = await _getHtmlWithRedirects(
-      ApiConstants.jwjxClassTableContextUrl,
-      referer: ApiConstants.jwjxClassTableContextUrl,
+      targetUrl,
+      referer: targetUrl,
     );
     if (_isCasLoginPage(
       secondResponse.response.realUri.toString(),
       secondResponse.response.data ?? '',
     )) {
       throw const ApiLoginExpiredException();
+    }
+    if (!_isValidClassTableContextHtml(secondResponse.response.data ?? '')) {
+      throw StateError(
+        'Invalid class table context response from ${secondResponse.response.realUri}',
+      );
     }
 
     return secondResponse;
@@ -326,11 +484,7 @@ class Api {
     String url, {
     String? referer,
   }) {
-    return _sendHtmlWithRedirects(
-      method: 'GET',
-      url: url,
-      referer: referer,
-    );
+    return _sendHtmlWithRedirects(method: 'GET', url: url, referer: referer);
   }
 
   static Future<_RedirectedHtmlResponse> _postFormWithRedirects(
@@ -360,6 +514,7 @@ class Api {
     final redirectChain = <String>[];
 
     for (int step = 0; step <= maxRedirects; step++) {
+      int retryCount = 0;
       final headers = <String, Object>{
         HttpHeaders.acceptHeader:
             'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -370,30 +525,44 @@ class Api {
       }
 
       late final Response<String> response;
-      if (currentMethod == 'POST') {
-        response = await _http.post<String>(
-          currentUrl,
-          data: currentData,
-          options: Options(
-            responseType: ResponseType.plain,
-            contentType: Headers.formUrlEncodedContentType,
-            headers: headers,
-            followRedirects: false,
-            validateStatus: (status) =>
-                status != null && status >= 200 && status < 400,
-          ),
+      while (true) {
+        await _waitBeforeHtmlRequest();
+        if (currentMethod == 'POST') {
+          response = await _http.post<String>(
+            currentUrl,
+            data: currentData,
+            options: Options(
+              responseType: ResponseType.plain,
+              contentType: Headers.formUrlEncodedContentType,
+              headers: headers,
+              followRedirects: false,
+              validateStatus: _isExpectedHtmlStatus,
+            ),
+          );
+        } else {
+          response = await _http.get<String>(
+            currentUrl,
+            options: Options(
+              responseType: ResponseType.plain,
+              headers: headers,
+              followRedirects: false,
+              validateStatus: _isExpectedHtmlStatus,
+            ),
+          );
+        }
+
+        if (response.statusCode != HttpStatus.tooManyRequests ||
+            retryCount >= _tooManyRequestsBackoff.length) {
+          break;
+        }
+
+        final delay =
+            _retryAfterDelay(response) ?? _tooManyRequestsBackoff[retryCount];
+        retryCount += 1;
+        LogUtil.warn(
+          '[Api] $currentMethod $currentUrl got 429, retrying after ${delay.inMilliseconds}ms',
         );
-      } else {
-        response = await _http.get<String>(
-          currentUrl,
-          options: Options(
-            responseType: ResponseType.plain,
-            headers: headers,
-            followRedirects: false,
-            validateStatus: (status) =>
-                status != null && status >= 200 && status < 400,
-          ),
-        );
+        await Future<void>.delayed(delay);
       }
 
       final statusCode = response.statusCode ?? 0;
@@ -429,6 +598,54 @@ class Api {
     throw StateError('Too many redirects while requesting $url');
   }
 
+  static bool _isExpectedHtmlStatus(int? status) {
+    return status != null &&
+        ((status >= 200 && status < 400) ||
+            status == HttpStatus.tooManyRequests);
+  }
+
+  static Future<void> _waitBeforeHtmlRequest() {
+    final waitTask = _htmlRequestQueue.then((_) async {
+      final last = _lastHtmlRequestAt;
+      if (last != null) {
+        final elapsed = DateTime.now().difference(last);
+        if (elapsed < _htmlRequestMinInterval) {
+          await Future<void>.delayed(_htmlRequestMinInterval - elapsed);
+        }
+      }
+      _lastHtmlRequestAt = DateTime.now();
+    });
+    _htmlRequestQueue = waitTask.catchError((_) {});
+    return waitTask;
+  }
+
+  static Duration? _retryAfterDelay(Response<dynamic> response) {
+    final raw = response.headers.value(HttpHeaders.retryAfterHeader);
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+
+    final seconds = int.tryParse(raw);
+    if (seconds != null) {
+      return Duration(seconds: seconds.clamp(1, 10));
+    }
+
+    late final DateTime retryAt;
+    try {
+      retryAt = HttpDate.parse(raw);
+    } catch (_) {
+      return null;
+    }
+
+    final delay = retryAt.difference(DateTime.now());
+    if (delay.isNegative) {
+      return null;
+    }
+    return delay > const Duration(seconds: 10)
+        ? const Duration(seconds: 10)
+        : delay;
+  }
+
   static Future<Response<Map<String, dynamic>>> _getJson(
     String url, {
     String? referer,
@@ -446,7 +663,8 @@ class Api {
         responseType: ResponseType.json,
         headers: headers,
         followRedirects: true,
-        validateStatus: (status) => status != null && status >= 200 && status < 400,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
       ),
     );
   }
@@ -483,6 +701,25 @@ class Api {
     return Uri.parse(baseUrl).resolve(path).toString();
   }
 
+  static bool _isSameUrl(String left, String right) {
+    final leftUri = Uri.parse(left);
+    final rightUri = Uri.parse(right);
+    return leftUri.scheme == rightUri.scheme &&
+        leftUri.host == rightUri.host &&
+        leftUri.port == rightUri.port &&
+        _normalizePath(leftUri.path) == _normalizePath(rightUri.path) &&
+        leftUri.query == rightUri.query;
+  }
+
+  static String _normalizePath(String path) {
+    if (path.isEmpty) {
+      return '/';
+    }
+    return path.endsWith('/') && path.length > 1
+        ? path.substring(0, path.length - 1)
+        : path;
+  }
+
   static String encryptPasswordForLocalStorage(String password) {
     final reversed = password.split('').reversed.join();
     return base64UrlEncode(utf8.encode(reversed));
@@ -501,6 +738,13 @@ class Api {
     final document = html_parser.parse(html);
     return document.querySelector('form#fm1') != null &&
         document.querySelector('input[name="username"]') != null;
+  }
+
+  static bool _isValidClassTableContextHtml(String html) {
+    final context = ClassTablePageContext.fromHtml(html);
+    return context.userContext.userId.isNotEmpty ||
+        context.userContext.selectedSemester.isNotEmpty ||
+        context.semesters.isNotEmpty;
   }
 
   static int? _asInt(Object? value) {

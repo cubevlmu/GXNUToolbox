@@ -21,6 +21,9 @@ class ClassRepo {
 
   ClassTablePageContext? _pageContext;
   ClassTableMetaResponse? _metaResponse;
+  Future<ClassTablePageContext>? _syncBaseContextTask;
+  String? _syncBaseContextTaskSemester;
+  bool _syncBaseContextTaskForceRefresh = false;
 
   ClassTablePageContext? get pageContext =>
       _pageContext ?? _userRepo.pageContext;
@@ -54,7 +57,26 @@ class ClassRepo {
         ? semester
         : currentSemester;
 
-    return _runWithLoginRetry(() async {
+    final cached = _resolveReusablePageContext(targetSemester);
+    if (!forceRefresh && cached != null) {
+      LogUtil.debug(
+        '[ClassRepo] syncBaseContext reuse cached semester=$targetSemester userId=${cached.userContext.userId}',
+      );
+      _pageContext = cached;
+      return cached;
+    }
+
+    final activeTask = _syncBaseContextTask;
+    if (activeTask != null &&
+        _syncBaseContextTaskSemester == targetSemester &&
+        (_syncBaseContextTaskForceRefresh || !forceRefresh)) {
+      LogUtil.debug(
+        '[ClassRepo] syncBaseContext join in-flight request semester=$targetSemester',
+      );
+      return activeTask;
+    }
+
+    final task = _runWithLoginRetry(() async {
       LogUtil.info(
         '[ClassRepo] syncBaseContext start semester=$targetSemester userId=$currentUserId',
       );
@@ -70,6 +92,19 @@ class ClassRepo {
       );
       return context;
     });
+
+    _syncBaseContextTask = task;
+    _syncBaseContextTaskSemester = targetSemester;
+    _syncBaseContextTaskForceRefresh = forceRefresh;
+    try {
+      return await task;
+    } finally {
+      if (identical(_syncBaseContextTask, task)) {
+        _syncBaseContextTask = null;
+        _syncBaseContextTaskSemester = null;
+        _syncBaseContextTaskForceRefresh = false;
+      }
+    }
   }
 
   Future<ClassTableMetaResponse> fetchMeta({
@@ -79,7 +114,7 @@ class ClassRepo {
     final targetSemester = semester != null && semester.isNotEmpty
         ? semester
         : currentSemester;
-    await syncBaseContext(semester: targetSemester, forceRefresh: forceRefresh);
+    await syncBaseContext(semester: targetSemester, forceRefresh: false);
     return _runWithLoginRetry(() async {
       LogUtil.info(
         '[ClassRepo] fetchMeta start semester=$targetSemester userId=$currentUserId xqid=$currentCampusId',
@@ -145,7 +180,29 @@ class ClassRepo {
   void clearCaches() {
     _pageContext = null;
     _metaResponse = null;
+    _syncBaseContextTask = null;
+    _syncBaseContextTaskSemester = null;
+    _syncBaseContextTaskForceRefresh = false;
     LogUtil.debug('[ClassRepo] clearCaches');
+  }
+
+  ClassTablePageContext? _resolveReusablePageContext(String targetSemester) {
+    final context = _pageContext ?? _userRepo.pageContext;
+    if (context == null) {
+      return null;
+    }
+
+    final userContext = context.userContext;
+    if (userContext.userId.isEmpty || userContext.selectedSemester.isEmpty) {
+      return null;
+    }
+
+    if (targetSemester.isNotEmpty &&
+        userContext.selectedSemester != targetSemester) {
+      return null;
+    }
+
+    return context;
   }
 
   Future<T> _runWithLoginRetry<T>(Future<T> Function() action) async {

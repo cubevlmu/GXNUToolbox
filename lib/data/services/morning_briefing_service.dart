@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:class_tool/data/model/today_course_snapshot.dart';
+import 'package:class_tool/utils/log_util.dart';
 import 'package:class_tool/utils/storage_utils.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -22,6 +23,11 @@ class MorningBriefingService {
 
   static Future<void> initialize() async {
     if (_initialized) {
+      return;
+    }
+
+    if (!Platform.isAndroid) {
+      _initialized = true;
       return;
     }
 
@@ -58,8 +64,12 @@ class MorningBriefingService {
     }
 
     await StorageUtils.settings.put(_morningBriefingEnabledKey, enabled);
-    if (!enabled) {
-      await _plugin.cancel(id: 1001);
+    try {
+      if (!enabled) {
+        await _plugin.cancel(id: 1001);
+      }
+    } catch (e, s) {
+      LogUtil.warnE("Failed to set notification enabled.", e, s);
     }
     return enabled;
   }
