@@ -55,11 +55,11 @@ class UserRepo {
   }
 
   Future<bool> retryLoginSync() async {
-    await _performSetup(forceAutoRelogin: true);
+    await _performSetup();
     return isLogin;
   }
 
-  Future<void> _performSetup({bool forceAutoRelogin = false}) async {
+  Future<void> _performSetup() async {
     if (!storage.hasLogin) {
       _setNotLogin();
       return;
@@ -81,7 +81,7 @@ class UserRepo {
       LogUtil.warn(
         '[UserRepo] setup detected expired login, trying auto relogin',
       );
-      await handleLoginExpired(ignorePasswordExpiry: forceAutoRelogin);
+      await handleLoginExpired();
     } on StateError catch (e, s) {
       if (_isInvalidContextError(e)) {
         LogUtil.warnE(
@@ -89,7 +89,7 @@ class UserRepo {
           e,
           s,
         );
-        await handleLoginExpired(ignorePasswordExpiry: forceAutoRelogin);
+        await handleLoginExpired();
         return;
       }
       LogUtil.errorE('[UserRepo] setup failed', e, s);
@@ -111,13 +111,14 @@ class UserRepo {
     String password, {
     bool autoRelogin = true,
     bool clearStoredSessionOnFailure = true,
+    bool clearBeforeLogin = true,
   }) async {
     try {
       final loginResult = await Api.login(
         username: username,
         password: password,
         rememberMe: autoRelogin,
-        clearBeforeLogin: true,
+        clearBeforeLogin: clearBeforeLogin,
       );
 
       final context = Api.parseClassTableContextFromHtml(loginResult.html);
@@ -184,7 +185,7 @@ class UserRepo {
     }
     _isHandling = true;
     try {
-      await _clearLogin(forceNotLogin: true, preserveCredentials: true);
+      await _clearLogin(forceNotLogin: true, preserveCredentials: false);
     } finally {
       _isHandling = false;
     }
@@ -192,15 +193,12 @@ class UserRepo {
 
   Future<void> handleLoginExpired({
     bool allowAutoRelogin = true,
-    bool ignorePasswordExpiry = false,
   }) async {
     _state = UserRepoState.expired;
 
     if (allowAutoRelogin && storage.autoRelogin) {
       LogUtil.info('[UserRepo] login expired, trying auto relogin');
-      final relogin = await _autoRelogin(
-        ignorePasswordExpiry: ignorePasswordExpiry,
-      );
+      final relogin = await _autoRelogin();
       if (relogin) {
         LogUtil.info('[UserRepo] auto relogin success');
         return;
@@ -251,16 +249,7 @@ class UserRepo {
     await _applyContext(context.userContext);
   }
 
-  Future<bool> _autoRelogin({bool ignorePasswordExpiry = false}) async {
-    final last = storage.lastInputPwdTime;
-    if (!ignorePasswordExpiry &&
-        (last == null || DateTime.now().difference(last).inDays > 7)) {
-      LogUtil.warn(
-        '[UserRepo] skip auto relogin because saved password expired',
-      );
-      return false;
-    }
-
+  Future<bool> _autoRelogin() async {
     final savedPassword = await storage.password;
     final savedUsername = storage.username;
     if (savedUsername == null ||
@@ -268,7 +257,7 @@ class UserRepo {
         savedPassword == null ||
         savedPassword.isEmpty) {
       LogUtil.warn(
-        '[UserRepo] skip auto relogin because saved credentials are missing',
+        '[UserRepo] skip auto relogin because saved credentials missing',
       );
       return false;
     }
@@ -279,6 +268,7 @@ class UserRepo {
       savedPassword,
       autoRelogin: true,
       clearStoredSessionOnFailure: false,
+      clearBeforeLogin: false,
     );
   }
 

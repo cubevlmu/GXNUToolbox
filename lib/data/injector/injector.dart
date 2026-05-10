@@ -1,3 +1,4 @@
+import 'package:class_tool/data/repo/bell_schedule_repo.dart';
 import 'package:class_tool/data/repo/class_repo.dart';
 import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
@@ -16,6 +17,10 @@ class Injector {
         TodayCoursesWidgetRepo(userRepo: userRepo, classRepo: classRepo),
         permanent: true,
       );
+      Get.put<BellScheduleRepo>(
+        BellScheduleRepo(userRepo: userRepo),
+        permanent: true,
+      );
       return;
     }
 
@@ -32,6 +37,13 @@ class Injector {
           userRepo: Get.find<UserRepo>(),
           classRepo: Get.find<ClassRepo>(),
         ),
+        permanent: true,
+      );
+    }
+
+    if (!Get.isRegistered<BellScheduleRepo>()) {
+      Get.put<BellScheduleRepo>(
+        BellScheduleRepo(userRepo: Get.find<UserRepo>()),
         permanent: true,
       );
     }

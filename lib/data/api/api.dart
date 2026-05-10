@@ -2,12 +2,17 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:class_tool/data/api/api_constants.dart';
+import 'package:class_tool/data/model/bell_schedule.dart';
 import 'package:class_tool/data/model/chaoxing_login_result.dart';
 import 'package:class_tool/data/model/class_meta.dart';
 import 'package:class_tool/data/model/class_table.dart';
 import 'package:class_tool/data/model/class_table_context.dart';
 import 'package:class_tool/data/model/class_table_course.dart';
+import 'package:class_tool/data/model/course_plan.dart';
+import 'package:class_tool/data/model/credit_progress.dart';
+import 'package:class_tool/data/model/exam.dart';
 import 'package:class_tool/data/model/grade.dart';
+import 'package:class_tool/data/model/student_info.dart';
 import 'package:class_tool/utils/http_utils.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:dio/dio.dart';
@@ -36,7 +41,7 @@ class Api {
   static final HttpUtils _http = HttpUtils();
   static Future<void> _htmlRequestQueue = Future<void>.value();
   static DateTime? _lastHtmlRequestAt;
-  static const Duration _htmlRequestMinInterval = Duration(milliseconds: 450);
+  static const Duration _htmlRequestMinInterval = Duration(milliseconds: 100);
   static const List<Duration> _tooManyRequestsBackoff = [
     Duration(seconds: 1),
     Duration(seconds: 2),
@@ -263,7 +268,7 @@ class Api {
   }
 
   static Future<GradeFilterOptions> getGradeFilterOptions() async {
-    await _http.init();
+    //await _http.init();
 
     final response = await _http.get<String>(
       ApiConstants.jwjxGradeFilterPageUrl,
@@ -322,6 +327,292 @@ class Api {
     }
 
     return GradeRankResponse.fromJson(json);
+  }
+
+  static Future<ExamFilterOptions> getExamFilterOptions() async {
+    await _http.init();
+
+    final response = await _http.get<String>(
+      ApiConstants.jwjxExamPageUrl,
+      options: Options(
+        responseType: ResponseType.plain,
+        headers: {
+          HttpHeaders.acceptHeader:
+              'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+        },
+        followRedirects: true,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
+      ),
+    );
+
+    if (_isCasLoginPage(response.realUri.toString(), response.data ?? '')) {
+      throw const ApiLoginExpiredException();
+    }
+
+    return ExamFilterOptions.fromHtml(response.data ?? '');
+  }
+
+  static Future<List<ExamBatchOption>> getExamBatches({
+    required String semester,
+  }) async {
+    await _http.init();
+
+    final response = await _http.get<List<dynamic>>(
+      ApiConstants.jwjxExamBatchUrl,
+      queryParameters: {'xnxq': semester},
+      options: Options(
+        responseType: ResponseType.json,
+        headers: {
+          HttpHeaders.acceptHeader:
+              'application/json, text/javascript, */*; q=0.01',
+          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+          HttpHeaders.refererHeader: ApiConstants.jwjxExamPageUrl,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        followRedirects: true,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
+      ),
+    );
+
+    if (_isCasLoginPage(response.realUri.toString(), '')) {
+      throw const ApiLoginExpiredException();
+    }
+
+    final jsonList = response.data ?? const <dynamic>[];
+    final batchOptions = <ExamBatchOption>[];
+    for (final item in jsonList) {
+      if (item is Map) {
+        final pcid = item['id']?.toString() ?? '';
+        final label = item['kspcmc']?.toString() ?? '';
+        if (pcid.isNotEmpty && label.isNotEmpty) {
+          batchOptions.add(
+            ExamBatchOption(
+              pcid: pcid,
+              label: label,
+              category: batchCategoryFromLabel(label),
+            ),
+          );
+        }
+      }
+    }
+
+    return batchOptions;
+  }
+
+  static Future<ExamQueryResponse> getExamList({
+    required String semester,
+    required String pcid,
+    int page = 1,
+    String sort = 'zwh asc,id',
+    String order = 'asc',
+  }) async {
+    await _http.init();
+
+    const queryFields = 'id,kspcmc,xh,xm,kcmc,kssj,jsmc,ksfs,ksxs,zwh,bkcs,bz,rwbz,ksrq,qssj,sznj,skyx,zydm,bjdm';
+    const pageSize = 50;
+
+    final response = await _http.get<Map<String, dynamic>>(
+      ApiConstants.jwjxExamListUrl,
+      queryParameters: {
+        'gridtype': 'jqgrid',
+        'queryFields': queryFields,
+        '_search': 'false',
+        'nd': DateTime.now().millisecondsSinceEpoch.toString(),
+        'page.size': pageSize.toString(),
+        'page.pn': page.toString(),
+        'sort': sort,
+        'order': order,
+        'xnxq': semester,
+        'pcid': pcid,
+      },
+      options: Options(
+        responseType: ResponseType.json,
+        headers: {
+          HttpHeaders.acceptHeader:
+              'application/json, text/javascript, */*; q=0.01',
+          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+          HttpHeaders.refererHeader: ApiConstants.jwjxExamPageUrl,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        followRedirects: true,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
+      ),
+    );
+
+    final json = response.data ?? const <String, dynamic>{};
+    final ret = _asInt(json['ret']);
+    if (ret == -1 || _isCasLoginPage(response.realUri.toString(), '')) {
+      throw const ApiLoginExpiredException();
+    }
+    if (ret != 0) {
+      throw StateError(json['msg']?.toString() ?? 'Invalid exam response');
+    }
+
+    return ExamQueryResponse.fromJson(json);
+  }
+
+  static Future<StudentInfo> getStudentInfo() async {
+    await _http.init();
+
+    final response = await _http.get<String>(
+      ApiConstants.jwjxStudentCardUrl,
+      options: Options(
+        responseType: ResponseType.plain,
+        headers: {
+          HttpHeaders.acceptHeader:
+              'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+        },
+        followRedirects: true,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
+      ),
+    );
+
+    if (_isCasLoginPage(response.realUri.toString(), response.data ?? '')) {
+      throw const ApiLoginExpiredException();
+    }
+
+    return StudentInfo.fromHtml(response.data ?? '');
+  }
+
+  static Future<BellScheduleResponse> getBellSchedule({
+    required String semester,
+  }) async {
+    await _http.init();
+
+    final response = await _http.get<Map<String, dynamic>>(
+      '${ApiConstants.jwjxBellScheduleUrl}/$semester',
+      options: Options(
+        responseType: ResponseType.json,
+        headers: {
+          HttpHeaders.acceptHeader: 'application/json, text/plain, */*',
+          HttpHeaders.refererHeader: ApiConstants.jwjxBaseUrl,
+        },
+        followRedirects: true,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
+      ),
+    );
+
+    if (_isCasLoginPage(response.realUri.toString(), '')) {
+      throw const ApiLoginExpiredException();
+    }
+
+    return BellScheduleResponse.fromJson(
+      response.data ?? const <String, dynamic>{},
+    );
+  }
+
+  static Future<CoursePlanResponse> getCoursePlanList({
+    String semester = '',
+  }) async {
+    await _http.init();
+
+    const queryFields =
+        'kcmc,xf,xdxz,sfhdxf,cjxx,kclbmc,xnxq,jd,kcxzmc,kkyxmc,ksxsmc';
+
+    final response = await _http.get<Map<String, dynamic>>(
+      ApiConstants.jwjxCoursePlanUrl,
+      queryParameters: {
+        'gridtype': 'jqgrid',
+        'queryFields': queryFields,
+        '_search': 'false',
+        'nd': DateTime.now().millisecondsSinceEpoch.toString(),
+        'sort': 'asc',
+        'order': 'asc',
+        if (semester.isNotEmpty) 'xnxqh': semester,
+        'kcxz': '',
+        'kcgs': '',
+        'kclb': '',
+        'kcsx': '',
+        'id': '',
+        'xh': '',
+        'xm': '',
+      },
+      options: Options(
+        responseType: ResponseType.json,
+        headers: {
+          HttpHeaders.acceptHeader:
+              'application/json, text/javascript, */*; q=0.01',
+          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+          HttpHeaders.refererHeader: '${ApiConstants.jwjxBaseUrl}/jw/admin/xsd/xyjc',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        followRedirects: true,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
+      ),
+    );
+
+    if (_isCasLoginPage(response.realUri.toString(), '')) {
+      throw const ApiLoginExpiredException();
+    }
+
+    final json = response.data ?? const <String, dynamic>{};
+    final ret = int.tryParse(json['ret']?.toString() ?? '') ?? 0;
+    if (ret != 0) {
+      throw StateError(json['msg']?.toString() ?? 'Invalid course plan response');
+    }
+
+    return CoursePlanResponse.fromJson(json);
+  }
+
+  static Future<CreditProgressResponse> getCreditProgress({
+    String semester = '',
+  }) async {
+    await _http.init();
+
+    const queryFields =
+        'wdmc,kcxzname,kclbname,kcgsname,kcsxname,yxxf,yixxf,wxxf,xqhdxf,xdxf,qbyxxf';
+
+    final response = await _http.get<Map<String, dynamic>>(
+      ApiConstants.jwjxCreditProgressUrl,
+      queryParameters: {
+        'gridtype': 'jqgrid',
+        'queryFields': queryFields,
+        '_search': 'false',
+        'nd': DateTime.now().millisecondsSinceEpoch.toString(),
+        'sort': 'asc',
+        'order': 'asc',
+        if (semester.isNotEmpty) 'xnxq': semester,
+        'id': '',
+        'xh': '',
+        'xm': '',
+        'xhid': '',
+      },
+      options: Options(
+        responseType: ResponseType.json,
+        headers: {
+          HttpHeaders.acceptHeader:
+              'application/json, text/javascript, */*; q=0.01',
+          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+          HttpHeaders.refererHeader: '${ApiConstants.jwjxBaseUrl}/jw/admin/xsd/xyjc',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        followRedirects: true,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
+      ),
+    );
+
+    if (_isCasLoginPage(response.realUri.toString(), '')) {
+      throw const ApiLoginExpiredException();
+    }
+
+    final json = response.data ?? const <String, dynamic>{};
+    final ret = int.tryParse(json['ret']?.toString() ?? '') ?? 0;
+    if (ret != 0) {
+      throw StateError(
+        json['msg']?.toString() ?? 'Invalid credit progress response',
+      );
+    }
+
+    return CreditProgressResponse.fromJson(json);
   }
 
   static Future<ClassTableMetaResponse> getClassTableMeta({
@@ -461,23 +752,20 @@ class Api {
       return firstResponse;
     }
 
-    final secondResponse = await _getHtmlWithRedirects(
-      targetUrl,
-      referer: targetUrl,
-    );
-    if (_isCasLoginPage(
-      secondResponse.response.realUri.toString(),
-      secondResponse.response.data ?? '',
-    )) {
+    final html = await _getHtml(targetUrl, referer: targetUrl);
+    if (_isCasLoginPage(html.realUri.toString(), html.data ?? '')) {
       throw const ApiLoginExpiredException();
     }
-    if (!_isValidClassTableContextHtml(secondResponse.response.data ?? '')) {
+    if (!_isValidClassTableContextHtml(html.data ?? '')) {
       throw StateError(
-        'Invalid class table context response from ${secondResponse.response.realUri}',
+        'Invalid class table context response from ${html.realUri}',
       );
     }
 
-    return secondResponse;
+    return _RedirectedHtmlResponse(
+      response: html,
+      redirectChain: [...firstResponse.redirectChain, html.realUri.toString()],
+    );
   }
 
   static Future<_RedirectedHtmlResponse> _getHtmlWithRedirects(

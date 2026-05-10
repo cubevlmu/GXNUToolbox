@@ -1,4 +1,9 @@
+import 'package:class_tool/pages/credit/view.dart';
+import 'package:class_tool/pages/exams/view.dart';
+import 'package:class_tool/pages/info/view.dart';
+import 'package:class_tool/pages/progress/view.dart';
 import 'package:class_tool/pages/query/view.dart';
+import 'package:class_tool/pages/time/view.dart';
 import 'package:flutter/material.dart';
 
 class FeaturesPage extends StatelessWidget {
@@ -11,14 +16,80 @@ class FeaturesPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          // Card(
-          //   color: Theme.of(context).colorScheme.primaryContainer,
-          //   child: Padding(
-          //     padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-          //     child:
-          //   ),
-          // ),
-          // const SizedBox(height: 12),
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: _FeatureTile(
+              icon: Icons.account_circle_outlined,
+              title: '学生信息',
+              subtitle: '查看学籍、基本信息与联系方式',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const InfoPage()),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: _FeatureTile(
+              icon: Icons.assignment_outlined,
+              title: '考试查询',
+              subtitle: '查看考试时间、座位号和考试形式',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const ExamsPage()),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: _FeatureTile(
+              icon: Icons.schedule_outlined,
+              title: '作息时间',
+              subtitle: '查看各校区上课时间安排',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const TimePage()),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: _FeatureTile(
+              icon: Icons.school_outlined,
+              title: '培养进度',
+              subtitle: '查看培养方案中各模块课程修读情况',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ProgressPage(),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: _FeatureTile(
+              icon: Icons.pie_chart_outline,
+              title: '学分进程',
+              subtitle: '查看各模块学分修读进度统计',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const CreditPage(),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
           Card(
             clipBehavior: Clip.antiAlias,
             child: _FeatureTile(

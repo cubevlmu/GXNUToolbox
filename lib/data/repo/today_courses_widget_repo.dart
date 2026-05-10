@@ -1,3 +1,5 @@
+// ignore_for_file: unused_field
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -26,6 +28,7 @@ const String _widgetQualifiedProviderName =
 const String _dailyRefreshUniqueName = 'today_courses_widget_daily_refresh';
 const String _dailyRefreshTaskName = 'todayCoursesWidgetDailyRefresh';
 const String _autoSyncEnabledKey = 'today_courses_widget_auto_sync_enabled';
+const String _pendingSyncKey = 'today_courses_widget_pending_sync';
 
 enum TodayCoursesWidgetState { idle, loading, ready, error, loggedOut }
 
@@ -39,6 +42,7 @@ class TodayCoursesWidgetRepo {
 
   bool _initialized = false;
   Future<void>? _syncTask;
+  StreamSubscription<ConnectivityResult>? _connectivitySub;
 
   bool get isAutoSyncEnabled =>
       StorageUtils.settings.get(_autoSyncEnabledKey) == true;
@@ -56,7 +60,29 @@ class TodayCoursesWidgetRepo {
     if (isAutoSyncEnabled) {
       await scheduleNextDailyRefresh();
     }
+
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((
+      result,
+    ) {
+      if (result != ConnectivityResult.none) {
+        _retryPendingSyncIfNeeded();
+      }
+    });
+
+    Future<void>.microtask(_retryPendingSyncIfNeeded);
     _initialized = true;
+  }
+
+  Future<void> _retryPendingSyncIfNeeded() async {
+    if (!isAutoSyncEnabled) return;
+    final pending =
+        StorageUtils.settings.get(_pendingSyncKey) as bool? ?? false;
+    if (!pending) return;
+    if (!await _hasNetworkConnection()) return;
+
+    LogUtil.info('[TodayCoursesWidget] retrying pending sync');
+    await StorageUtils.settings.put(_pendingSyncKey, false);
+    await syncAndUpdate(showLoading: true, reason: 'pending_retry');
   }
 
   Future<void> setAutoSyncEnabled(bool enabled) async {
@@ -153,6 +179,9 @@ class TodayCoursesWidgetRepo {
     try {
       if (!await _hasNetworkConnection()) {
         LogUtil.warn('[TodayCoursesWidget] sync skipped because network is unavailable');
+        if (reason == _dailyRefreshTaskName) {
+          await StorageUtils.settings.put(_pendingSyncKey, true);
+        }
         await _showCachedOrError(
           cachedStatusText: '当前无网络，已显示上次结果',
           emptyStatusText: '当前无网络，暂无课程缓存',
@@ -160,6 +189,8 @@ class TodayCoursesWidgetRepo {
         );
         return;
       }
+
+      await StorageUtils.settings.put(_pendingSyncKey, false);
 
       await HttpUtils().init();
       await _userRepo.setup();
@@ -182,6 +213,7 @@ class TodayCoursesWidgetRepo {
 
       final snapshot = await _syncTodaySnapshot();
       await updateFromSnapshot(snapshot);
+      await StorageUtils.settings.put(_pendingSyncKey, false);
       if (reason == _dailyRefreshTaskName) {
         await MorningBriefingService.show(snapshot);
       }
@@ -424,6 +456,7 @@ void todayCoursesWidgetCallbackDispatcher() {
     await StorageUtils.ensureInitialized();
     await LogUtil.init();
     Injector.injectRepos();
+    await MorningBriefingService.initialize();
     await Get.find<TodayCoursesWidgetRepo>().syncAndUpdate(reason: taskName);
     return true;
   });

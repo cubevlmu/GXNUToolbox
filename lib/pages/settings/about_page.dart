@@ -29,7 +29,7 @@ class AboutPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'GXNU课程表',
+                    'My GXNU',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 6),
@@ -49,7 +49,7 @@ class AboutPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    '为广西师范大学学生设计，用于帮助用户查看学期、周次、每日课程安排与相关课表信息。',
+                    '为广西师范大学学生设计，用于帮助用户查看学期、周次、每日课程安排与相关课表信息以及常用教务系统功能。',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
@@ -63,8 +63,20 @@ class AboutPage extends StatelessWidget {
               children: const [
                 _AboutInfoTile(
                   icon: Icons.school_outlined,
+                  title: '联系作者',
+                  subtitle: '邮箱: khfahqp@gmail.com',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Column(
+              children: const [
+                _AboutInfoTile(
+                  icon: Icons.school_outlined,
                   title: '服务内容',
-                  subtitle: '查看课程表、周次、每日安排与基础账户信息',
+                  subtitle: '查看课程表、周次、每日安排与基础账户信息，以及常用教务系统功能。',
                 ),
                 Divider(height: 1),
                 _AboutInfoTile(
@@ -77,8 +89,7 @@ class AboutPage extends StatelessWidget {
                 _AboutInfoTile(
                   icon: Icons.devices_outlined,
                   title: '平台支持说明',
-                  subtitle:
-                      '自动同步、早安提醒、小组件与相关后台任务目前仅支持 Android 端；桌面端不提供这些功能入口。',
+                  subtitle: '自动同步、早安提醒、小组件与相关后台任务目前仅支持 Android 端；桌面端不提供这些功能入口。',
                 ),
                 Divider(height: 1),
                 _AboutInfoTile(
