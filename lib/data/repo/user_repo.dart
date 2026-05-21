@@ -21,6 +21,7 @@ class UserRepo {
   bool _offlineMode = false;
 
   Future<void>? _setupTask;
+  Future<bool>? _recoverTask;
   bool _isHandling = false;
 
   UserRepoState get state => _state;
@@ -82,6 +83,18 @@ class UserRepo {
         '[UserRepo] setup detected expired login, trying auto relogin',
       );
       await handleLoginExpired();
+    } on ApiInvalidResponseException catch (e, s) {
+      if (_isInvalidContextError(e)) {
+        LogUtil.warnE(
+          '[UserRepo] setup received invalid context, treating as expired login',
+          e,
+          s,
+        );
+        await handleLoginExpired();
+        return;
+      }
+      LogUtil.errorE('[UserRepo] setup failed', e, s);
+      await _clearRuntimeSession();
     } on StateError catch (e, s) {
       if (_isInvalidContextError(e)) {
         LogUtil.warnE(
@@ -100,8 +113,13 @@ class UserRepo {
     }
   }
 
-  bool _isInvalidContextError(StateError error) {
-    return error.message.toString().startsWith(
+  bool _isInvalidContextError(Object error) {
+    final message = error is ApiInvalidResponseException
+        ? error.message
+        : error is StateError
+        ? error.message.toString()
+        : error.toString();
+    return message.startsWith(
       'Invalid class table context response',
     );
   }
@@ -209,7 +227,22 @@ class UserRepo {
     await _clearRuntimeSession();
   }
 
-  Future<bool> recoverFromExpiredLogin() async {
+  Future<bool> recoverFromExpiredLogin() {
+    final activeTask = _recoverTask;
+    if (activeTask != null) {
+      return activeTask;
+    }
+
+    final task = _performRecoverFromExpiredLogin();
+    _recoverTask = task;
+    return task.whenComplete(() {
+      if (identical(_recoverTask, task)) {
+        _recoverTask = null;
+      }
+    });
+  }
+
+  Future<bool> _performRecoverFromExpiredLogin() async {
     await handleLoginExpired();
     return isLogin;
   }

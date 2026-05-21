@@ -4,18 +4,17 @@
  * Copyright (c) 2026 by FlybirdGames, All Rights Reserved.
  */
 
-import 'package:class_tool/data/api/api.dart';
 import 'package:class_tool/data/model/exam.dart';
-import 'package:class_tool/data/repo/user_repo.dart';
+import 'package:class_tool/data/repo/exam_repo.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:easy_refresh/easy_refresh.dart';
 import 'package:get/get.dart';
 
 class ExamsController extends GetxController {
-  ExamsController({UserRepo? userRepo})
-    : _userRepo = userRepo ?? Get.find<UserRepo>();
+  ExamsController({ExamRepo? examRepo})
+    : _examRepo = examRepo ?? Get.find<ExamRepo>();
 
-  final UserRepo _userRepo;
+  final ExamRepo _examRepo;
   final EasyRefreshController easyRefreshController = EasyRefreshController(
     controlFinishRefresh: true,
     controlFinishLoad: true,
@@ -33,6 +32,8 @@ class ExamsController extends GetxController {
   final RxList<ExamBatchOption> _batches = <ExamBatchOption>[].obs;
   final RxString _selectedSemester = ''.obs;
   final RxString _selectedPcid = ''.obs;
+  int _requestVersion = 0;
+  int _batchRequestVersion = 0;
 
   bool get isLoading => _isLoading.value;
   bool get isLoadingMore => _isLoadingMore.value;
@@ -67,14 +68,6 @@ class ExamsController extends GetxController {
             _semesters.firstWhereOrNull((s) => s.selected) ?? _semesters.first;
         _selectedSemester.value = defaultSemester.value;
       }
-    } on ApiLoginExpiredException catch (e, s) {
-      LogUtil.warnE('[ExamsController] login expired loading filters', e, s);
-      final recovered = await _userRepo.recoverFromExpiredLogin();
-      if (recovered) {
-        _selectedSemester.value = '';
-        _batches.clear();
-        Future<void>.microtask(_initFilters);
-      }
     } catch (e, s) {
       _error.value = e.toString();
       LogUtil.errorE('[ExamsController] init filters failed', e, s);
@@ -90,6 +83,7 @@ class ExamsController extends GetxController {
 
   Future<void> changeSemester(String semester) async {
     if (_selectedSemester.value == semester) return;
+    _batchRequestVersion++;
     _selectedSemester.value = semester;
     _exams.clear();
     _error.value = '';
@@ -100,17 +94,14 @@ class ExamsController extends GetxController {
   }
 
   Future<void> _loadBatches(String semester) async {
+    final version = ++_batchRequestVersion;
     _selectedPcid.value = '';
     _batches.clear();
-    try {
-      final batches = await _fetchBatches(semester);
-      _batches.assignAll(batches);
-    } on ApiLoginExpiredException catch (e, s) {
-      LogUtil.warnE('[ExamsController] login expired loading batches', e, s);
-      final recovered = await _userRepo.recoverFromExpiredLogin();
-      if (!recovered) rethrow;
-      _batches.assignAll(await _fetchBatches(semester));
+    final batches = await _fetchBatches(semester);
+    if (!_isActiveBatchRequest(version, semester)) {
+      return;
     }
+    _batches.assignAll(batches);
   }
 
   Future<void> changeBatch(String pcid) async {
@@ -127,13 +118,18 @@ class ExamsController extends GetxController {
   Future<void> refreshExams() async {
     if (!canSearch) return;
 
+    final version = ++_requestVersion;
     _isLoading.value = true;
+    _isLoadingMore.value = false;
     _error.value = '';
     _page.value = 1;
     update(<Object>['exam-content']);
 
     try {
       final response = await _fetchPage(1);
+      if (!_isActiveRequest(version)) {
+        return;
+      }
       _exams.assignAll(response.results);
       _page.value = response.page <= 0 ? 1 : response.page;
       _totalPages.value = response.totalPages <= 0 ? 1 : response.totalPages;
@@ -141,9 +137,15 @@ class ExamsController extends GetxController {
       _error.value = '';
       LogUtil.info('[ExamsController] refresh exams success total=$total');
     } catch (e, s) {
+      if (!_isActiveRequest(version)) {
+        return;
+      }
       _error.value = e.toString();
       LogUtil.errorE('[ExamsController] refresh exams failed', e, s);
     } finally {
+      if (!_isActiveRequest(version)) {
+        return;
+      }
       _isLoading.value = false;
       easyRefreshController.finishRefresh();
       easyRefreshController.resetFooter();
@@ -159,12 +161,16 @@ class ExamsController extends GetxController {
       return;
     }
 
+    final version = ++_requestVersion;
     _isLoadingMore.value = true;
     update(<Object>['exam-content']);
 
     try {
       final nextPage = page + 1;
       final response = await _fetchPage(nextPage);
+      if (!_isActiveRequest(version)) {
+        return;
+      }
       _exams.addAll(response.results);
       _page.value = response.page <= 0 ? nextPage : response.page;
       _totalPages.value =
@@ -174,54 +180,45 @@ class ExamsController extends GetxController {
         hasMore ? IndicatorResult.success : IndicatorResult.noMore,
       );
     } catch (e, s) {
+      if (!_isActiveRequest(version)) {
+        return;
+      }
       _error.value = e.toString();
       easyRefreshController.finishLoad(IndicatorResult.fail);
       LogUtil.errorE('[ExamsController] load more exams failed', e, s);
     } finally {
+      if (!_isActiveRequest(version)) {
+        return;
+      }
       _isLoadingMore.value = false;
       update(<Object>['exam-content']);
     }
   }
 
   Future<ExamQueryResponse> _fetchPage(int targetPage) async {
-    try {
-      return Api.getExamList(
-        semester: _selectedSemester.value,
-        pcid: _selectedPcid.value,
-        page: targetPage,
-      );
-    } on ApiLoginExpiredException catch (e, s) {
-      LogUtil.warnE('[ExamsController] login expired, trying recover', e, s);
-      final recovered = await _userRepo.recoverFromExpiredLogin();
-      if (!recovered) rethrow;
-      return Api.getExamList(
-        semester: _selectedSemester.value,
-        pcid: _selectedPcid.value,
-        page: targetPage,
-      );
-    }
+    return _examRepo.fetchPage(
+      semester: _selectedSemester.value,
+      pcid: _selectedPcid.value,
+      page: targetPage,
+    );
   }
 
   Future<ExamFilterOptions> _fetchFilterOptions() async {
-    try {
-      return Api.getExamFilterOptions();
-    } on ApiLoginExpiredException catch (e, s) {
-      LogUtil.warnE('[ExamsController] login expired fetching options', e, s);
-      final recovered = await _userRepo.recoverFromExpiredLogin();
-      if (!recovered) rethrow;
-      return Api.getExamFilterOptions();
-    }
+    return _examRepo.fetchFilterOptions();
   }
 
   Future<List<ExamBatchOption>> _fetchBatches(String semester) async {
-    try {
-      return Api.getExamBatches(semester: semester);
-    } on ApiLoginExpiredException catch (e, s) {
-      LogUtil.warnE('[ExamsController] login expired fetching batches', e, s);
-      final recovered = await _userRepo.recoverFromExpiredLogin();
-      if (!recovered) rethrow;
-      return Api.getExamBatches(semester: semester);
-    }
+    return _examRepo.fetchBatches(semester: semester);
+  }
+
+  bool _isActiveRequest(int version) {
+    return !isClosed && version == _requestVersion;
+  }
+
+  bool _isActiveBatchRequest(int version, String semester) {
+    return !isClosed &&
+        version == _batchRequestVersion &&
+        semester == _selectedSemester.value;
   }
 
   @override

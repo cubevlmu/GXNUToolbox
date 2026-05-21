@@ -92,6 +92,7 @@ class ClassesController extends GetxController {
   final RxInt syncTick = 0.obs;
   final RxInt homeSyncTick = 0.obs;
   final Rx<TodayCourseSnapshot?> _homeSnapshot = Rx<TodayCourseSnapshot?>(null);
+  int _requestVersion = 0;
 
   List<ScheduleOption> get semesters => _semesters;
   List<ScheduleOption> get weeks => _weeks;
@@ -134,6 +135,7 @@ class ClassesController extends GetxController {
       return;
     }
 
+    final version = ++_requestVersion;
     _isLoading.value = true;
     _scheduleError.value = '';
     syncTick.value++;
@@ -161,17 +163,22 @@ class ClassesController extends GetxController {
           ? meta.currentWeek
           : (meta.weekRanges.isNotEmpty ? meta.weekRanges.first.week : 1);
 
-      final weekMeta = await _classRepo.fetchWeekMeta(
+      final weekMetaTask = _classRepo.fetchWeekMeta(
         resolvedWeek,
         semester: effectiveSemester,
         forceRefresh: forceRefresh,
       );
-      final courseResponse = await _classRepo.fetchCourses(
+      final courseResponseTask = _classRepo.fetchCourses(
         resolvedWeek,
         semester: effectiveSemester,
         forceRefresh: forceRefresh,
       );
+      final weekMeta = await weekMetaTask;
+      final courseResponse = await courseResponseTask;
       final courses = courseResponse.data.courses;
+      if (!_isActiveRequest(version)) {
+        return;
+      }
 
       _selectedSemester.value = effectiveSemester;
       _selectedWeek.value = resolvedWeek;
@@ -203,6 +210,9 @@ class ClassesController extends GetxController {
         '[ClassesController] syncScheduleOverview success semester=$selectedSemester week=$selectedWeek courses=${currentWeekCourses.length}',
       );
     } catch (e, s) {
+      if (!_isActiveRequest(version)) {
+        return;
+      }
       _isLoading.value = false;
       _scheduleError.value = e.toString();
       syncTick.value++;
@@ -253,6 +263,7 @@ class ClassesController extends GetxController {
       return;
     }
 
+    final version = ++_requestVersion;
     _isLoading.value = true;
     _scheduleError.value = '';
     _selectedWeek.value = parsed;
@@ -261,16 +272,21 @@ class ClassesController extends GetxController {
 
     try {
       LogUtil.info('[ClassesController] changeWeek start week=$parsed');
-      final weekMeta = await _classRepo.fetchWeekMeta(
+      final weekMetaTask = _classRepo.fetchWeekMeta(
         parsed,
         semester: selectedSemester,
         forceRefresh: false,
       );
-      final courseResponse = await _classRepo.fetchCourses(
+      final courseResponseTask = _classRepo.fetchCourses(
         parsed,
         semester: selectedSemester,
         forceRefresh: false,
       );
+      final weekMeta = await weekMetaTask;
+      final courseResponse = await courseResponseTask;
+      if (!_isActiveRequest(version)) {
+        return;
+      }
 
       _currentWeekMeta.assignAll(weekMeta);
       _currentWeekCourses.assignAll(courseResponse.data.courses);
@@ -283,6 +299,9 @@ class ClassesController extends GetxController {
         '[ClassesController] changeWeek success week=$parsed courses=${currentWeekCourses.length}',
       );
     } catch (e, s) {
+      if (!_isActiveRequest(version)) {
+        return;
+      }
       _isLoading.value = false;
       _scheduleError.value = e.toString();
       syncTick.value++;
@@ -455,6 +474,10 @@ class ClassesController extends GetxController {
     return now.year == date.year &&
         now.month == date.month &&
         now.day == date.day;
+  }
+
+  bool _isActiveRequest(int version) {
+    return !isClosed && version == _requestVersion;
   }
 
   @override

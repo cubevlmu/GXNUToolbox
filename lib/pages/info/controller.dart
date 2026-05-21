@@ -4,17 +4,16 @@
  * Copyright (c) 2026 by FlybirdGames, All Rights Reserved.
  */
 
-import 'package:class_tool/data/api/api.dart';
 import 'package:class_tool/data/model/student_info.dart';
-import 'package:class_tool/data/repo/user_repo.dart';
+import 'package:class_tool/data/repo/student_repo.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:get/get.dart';
 
 class InfoController extends GetxController {
-  InfoController({UserRepo? userRepo})
-    : _userRepo = userRepo ?? Get.find<UserRepo>();
+  InfoController({StudentRepo? studentRepo})
+    : _studentRepo = studentRepo ?? Get.find<StudentRepo>();
 
-  final UserRepo _userRepo;
+  final StudentRepo _studentRepo;
 
   final RxBool _isLoading = false.obs;
   final RxString _error = ''.obs;
@@ -41,12 +40,6 @@ class InfoController extends GetxController {
     try {
       _info.value = await _fetchInfo();
       LogUtil.info('[InfoController] refresh success');
-    } on ApiLoginExpiredException catch (e, s) {
-      LogUtil.warnE('[InfoController] login expired', e, s);
-      final recovered = await _userRepo.recoverFromExpiredLogin();
-      if (recovered) {
-        _info.value = await _fetchInfo();
-      }
     } catch (e, s) {
       _error.value = e.toString();
       LogUtil.errorE('[InfoController] refresh failed', e, s);
@@ -57,13 +50,6 @@ class InfoController extends GetxController {
   }
 
   Future<StudentInfo> _fetchInfo() async {
-    try {
-      return Api.getStudentInfo();
-    } on ApiLoginExpiredException catch (e, s) {
-      LogUtil.warnE('[InfoController] login expired fetching info', e, s);
-      final recovered = await _userRepo.recoverFromExpiredLogin();
-      if (!recovered) rethrow;
-      return Api.getStudentInfo();
-    }
+    return _studentRepo.fetchInfo();
   }
 }

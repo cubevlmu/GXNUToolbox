@@ -62,7 +62,7 @@ class AboutPage extends StatelessWidget {
             child: Column(
               children: const [
                 _AboutInfoTile(
-                  icon: Icons.school_outlined,
+                  icon: Icons.email,
                   title: '联系作者',
                   subtitle: '邮箱: khfahqp@gmail.com',
                 ),

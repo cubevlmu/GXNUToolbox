@@ -4,9 +4,8 @@
  * Copyright (c) 2026 by FlybirdGames, All Rights Reserved.
  */
 
-import 'package:class_tool/data/api/api.dart';
 import 'package:class_tool/data/model/grade.dart';
-import 'package:class_tool/data/repo/user_repo.dart';
+import 'package:class_tool/data/repo/grade_repo.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:easy_refresh/easy_refresh.dart';
 import 'package:flutter/foundation.dart';
@@ -54,10 +53,10 @@ class GradeFilter {
 }
 
 class QueryController extends GetxController {
-  QueryController({UserRepo? userRepo})
-    : _userRepo = userRepo ?? Get.find<UserRepo>();
+  QueryController({GradeRepo? gradeRepo})
+    : _gradeRepo = gradeRepo ?? Get.find<GradeRepo>();
 
-  final UserRepo _userRepo;
+  final GradeRepo _gradeRepo;
   final EasyRefreshController easyRefreshController = EasyRefreshController(
     controlFinishRefresh: true,
     controlFinishLoad: true,
@@ -73,6 +72,7 @@ class QueryController extends GetxController {
   final RxInt _total = 0.obs;
   final RxString _majorRank = ''.obs;
   final Rx<GradeFilterOptions> _filterOptions = GradeFilterOptions.empty.obs;
+  int _requestVersion = 0;
 
   bool get isLoading => _isLoading.value;
   bool get isLoadingMore => _isLoadingMore.value;
@@ -106,15 +106,26 @@ class QueryController extends GetxController {
       return;
     }
 
+    final version = ++_requestVersion;
     _isLoading.value = true;
+    _isLoadingMore.value = false;
     _error.value = '';
     _page.value = 1;
     update(<Object>['query-content']);
 
     try {
-      await _fetchFilterOptionsIfNeeded();
+      final filterOptions = await _fetchFilterOptionsIfNeeded();
+      if (!_isActiveRequest(version)) {
+        return;
+      }
+      if (filterOptions != null) {
+        _filterOptions.value = filterOptions;
+      }
       final response = await _fetchPage(1);
       final rank = await _fetchGradeRank();
+      if (!_isActiveRequest(version)) {
+        return;
+      }
       _grades.assignAll(response.results);
       _page.value = response.page <= 0 ? 1 : response.page;
       _totalPages.value = response.totalPages <= 0 ? 1 : response.totalPages;
@@ -123,9 +134,15 @@ class QueryController extends GetxController {
       _error.value = '';
       LogUtil.info('[QueryController] refresh grades success total=$total');
     } catch (e, s) {
+      if (!_isActiveRequest(version)) {
+        return;
+      }
       _error.value = e.toString();
       LogUtil.errorE('[QueryController] refresh grades failed', e, s);
     } finally {
+      if (!_isActiveRequest(version)) {
+        return;
+      }
       _isLoading.value = false;
       easyRefreshController.finishRefresh();
       easyRefreshController.resetFooter();
@@ -141,12 +158,16 @@ class QueryController extends GetxController {
       return;
     }
 
+    final version = ++_requestVersion;
     _isLoadingMore.value = true;
     update(<Object>['query-content']);
 
     try {
       final nextPage = page + 1;
       final response = await _fetchPage(nextPage);
+      if (!_isActiveRequest(version)) {
+        return;
+      }
       _grades.addAll(response.results);
       _page.value = response.page <= 0 ? nextPage : response.page;
       _totalPages.value = response.totalPages <= 0
@@ -157,59 +178,36 @@ class QueryController extends GetxController {
         hasMore ? IndicatorResult.success : IndicatorResult.noMore,
       );
     } catch (e, s) {
+      if (!_isActiveRequest(version)) {
+        return;
+      }
       _error.value = e.toString();
       easyRefreshController.finishLoad(IndicatorResult.fail);
       LogUtil.errorE('[QueryController] load more grades failed', e, s);
     } finally {
+      if (!_isActiveRequest(version)) {
+        return;
+      }
       _isLoadingMore.value = false;
       update(<Object>['query-content']);
     }
   }
 
   Future<GradeQueryResponse> _fetchPage(int targetPage) async {
-    try {
-      return await _requestGrades(targetPage);
-    } on ApiLoginExpiredException catch (e, s) {
-      LogUtil.warnE('[QueryController] login expired, trying recover', e, s);
-      final recovered = await _userRepo.recoverFromExpiredLogin();
-      if (!recovered) {
-        rethrow;
-      }
-      return _requestGrades(targetPage);
-    }
+    return _requestGrades(targetPage);
   }
 
-  Future<void> _fetchFilterOptionsIfNeeded() async {
+  Future<GradeFilterOptions?> _fetchFilterOptionsIfNeeded() async {
     if (_filterOptions.value.startSemesters.isNotEmpty ||
         _filterOptions.value.endSemesters.isNotEmpty) {
-      return;
+      return null;
     }
 
-    try {
-      _filterOptions.value = await _requestFilterOptions();
-    } on ApiLoginExpiredException catch (e, s) {
-      LogUtil.warnE(
-        '[QueryController] login expired when fetching filter options',
-        e,
-        s,
-      );
-      final recovered = await _userRepo.recoverFromExpiredLogin();
-      if (!recovered) {
-        rethrow;
-      }
-      _filterOptions.value = await _requestFilterOptions();
-    }
+    return _requestFilterOptions();
   }
 
   Future<String> _fetchGradeRank() async {
     try {
-      return (await _requestGradeRank()).rankText;
-    } on ApiLoginExpiredException catch (e, s) {
-      LogUtil.warnE('[QueryController] login expired when fetching rank', e, s);
-      final recovered = await _userRepo.recoverFromExpiredLogin();
-      if (!recovered) {
-        rethrow;
-      }
       return (await _requestGradeRank()).rankText;
     } catch (e, s) {
       LogUtil.warnE('[QueryController] fetch grade rank failed', e, s);
@@ -219,7 +217,7 @@ class QueryController extends GetxController {
 
   Future<GradeQueryResponse> _requestGrades(int targetPage) {
     final currentFilter = filter;
-    return Api.getGradeList(
+    return _gradeRepo.fetchPage(
       startSemester: currentFilter.startSemester,
       endSemester: currentFilter.endSemester,
       page: targetPage,
@@ -232,11 +230,15 @@ class QueryController extends GetxController {
   }
 
   Future<GradeRankResponse> _requestGradeRank() {
-    return Api.getGradeRank();
+    return _gradeRepo.fetchRank();
   }
 
   Future<GradeFilterOptions> _requestFilterOptions() {
-    return Api.getGradeFilterOptions();
+    return _gradeRepo.fetchFilterOptions();
+  }
+
+  bool _isActiveRequest(int version) {
+    return !isClosed && version == _requestVersion;
   }
 
   @override

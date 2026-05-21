@@ -78,11 +78,11 @@ class CoursePlanGroup {
   final List<CoursePlanItem> items;
 
   factory CoursePlanGroup.fromJson(Map<String, dynamic> json) {
-    final list = json['wdList'] as List<dynamic>? ?? const [];
+    final list = _asList(json['wdList']);
     return CoursePlanGroup(
       name: json['wdmc']?.toString() ?? '',
       items: list
-          .map((e) => CoursePlanItem.fromJson(e as Map<String, dynamic>))
+          .map((e) => CoursePlanItem.fromJson(_asMap(e)))
           .toList(growable: false),
     );
   }
@@ -97,10 +97,10 @@ class CoursePlanSection {
   final List<CoursePlanGroup> groups;
 
   factory CoursePlanSection.fromJson(Map<String, dynamic> json) {
-    final list = json['wdList'] as List<dynamic>? ?? const [];
+    final list = _asList(json['wdList']);
     return CoursePlanSection(
       groups: list
-          .map((e) => CoursePlanGroup.fromJson(e as Map<String, dynamic>))
+          .map((e) => CoursePlanGroup.fromJson(_asMap(e)))
           .toList(growable: false),
     );
   }
@@ -125,13 +125,30 @@ class CoursePlanResponse {
   int get totalCount => allItems.length;
 
   factory CoursePlanResponse.fromJson(Map<String, dynamic> json) {
-    final data = json['data'] as List<dynamic>? ?? const [];
+    final data = _asList(json['data']);
     return CoursePlanResponse(
       ret: int.tryParse(json['ret']?.toString() ?? '') ?? 0,
       msg: json['msg']?.toString() ?? '',
       sections: data
-          .map((e) => CoursePlanSection.fromJson(e as Map<String, dynamic>))
+          .map((e) => CoursePlanSection.fromJson(_asMap(e)))
           .toList(growable: false),
     );
   }
+}
+
+Map<String, dynamic> _asMap(Object? value) {
+  if (value is Map<String, dynamic>) {
+    return value;
+  }
+  if (value is Map) {
+    return value.map((key, item) => MapEntry(key.toString(), item));
+  }
+  return const <String, dynamic>{};
+}
+
+List<dynamic> _asList(Object? value) {
+  if (value is List) {
+    return value;
+  }
+  return const <dynamic>[];
 }

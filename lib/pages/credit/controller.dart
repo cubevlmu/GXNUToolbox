@@ -4,17 +4,16 @@
  * Copyright (c) 2026 by FlybirdGames, All Rights Reserved.
  */
 
-import 'package:class_tool/data/api/api.dart';
 import 'package:class_tool/data/model/credit_progress.dart';
-import 'package:class_tool/data/repo/user_repo.dart';
+import 'package:class_tool/data/repo/credit_repo.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:get/get.dart';
 
 class CreditController extends GetxController {
-  CreditController({UserRepo? userRepo})
-    : _userRepo = userRepo ?? Get.find<UserRepo>();
+  CreditController({CreditRepo? creditRepo})
+    : _creditRepo = creditRepo ?? Get.find<CreditRepo>();
 
-  final UserRepo _userRepo;
+  final CreditRepo _creditRepo;
 
   final RxBool isLoading = false.obs;
   final RxString error = ''.obs;
@@ -57,10 +56,6 @@ class CreditController extends GetxController {
     try {
       response.value = await _fetch();
       LogUtil.info('[CreditController] loaded');
-    } on ApiLoginExpiredException catch (e, s) {
-      LogUtil.warnE('[CreditController] login expired', e, s);
-      final recovered = await _userRepo.recoverFromExpiredLogin();
-      if (recovered) response.value = await _fetch();
     } catch (e, s) {
       error.value = e.toString();
       LogUtil.errorE('[CreditController] load failed', e, s);
@@ -71,13 +66,6 @@ class CreditController extends GetxController {
   }
 
   Future<CreditProgressResponse> _fetch() async {
-    try {
-      return Api.getCreditProgress(semester: selectedSemester.value);
-    } on ApiLoginExpiredException catch (e, s) {
-      LogUtil.warnE('[CreditController] login expired fetching', e, s);
-      final recovered = await _userRepo.recoverFromExpiredLogin();
-      if (!recovered) rethrow;
-      return Api.getCreditProgress(semester: selectedSemester.value);
-    }
+    return _creditRepo.fetchProgress(semester: selectedSemester.value);
   }
 }

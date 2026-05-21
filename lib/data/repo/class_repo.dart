@@ -21,9 +21,14 @@ class ClassRepo {
 
   ClassTablePageContext? _pageContext;
   ClassTableMetaResponse? _metaResponse;
+  final Map<String, ClassTableMetaResponse> _metaCache = {};
+  final Map<String, List<ClassMeta>> _weekMetaCache = {};
+  final Map<String, ClassTableCourseResponse> _courseCache = {};
+  final Map<String, Future<ClassTableMetaResponse>> _metaTasks = {};
+  final Map<String, Future<List<ClassMeta>>> _weekMetaTasks = {};
+  final Map<String, Future<ClassTableCourseResponse>> _courseTasks = {};
   Future<ClassTablePageContext>? _syncBaseContextTask;
   String? _syncBaseContextTaskSemester;
-  bool _syncBaseContextTaskForceRefresh = false;
 
   ClassTablePageContext? get pageContext =>
       _pageContext ?? _userRepo.pageContext;
@@ -68,8 +73,7 @@ class ClassRepo {
 
     final activeTask = _syncBaseContextTask;
     if (activeTask != null &&
-        _syncBaseContextTaskSemester == targetSemester &&
-        (_syncBaseContextTaskForceRefresh || !forceRefresh)) {
+        _syncBaseContextTaskSemester == targetSemester) {
       LogUtil.debug(
         '[ClassRepo] syncBaseContext join in-flight request semester=$targetSemester',
       );
@@ -95,14 +99,12 @@ class ClassRepo {
 
     _syncBaseContextTask = task;
     _syncBaseContextTaskSemester = targetSemester;
-    _syncBaseContextTaskForceRefresh = forceRefresh;
     try {
       return await task;
     } finally {
       if (identical(_syncBaseContextTask, task)) {
         _syncBaseContextTask = null;
         _syncBaseContextTaskSemester = null;
-        _syncBaseContextTaskForceRefresh = false;
       }
     }
   }
@@ -115,20 +117,36 @@ class ClassRepo {
         ? semester
         : currentSemester;
     await syncBaseContext(semester: targetSemester, forceRefresh: false);
-    return _runWithLoginRetry(() async {
-      LogUtil.info(
-        '[ClassRepo] fetchMeta start semester=$targetSemester userId=$currentUserId xqid=$currentCampusId',
-      );
-      final response = await Api.getClassTableMeta(
-        semester: targetSemester,
-        userId: currentUserId,
-        campusId: currentCampusId,
-      );
-      _metaResponse = response;
-      LogUtil.info(
-        '[ClassRepo] fetchMeta success currentWeek=${response.data.currentWeek}',
-      );
-      return response;
+    final effectiveSemester = targetSemester.isNotEmpty
+        ? targetSemester
+        : currentSemester;
+    final key = _cacheKey('meta', effectiveSemester);
+    if (!forceRefresh) {
+      final cached = _metaCache[key];
+      if (cached != null) {
+        LogUtil.debug('[ClassRepo] fetchMeta reuse cached key=$key');
+        _metaResponse = cached;
+        return cached;
+      }
+    }
+
+    return _dedupe(_metaTasks, key, () {
+      return _runWithLoginRetry(() async {
+        LogUtil.info(
+          '[ClassRepo] fetchMeta start semester=$effectiveSemester userId=$currentUserId xqid=$currentCampusId',
+        );
+        final response = await Api.getClassTableMeta(
+          semester: effectiveSemester,
+          userId: currentUserId,
+          campusId: currentCampusId,
+        );
+        _metaCache[key] = response;
+        _metaResponse = response;
+        LogUtil.info(
+          '[ClassRepo] fetchMeta success currentWeek=${response.data.currentWeek}',
+        );
+        return response;
+      });
     });
   }
 
@@ -141,13 +159,31 @@ class ClassRepo {
         ? semester
         : currentSemester;
     await syncBaseContext(semester: targetSemester, forceRefresh: false);
-    return _runWithLoginRetry(() async {
-      LogUtil.info(
-        '[ClassRepo] fetchWeekMeta start semester=$targetSemester week=$week',
-      );
-      final list = await Api.getWeekMeta(semester: targetSemester, week: week);
-      LogUtil.info('[ClassRepo] fetchWeekMeta success count=${list.length}');
-      return list;
+    final effectiveSemester = targetSemester.isNotEmpty
+        ? targetSemester
+        : currentSemester;
+    final key = _cacheKey('weekMeta', effectiveSemester, week: week);
+    if (!forceRefresh) {
+      final cached = _weekMetaCache[key];
+      if (cached != null) {
+        LogUtil.debug('[ClassRepo] fetchWeekMeta reuse cached key=$key');
+        return cached;
+      }
+    }
+
+    return _dedupe(_weekMetaTasks, key, () {
+      return _runWithLoginRetry(() async {
+        LogUtil.info(
+          '[ClassRepo] fetchWeekMeta start semester=$effectiveSemester week=$week',
+        );
+        final list = await Api.getWeekMeta(
+          semester: effectiveSemester,
+          week: week,
+        );
+        _weekMetaCache[key] = list;
+        LogUtil.info('[ClassRepo] fetchWeekMeta success count=${list.length}');
+        return list;
+      });
     });
   }
 
@@ -160,29 +196,49 @@ class ClassRepo {
         ? semester
         : currentSemester;
     await syncBaseContext(semester: targetSemester, forceRefresh: false);
-    return _runWithLoginRetry(() async {
-      LogUtil.info(
-        '[ClassRepo] fetchCourses start semester=$targetSemester week=$week userId=$currentUserId xqid=$currentCampusId',
-      );
-      final response = await Api.getClassTableCourses(
-        semester: targetSemester,
-        userId: currentUserId,
-        week: week,
-        campusId: currentCampusId,
-      );
-      LogUtil.info(
-        '[ClassRepo] fetchCourses success count=${response.data.courses.length}',
-      );
-      return response;
+    final effectiveSemester = targetSemester.isNotEmpty
+        ? targetSemester
+        : currentSemester;
+    final key = _cacheKey('courses', effectiveSemester, week: week);
+    if (!forceRefresh) {
+      final cached = _courseCache[key];
+      if (cached != null) {
+        LogUtil.debug('[ClassRepo] fetchCourses reuse cached key=$key');
+        return cached;
+      }
+    }
+
+    return _dedupe(_courseTasks, key, () {
+      return _runWithLoginRetry(() async {
+        LogUtil.info(
+          '[ClassRepo] fetchCourses start semester=$effectiveSemester week=$week userId=$currentUserId xqid=$currentCampusId',
+        );
+        final response = await Api.getClassTableCourses(
+          semester: effectiveSemester,
+          userId: currentUserId,
+          week: week,
+          campusId: currentCampusId,
+        );
+        _courseCache[key] = response;
+        LogUtil.info(
+          '[ClassRepo] fetchCourses success count=${response.data.courses.length}',
+        );
+        return response;
+      });
     });
   }
 
   void clearCaches() {
     _pageContext = null;
     _metaResponse = null;
+    _metaCache.clear();
+    _weekMetaCache.clear();
+    _courseCache.clear();
+    _metaTasks.clear();
+    _weekMetaTasks.clear();
+    _courseTasks.clear();
     _syncBaseContextTask = null;
     _syncBaseContextTaskSemester = null;
-    _syncBaseContextTaskForceRefresh = false;
     LogUtil.debug('[ClassRepo] clearCaches');
   }
 
@@ -203,6 +259,37 @@ class ClassRepo {
     }
 
     return context;
+  }
+
+  String _cacheKey(String type, String semester, {int? week}) {
+    return [
+      type,
+      semester,
+      if (week != null) week.toString(),
+      currentUserId,
+      currentCampusId,
+      currentSelectedCampusId,
+    ].join('|');
+  }
+
+  Future<T> _dedupe<T>(
+    Map<String, Future<T>> tasks,
+    String key,
+    Future<T> Function() taskBuilder,
+  ) {
+    final activeTask = tasks[key];
+    if (activeTask != null) {
+      LogUtil.debug('[ClassRepo] join in-flight request key=$key');
+      return activeTask;
+    }
+
+    final task = taskBuilder();
+    tasks[key] = task;
+    return task.whenComplete(() {
+      if (identical(tasks[key], task)) {
+        tasks.remove(key);
+      }
+    });
   }
 
   Future<T> _runWithLoginRetry<T>(Future<T> Function() action) async {

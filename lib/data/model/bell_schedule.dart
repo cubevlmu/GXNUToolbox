@@ -50,11 +50,12 @@ class CampusSchedule {
   final List<PeriodItem> periods;
 
   factory CampusSchedule.fromJson(Map<String, dynamic> json) {
-    final list = json['list'] as List<dynamic>? ?? const [];
+    final list = _asList(json['list']);
+    final campusInfo = _asMap(json['xqsj']);
     return CampusSchedule(
-      campusName: (json['xqsj'] as Map<String, dynamic>?)?['xqmc']?.toString() ?? '',
+      campusName: campusInfo['xqmc']?.toString() ?? '',
       periods: list
-          .map((e) => PeriodItem.fromJson(e as Map<String, dynamic>))
+          .map((e) => PeriodItem.fromJson(_asMap(e)))
           .toList(growable: false),
     );
   }
@@ -67,10 +68,10 @@ class BellScheduleResponse {
   final List<CampusSchedule> campuses;
 
   factory BellScheduleResponse.fromJson(Map<String, dynamic> json) {
-    final xqList = json['xqList'] as List<dynamic>? ?? const [];
+    final xqList = _asList(json['xqList']);
     return BellScheduleResponse(
       campuses: xqList
-          .map((e) => CampusSchedule.fromJson(e as Map<String, dynamic>))
+          .map((e) => CampusSchedule.fromJson(_asMap(e)))
           .toList(growable: false),
     );
   }
@@ -83,4 +84,21 @@ class BellScheduleResponse {
         })
         .toList(),
   };
+}
+
+Map<String, dynamic> _asMap(Object? value) {
+  if (value is Map<String, dynamic>) {
+    return value;
+  }
+  if (value is Map) {
+    return value.map((key, item) => MapEntry(key.toString(), item));
+  }
+  return const <String, dynamic>{};
+}
+
+List<dynamic> _asList(Object? value) {
+  if (value is List) {
+    return value;
+  }
+  return const <dynamic>[];
 }

@@ -20,8 +20,28 @@ class HttpUtils {
   final Connectivity _connectivity = Connectivity();
   CancelToken _cancelToken = CancelToken();
   bool _initialized = false;
+  Future<void>? _initTask;
 
-  Future<void> init() async {
+  Future<void> init() {
+    if (_initialized) {
+      return Future<void>.value();
+    }
+
+    final activeTask = _initTask;
+    if (activeTask != null) {
+      return activeTask;
+    }
+
+    final task = _doInit();
+    _initTask = task;
+    return task.whenComplete(() {
+      if (identical(_initTask, task)) {
+        _initTask = null;
+      }
+    });
+  }
+
+  Future<void> _doInit() async {
     if (_initialized) {
       return;
     }
@@ -49,18 +69,20 @@ class HttpUtils {
       persistentConnection: true,
     );
 
-    dio = Dio(options)..transformer = BackgroundTransformer();
-    cookieJar = PersistCookieJar(
+    final nextDio = Dio(options)..transformer = BackgroundTransformer();
+    final nextCookieJar = PersistCookieJar(
       ignoreExpires: false,
       storage: FileStorage(cookieDirectory.path),
     );
 
-    dio.interceptors.addAll([
-      CookieManager(cookieJar),
+    nextDio.interceptors.addAll([
+      CookieManager(nextCookieJar),
       _ApiLogInterceptor(),
       _NetworkGuardInterceptor(_connectivity),
     ]);
 
+    dio = nextDio;
+    cookieJar = nextCookieJar;
     _initialized = true;
   }
 
@@ -77,7 +99,8 @@ class HttpUtils {
     Map<String, dynamic>? queryParameters,
     Options? options,
     CancelToken? cancelToken,
-  }) {
+  }) async {
+    await init();
     return dio.get<T>(
       path,
       queryParameters: queryParameters,
@@ -92,7 +115,8 @@ class HttpUtils {
     Object? data,
     Options? options,
     CancelToken? cancelToken,
-  }) {
+  }) async {
+    await init();
     return dio.post<T>(
       path,
       queryParameters: queryParameters,
@@ -108,7 +132,8 @@ class HttpUtils {
     Object? data,
     Options? options,
     CancelToken? cancelToken,
-  }) {
+  }) async {
+    await init();
     return dio.patch<T>(
       path,
       queryParameters: queryParameters,
@@ -124,7 +149,8 @@ class HttpUtils {
     Object? data,
     Options? options,
     CancelToken? cancelToken,
-  }) {
+  }) async {
+    await init();
     return dio.delete<T>(
       path,
       queryParameters: queryParameters,
@@ -134,11 +160,13 @@ class HttpUtils {
     );
   }
 
-  Future<List<Cookie>> loadCookies(String url) {
+  Future<List<Cookie>> loadCookies(String url) async {
+    await init();
     return cookieJar.loadForRequest(resolveUri(url));
   }
 
-  Future<void> saveCookies(String url, List<Cookie> cookies) {
+  Future<void> saveCookies(String url, List<Cookie> cookies) async {
+    await init();
     return cookieJar.saveFromResponse(resolveUri(url), cookies);
   }
 
@@ -169,6 +197,7 @@ class HttpUtils {
     Cookie cookie, {
     bool removeExpired = true,
   }) async {
+    await init();
     final uri = resolveUri(url);
     final cookies = await loadCookies(url);
     final nextCookies = cookies
@@ -217,6 +246,7 @@ class HttpUtils {
     bool merge = true,
     bool removeExpired = true,
   }) async {
+    await init();
     final uri = resolveUri(url);
     final nextCookies = <Cookie>[];
     if (merge) {
@@ -240,22 +270,28 @@ class HttpUtils {
     String url,
     String name,
   ) async {
+    await init();
     final uri = resolveUri(url);
     final cookies = await loadCookies(url);
     final nextCookies = cookies.where((item) => item.name != name).toList();
     final removed = nextCookies.length != cookies.length;
     await cookieJar.delete(uri, false);
     if (nextCookies.isNotEmpty) {
-      await cookieJar.saveFromResponse(uri, nextCookies.map(_cloneCookie).toList());
+      await cookieJar.saveFromResponse(
+        uri,
+        nextCookies.map(_cloneCookie).toList(),
+      );
     }
     return removed;
   }
 
-  Future<void> deleteCookies(String url, {bool withSubDomains = false}) {
+  Future<void> deleteCookies(String url, {bool withSubDomains = false}) async {
+    await init();
     return cookieJar.delete(resolveUri(url), withSubDomains);
   }
 
   Future<int> deleteExpiredCookies(String url) async {
+    await init();
     final uri = resolveUri(url);
     final cookies = await loadCookies(url);
     final validCookies = _filterCookies(cookies, removeExpired: true);
@@ -273,6 +309,7 @@ class HttpUtils {
     bool deleteSource = false,
     bool removeExpired = true,
   }) async {
+    await init();
     final sourceUri = resolveUri(fromUrl);
     final targetUri = resolveUri(toUrl);
     final sourceCookies = await loadCookies(fromUrl);
@@ -304,7 +341,8 @@ class HttpUtils {
     await init();
   }
 
-  Future<void> clearCookies() {
+  Future<void> clearCookies() async {
+    await init();
     return cookieJar.deleteAll();
   }
 

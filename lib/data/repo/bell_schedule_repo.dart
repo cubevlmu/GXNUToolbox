@@ -42,9 +42,16 @@ class BellScheduleRepo {
     }
 
     try {
-      return BellScheduleResponse.fromJson(
-        jsonDecode(raw) as Map<String, dynamic>,
-      );
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        return BellScheduleResponse.fromJson(decoded);
+      }
+      if (decoded is Map) {
+        return BellScheduleResponse.fromJson(
+          decoded.map((key, value) => MapEntry(key.toString(), value)),
+        );
+      }
+      return null;
     } catch (e) {
       LogUtil.warn('[BellScheduleRepo] failed to decode cached schedule');
       return null;

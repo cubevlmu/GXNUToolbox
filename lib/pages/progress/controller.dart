@@ -4,17 +4,16 @@
  * Copyright (c) 2026 by FlybirdGames, All Rights Reserved.
  */
 
-import 'package:class_tool/data/api/api.dart';
 import 'package:class_tool/data/model/course_plan.dart';
-import 'package:class_tool/data/repo/user_repo.dart';
+import 'package:class_tool/data/repo/course_plan_repo.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:get/get.dart';
 
 class ProgressController extends GetxController {
-  ProgressController({UserRepo? userRepo})
-    : _userRepo = userRepo ?? Get.find<UserRepo>();
+  ProgressController({CoursePlanRepo? coursePlanRepo})
+    : _coursePlanRepo = coursePlanRepo ?? Get.find<CoursePlanRepo>();
 
-  final UserRepo _userRepo;
+  final CoursePlanRepo _coursePlanRepo;
 
   final RxBool isLoading = false.obs;
   final RxString error = ''.obs;
@@ -63,12 +62,6 @@ class ProgressController extends GetxController {
       LogUtil.info(
         '[ProgressController] loaded ${response.value?.totalCount} courses',
       );
-    } on ApiLoginExpiredException catch (e, s) {
-      LogUtil.warnE('[ProgressController] login expired', e, s);
-      final recovered = await _userRepo.recoverFromExpiredLogin();
-      if (recovered) {
-        response.value = await _fetch();
-      }
     } catch (e, s) {
       error.value = e.toString();
       LogUtil.errorE('[ProgressController] load failed', e, s);
@@ -79,13 +72,6 @@ class ProgressController extends GetxController {
   }
 
   Future<CoursePlanResponse> _fetch() async {
-    try {
-      return Api.getCoursePlanList(semester: selectedSemester.value);
-    } on ApiLoginExpiredException catch (e, s) {
-      LogUtil.warnE('[ProgressController] login expired fetching', e, s);
-      final recovered = await _userRepo.recoverFromExpiredLogin();
-      if (!recovered) rethrow;
-      return Api.getCoursePlanList(semester: selectedSemester.value);
-    }
+    return _coursePlanRepo.fetchPlan(semester: selectedSemester.value);
   }
 }

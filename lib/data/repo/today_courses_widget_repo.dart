@@ -336,16 +336,18 @@ class TodayCoursesWidgetRepo {
     final resolvedWeek = meta.currentWeek > 0
         ? meta.currentWeek
         : (meta.weekRanges.isNotEmpty ? meta.weekRanges.first.week : 1);
-    final weekMeta = await _classRepo.fetchWeekMeta(
+    final weekMetaTask = _classRepo.fetchWeekMeta(
       resolvedWeek,
       semester: effectiveSemester,
       forceRefresh: true,
     );
-    final courseResponse = await _classRepo.fetchCourses(
+    final courseResponseTask = _classRepo.fetchCourses(
       resolvedWeek,
       semester: effectiveSemester,
       forceRefresh: true,
     );
+    final weekMeta = await weekMetaTask;
+    final courseResponse = await courseResponseTask;
 
     return buildTodayCourseSnapshot(
       semester: effectiveSemester,

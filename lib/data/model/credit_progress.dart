@@ -63,7 +63,7 @@ class CreditSection {
   final List<CreditItem> items;
 
   factory CreditSection.fromJson(Map<String, dynamic> json) {
-    final list = json['wdList'] as List<dynamic>? ?? const [];
+    final list = _asList(json['wdList']);
     return CreditSection(
       totalRequired: double.tryParse(json['yxxf']?.toString() ?? '') ?? 0,
       totalEarned: double.tryParse(json['yixxf']?.toString() ?? '') ?? 0,
@@ -72,7 +72,7 @@ class CreditSection {
       totalAllEarned: double.tryParse(json['qbyxxf']?.toString() ?? '') ?? 0,
       totalThisSemester: double.tryParse(json['xqhdxf']?.toString() ?? '') ?? 0,
       items: list
-          .map((e) => CreditItem.fromJson(e as Map<String, dynamic>))
+          .map((e) => CreditItem.fromJson(_asMap(e)))
           .toList(growable: false),
     );
   }
@@ -103,19 +103,17 @@ class CreditProgressResponse {
   final List<CreditSection> sections;
 
   factory CreditProgressResponse.fromJson(Map<String, dynamic> json) {
-    final data = json['data'] as List<dynamic>? ?? const [];
+    final data = _asList(json['data']);
     final sections = <CreditSection>[];
     for (final item in data) {
-      final m = item as Map<String, dynamic>;
-      final details = m['details'] as List<dynamic>? ?? const [];
+      final m = _asMap(item);
+      final details = _asList(m['details']);
       for (final d in details) {
-        sections.add(
-          CreditSection.fromJson(d as Map<String, dynamic>),
-        );
+        sections.add(CreditSection.fromJson(_asMap(d)));
       }
     }
 
-    final first = data.isNotEmpty ? data[0] as Map<String, dynamic> : null;
+    final first = data.isNotEmpty ? _asMap(data[0]) : null;
     return CreditProgressResponse(
       ret: int.tryParse(json['ret']?.toString() ?? '') ?? 0,
       msg: json['msg']?.toString() ?? '',
@@ -140,4 +138,21 @@ class CreditProgressResponse {
       sections: sections,
     );
   }
+}
+
+Map<String, dynamic> _asMap(Object? value) {
+  if (value is Map<String, dynamic>) {
+    return value;
+  }
+  if (value is Map) {
+    return value.map((key, item) => MapEntry(key.toString(), item));
+  }
+  return const <String, dynamic>{};
+}
+
+List<dynamic> _asList(Object? value) {
+  if (value is List) {
+    return value;
+  }
+  return const <dynamic>[];
 }

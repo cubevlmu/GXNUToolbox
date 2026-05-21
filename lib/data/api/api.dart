@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:class_tool/data/api/api_exception.dart';
 import 'package:class_tool/data/api/api_constants.dart';
 import 'package:class_tool/data/model/bell_schedule.dart';
 import 'package:class_tool/data/model/chaoxing_login_result.dart';
@@ -18,12 +19,7 @@ import 'package:class_tool/utils/log_util.dart';
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' as html_parser;
 
-class ApiLoginExpiredException implements Exception {
-  const ApiLoginExpiredException();
-
-  @override
-  String toString() => 'ApiLoginExpiredException';
-}
+export 'package:class_tool/data/api/api_exception.dart';
 
 class _RedirectedHtmlResponse {
   const _RedirectedHtmlResponse({
@@ -261,14 +257,16 @@ class Api {
       throw const ApiLoginExpiredException();
     }
     if (ret != 0) {
-      throw StateError(json['msg']?.toString() ?? 'Invalid grade response');
+      throw ApiInvalidResponseException(
+        json['msg']?.toString() ?? 'Invalid grade response',
+      );
     }
 
     return GradeQueryResponse.fromJson(json);
   }
 
   static Future<GradeFilterOptions> getGradeFilterOptions() async {
-    //await _http.init();
+    await _http.init();
 
     final response = await _http.get<String>(
       ApiConstants.jwjxGradeFilterPageUrl,
@@ -321,7 +319,7 @@ class Api {
       throw const ApiLoginExpiredException();
     }
     if (ret != 0) {
-      throw StateError(
+      throw ApiInvalidResponseException(
         json['msg']?.toString() ?? 'Invalid grade rank response',
       );
     }
@@ -449,7 +447,9 @@ class Api {
       throw const ApiLoginExpiredException();
     }
     if (ret != 0) {
-      throw StateError(json['msg']?.toString() ?? 'Invalid exam response');
+      throw ApiInvalidResponseException(
+        json['msg']?.toString() ?? 'Invalid exam response',
+      );
     }
 
     return ExamQueryResponse.fromJson(json);
@@ -554,9 +554,14 @@ class Api {
     }
 
     final json = response.data ?? const <String, dynamic>{};
-    final ret = int.tryParse(json['ret']?.toString() ?? '') ?? 0;
+    final ret = _asInt(json['ret']) ?? 0;
+    if (ret == -1) {
+      throw const ApiLoginExpiredException();
+    }
     if (ret != 0) {
-      throw StateError(json['msg']?.toString() ?? 'Invalid course plan response');
+      throw ApiInvalidResponseException(
+        json['msg']?.toString() ?? 'Invalid course plan response',
+      );
     }
 
     return CoursePlanResponse.fromJson(json);
@@ -605,9 +610,12 @@ class Api {
     }
 
     final json = response.data ?? const <String, dynamic>{};
-    final ret = int.tryParse(json['ret']?.toString() ?? '') ?? 0;
+    final ret = _asInt(json['ret']) ?? 0;
+    if (ret == -1) {
+      throw const ApiLoginExpiredException();
+    }
     if (ret != 0) {
-      throw StateError(
+      throw ApiInvalidResponseException(
         json['msg']?.toString() ?? 'Invalid credit progress response',
       );
     }
@@ -644,7 +652,7 @@ class Api {
       throw const ApiLoginExpiredException();
     }
     if (ret != 0 || json['data'] == null) {
-      throw StateError(
+      throw ApiInvalidResponseException(
         json['msg']?.toString() ?? 'Invalid class table meta response',
       );
     }
@@ -695,7 +703,9 @@ class Api {
         context.userContext.selectedSemester.isEmpty &&
         context.semesters.isEmpty;
     if (isInvalidContext) {
-      throw StateError('Invalid class table context response');
+      throw const ApiInvalidResponseException(
+        'Invalid class table context response',
+      );
     }
 
     return context;
@@ -708,7 +718,9 @@ class Api {
         context.userContext.selectedSemester.isEmpty &&
         context.semesters.isEmpty;
     if (isInvalidContext) {
-      throw StateError('Invalid class table context response');
+      throw const ApiInvalidResponseException(
+        'Invalid class table context response',
+      );
     }
     return context;
   }
@@ -757,7 +769,7 @@ class Api {
       throw const ApiLoginExpiredException();
     }
     if (!_isValidClassTableContextHtml(html.data ?? '')) {
-      throw StateError(
+      throw ApiInvalidResponseException(
         'Invalid class table context response from ${html.realUri}',
       );
     }
@@ -883,7 +895,7 @@ class Api {
       currentData = null;
     }
 
-    throw StateError('Too many redirects while requesting $url');
+    throw ApiRedirectException('Too many redirects while requesting $url');
   }
 
   static bool _isExpectedHtmlStatus(int? status) {
