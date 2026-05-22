@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:class_tool/data/repo/bell_schedule_repo.dart';
+import 'package:class_tool/data/repo/user_repo.dart';
 import 'package:class_tool/pages/classes/controller.dart';
 import 'package:class_tool/pages/classes/view.dart';
 import 'package:class_tool/pages/features/view.dart';
@@ -8,6 +10,8 @@ import 'package:class_tool/pages/home/view.dart';
 import 'package:class_tool/pages/main/controller.dart';
 import 'package:class_tool/pages/settings/controller.dart';
 import 'package:class_tool/pages/settings/view.dart';
+import 'package:class_tool/ui/app_bottom_tab_bar.dart';
+import 'package:class_tool/ui/app_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -27,6 +31,10 @@ class _MainPageState extends State<MainPage> {
     controller = Get.put(MainController());
     final classesController = Get.put(ClassesController());
     Get.put(HomeController());
+    final userRepo = Get.find<UserRepo>();
+    if (userRepo.isLogin && !userRepo.isOfflineMode) {
+      unawaited(Get.find<BellScheduleRepo>().ensureLoaded());
+    }
     if (!classesController.isLoading && !classesController.hasScheduleData) {
       unawaited(
         classesController.syncScheduleOverview(syncExternalOutputs: true),
@@ -54,42 +62,36 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     const pages = [HomePage(), ClassesPage(), FeaturesPage(), SettingsPage()];
-    const titles = ['首页', '课表', '功能', '设置'];
 
     return Obx(() {
       final selectedIndex = controller.selectedIndex.value;
-      final hasOwnAppBar = selectedIndex == 1 || selectedIndex == 2;
 
       return Scaffold(
-        appBar: hasOwnAppBar
-            ? null
-            : AppBar(title: Text(titles[selectedIndex])),
         body: RepaintBoundary(
           child: IndexedStack(index: selectedIndex, children: pages),
         ),
-        bottomNavigationBar: NavigationBar(
+        bottomNavigationBar: AppBottomTabBar(
           selectedIndex: selectedIndex,
-          labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
-          onDestinationSelected: controller.onDestinationSelected,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home_rounded),
+          onSelected: controller.onDestinationSelected,
+          items: const [
+            AppBottomTabItem(
+              icon: AppIcons.home,
+              selectedIcon: AppIcons.homeFilled,
               label: '首页',
             ),
-            NavigationDestination(
-              icon: Icon(Icons.calendar_view_week_outlined),
-              selectedIcon: Icon(Icons.calendar_view_week_rounded),
+            AppBottomTabItem(
+              icon: AppIcons.calendar,
+              selectedIcon: AppIcons.calendarFilled,
               label: '课表',
             ),
-            NavigationDestination(
-              icon: Icon(Icons.apps_outlined),
-              selectedIcon: Icon(Icons.apps_rounded),
+            AppBottomTabItem(
+              icon: AppIcons.apps,
+              selectedIcon: AppIcons.appsFilled,
               label: '功能',
             ),
-            NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              selectedIcon: Icon(Icons.settings_rounded),
+            AppBottomTabItem(
+              icon: AppIcons.settings,
+              selectedIcon: AppIcons.settingsFilled,
               label: '设置',
             ),
           ],

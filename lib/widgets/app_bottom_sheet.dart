@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:class_tool/ui/app_context.dart';
+import 'package:class_tool/ui/app_tokens.dart';
 import 'package:class_tool/widgets/sheet_util.dart';
+import 'package:flutter/material.dart';
 
 Future<T?> showAppBottomSheet<T>({
   required BuildContext context,
@@ -10,22 +12,61 @@ Future<T?> showAppBottomSheet<T>({
   double? heightFactor,
 }) {
   final mediaQuery = MediaQuery.of(context);
-  final theme = Theme.of(context);
-  final content = Material(
-    color: Colors.transparent,
-    child: Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: heightFactor == null
-          ? child
-          : SizedBox(
-              height: mediaQuery.size.height * heightFactor,
-              child: child,
+
+  Widget content = Builder(
+    builder: (context) {
+      final colors = context.colors;
+
+      return Material(
+        color: Colors.transparent,
+        child: Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(18),
             ),
-    ),
+            border: Border(top: BorderSide(color: colors.border)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (showDragHandle)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppTokens.gap8),
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colors.borderStrong,
+                      borderRadius: BorderRadius.circular(
+                        AppTokens.radiusFull,
+                      ),
+                    ),
+                  ),
+                ),
+              Flexible(fit: FlexFit.loose, child: child),
+            ],
+          ),
+        ),
+      );
+    },
   );
 
-  return SheetUtil.newBottomSheet<T>(context: context, widget: content);
+  if (heightFactor != null) {
+    content = SizedBox(
+      height: mediaQuery.size.height * heightFactor,
+      child: content,
+    );
+  }
+
+  if (useSafeArea) {
+    content = SafeArea(top: false, child: content);
+  }
+
+  return SheetUtil.newBottomSheet<T>(
+    context: context,
+    isScrollControlled: isScrollControlled,
+    widget: content,
+  );
 }

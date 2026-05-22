@@ -5,6 +5,7 @@ import 'package:class_tool/data/model/class_table.dart';
 import 'package:class_tool/data/model/class_table_context.dart';
 import 'package:class_tool/data/model/class_table_course.dart';
 import 'package:class_tool/data/model/today_course_snapshot.dart';
+import 'package:class_tool/data/repo/bell_schedule_repo.dart';
 import 'package:class_tool/data/repo/class_repo.dart';
 import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
@@ -63,14 +64,17 @@ class ClassesController extends GetxController {
     ClassRepo? classRepo,
     UserRepo? userRepo,
     TodayCoursesWidgetRepo? todayCoursesWidgetRepo,
+    BellScheduleRepo? bellScheduleRepo,
   }) : _classRepo = classRepo ?? Get.find<ClassRepo>(),
        _userRepo = userRepo ?? Get.find<UserRepo>(),
        _todayCoursesWidgetRepo =
-           todayCoursesWidgetRepo ?? Get.find<TodayCoursesWidgetRepo>();
+           todayCoursesWidgetRepo ?? Get.find<TodayCoursesWidgetRepo>(),
+       _bellScheduleRepo = bellScheduleRepo ?? Get.find<BellScheduleRepo>();
 
   final ClassRepo _classRepo;
   final UserRepo _userRepo;
   final TodayCoursesWidgetRepo _todayCoursesWidgetRepo;
+  final BellScheduleRepo _bellScheduleRepo;
   final EasyRefreshController easyRefreshController = EasyRefreshController(
     controlFinishRefresh: true,
   );
@@ -112,6 +116,15 @@ class ClassesController extends GetxController {
       _classTableMeta.value != null ||
       _currentWeekCourses.isNotEmpty;
   ClassTableMeta? get classTableMeta => _classTableMeta.value;
+  List<ClassPeriodSetting> get effectivePeriodSettings {
+    final bellSettings = _bellScheduleRepo.periodSettingsFor(
+      _classRepo.currentCampusId,
+    );
+    if (bellSettings.isNotEmpty) {
+      return bellSettings;
+    }
+    return classTableMeta?.periodSettings ?? const [];
+  }
   List<ClassMeta> get currentWeekMeta => _currentWeekMeta;
   List<ClassTableCourse> get currentWeekCourses => _currentWeekCourses;
   TodayCourseSnapshot? get homeSnapshot => _homeSnapshot.value;
@@ -148,6 +161,7 @@ class ClassesController extends GetxController {
         semester: requestedSemester,
         forceRefresh: forceRefresh,
       );
+      final bellScheduleTask = _loadBellScheduleQuietly();
 
       final effectiveSemester = requestedSemester.isNotEmpty
           ? requestedSemester
@@ -175,6 +189,7 @@ class ClassesController extends GetxController {
       );
       final weekMeta = await weekMetaTask;
       final courseResponse = await courseResponseTask;
+      await bellScheduleTask;
       final courses = courseResponse.data.courses;
       if (!_isActiveRequest(version)) {
         return;
@@ -197,6 +212,7 @@ class ClassesController extends GetxController {
           weekMeta: weekMeta,
           weekCourses: courses,
           meta: meta,
+          periodSettings: effectivePeriodSettings,
         );
         _homeSnapshot.value = snapshot;
         homeSyncTick.value++;
@@ -478,6 +494,14 @@ class ClassesController extends GetxController {
 
   bool _isActiveRequest(int version) {
     return !isClosed && version == _requestVersion;
+  }
+
+  Future<void> _loadBellScheduleQuietly() async {
+    try {
+      await _bellScheduleRepo.ensureLoaded(forceRefresh: false);
+    } catch (e, s) {
+      LogUtil.warnE('[ClassesController] bell schedule preload failed', e, s);
+    }
   }
 
   @override

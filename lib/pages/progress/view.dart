@@ -6,6 +6,16 @@
 
 import 'package:class_tool/data/model/course_plan.dart';
 import 'package:class_tool/pages/progress/controller.dart';
+import 'package:class_tool/ui/app_combo_box.dart';
+import 'package:class_tool/ui/app_context.dart';
+import 'package:class_tool/ui/app_empty_state.dart';
+import 'package:class_tool/ui/app_icon_button.dart';
+import 'package:class_tool/ui/app_icons.dart';
+import 'package:class_tool/ui/app_page.dart';
+import 'package:class_tool/ui/app_progress_bar.dart';
+import 'package:class_tool/ui/app_surface.dart';
+import 'package:class_tool/ui/app_tag.dart';
+import 'package:class_tool/ui/app_tokens.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -37,157 +47,223 @@ class _ProgressPageState extends State<ProgressPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('培养进度'),
-        actions: [
-          GetBuilder<ProgressController>(
-            id: 'progress-content',
-            builder: (c) => IconButton(
-              icon: const Icon(Icons.refresh_outlined),
-              tooltip: '刷新',
-              onPressed: c.isLoading.value ? null : c.loadData,
-            ),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: GetBuilder<ProgressController>(
-          id: 'progress-content',
-          builder: (c) {
-            if (c.isLoading.value && c.response.value == null) {
-              return const _ProgressSkeletonView();
-            }
-            if (c.error.isNotEmpty && c.response.value == null) {
-              return _FeedbackState(
-                title: '加载失败',
-                subtitle: c.error.value,
-                onRetry: c.loadData,
-              );
-            }
-
-            final resp = c.response.value;
-            if (resp == null || resp.sections.isEmpty) {
-              return _FeedbackState(
-                title: '暂无数据',
-                subtitle: '点击刷新重试',
-                onRetry: c.loadData,
-              );
-            }
-
-            return Column(
-              children: [
-                _SemesterBar(controller: c),
-                if (c.totalCount > 0)
-                  _ProgressBar(
-                    completed: c.completedCount,
-                    total: c.totalCount,
-                  ),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                    itemCount: resp.sections.length,
-                    itemBuilder: (_, sectionIndex) {
-                      final section = resp.sections[sectionIndex];
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (final group in section.groups)
-                            _GroupCard(group: group),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ],
+      backgroundColor: context.colors.background,
+      body: GetBuilder<ProgressController>(
+        id: 'progress-content',
+        builder: (controller) {
+          if (controller.isLoading.value && controller.response.value == null) {
+            return _ProgressSkeletonView(
+              onBack: () => Navigator.of(context).maybePop(),
             );
-          },
-        ),
+          }
+
+          if (controller.error.isNotEmpty &&
+              controller.response.value == null) {
+            return _FeedbackState(
+              title: '培养进度加载失败',
+              message: controller.error.value,
+              onBack: () => Navigator.of(context).maybePop(),
+              onRefresh: controller.loadData,
+            );
+          }
+
+          final response = controller.response.value;
+          if (response == null || response.sections.isEmpty) {
+            return _FeedbackState(
+              title: '暂无培养进度',
+              message: '点击刷新后重试',
+              onBack: () => Navigator.of(context).maybePop(),
+              onRefresh: controller.loadData,
+            );
+          }
+
+          return AppPage(
+            children: [
+              _ProgressHeader(
+                onBack: () => Navigator.of(context).maybePop(),
+                onRefresh:
+                    controller.isLoading.value ? null : controller.loadData,
+              ),
+              const SizedBox(height: AppTokens.gap16),
+              _SemesterCombo(controller: controller),
+              const SizedBox(height: AppTokens.gap16),
+              _OverviewCard(
+                completed: controller.completedCount,
+                total: controller.totalCount,
+              ),
+              const SizedBox(height: AppTokens.gap16),
+              _GroupHeader(count: _groupCount(response)),
+              const SizedBox(height: AppTokens.gap8),
+              for (final section in response.sections)
+                for (final group in section.groups) ...[
+                  _GroupCard(group: group),
+                  const SizedBox(height: AppTokens.gap12),
+                ],
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-class _SemesterBar extends StatelessWidget {
-  const _SemesterBar({required this.controller});
+class _ProgressHeader extends StatelessWidget {
+  const _ProgressHeader({required this.onBack, required this.onRefresh});
+
+  final VoidCallback onBack;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Row(
+      children: [
+        AppIconButton(
+          icon: AppIcons.chevronLeft,
+          tooltip: '返回',
+          variant: AppIconButtonVariant.outline,
+          onPressed: onBack,
+        ),
+        const SizedBox(width: AppTokens.gap12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '培养进度',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: AppTokens.gap4),
+              Text(
+                '查看培养方案课程修读情况',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        AppIconButton(
+          icon: AppIcons.refresh,
+          tooltip: '刷新',
+          variant: AppIconButtonVariant.ghost,
+          onPressed: onRefresh,
+        ),
+      ],
+    );
+  }
+}
+
+class _SemesterCombo extends StatelessWidget {
+  const _SemesterCombo({required this.controller});
 
   final ProgressController controller;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-      child: Obx(() {
-        return DropdownButtonFormField<String>(
-          initialValue: controller.selectedSemester.value,
-          decoration: const InputDecoration(
-            labelText: '学年学期',
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            isDense: true,
-          ),
-          items: [
-            const DropdownMenuItem<String>(
-              value: '',
-              child: Text('全部'),
-            ),
-            ...controller.semesterOptions.map((s) {
-              return DropdownMenuItem<String>(value: s, child: Text(s));
-            }),
-          ],
-          onChanged:
-              controller.isLoading.value
-                  ? null
-                  : (v) {
-                      if (v != null) controller.changeSemester(v);
-                    },
-        );
-      }),
-    );
+    return Obx(() {
+      final items = ['', ...controller.semesterOptions];
+      return AppSurface(
+        padding: const EdgeInsets.all(14),
+        child: AppComboBox<String>(
+          label: '学年学期',
+          value: controller.selectedSemester.value,
+          items: items,
+          enabled: !controller.isLoading.value,
+          itemLabelBuilder: (item) => item.isEmpty ? '全部学期' : item,
+          onChanged: (value) {
+            if (value != null) {
+              controller.changeSemester(value);
+            }
+          },
+        ),
+      );
+    });
   }
 }
 
-class _ProgressBar extends StatelessWidget {
-  const _ProgressBar({required this.completed, required this.total});
+class _OverviewCard extends StatelessWidget {
+  const _OverviewCard({required this.completed, required this.total});
 
   final int completed;
   final int total;
 
   @override
   Widget build(BuildContext context) {
-    final ratio = total > 0 ? completed / total : 0.0;
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-      child: Row(
+    final ratio = total == 0 ? 0.0 : completed / total;
+
+    return AppSurface(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '完成进度',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: ratio,
-                minHeight: 6,
-                backgroundColor: colorScheme.surfaceContainerHighest,
+          Row(
+            children: [
+              _IconBox(icon: AppIcons.progress),
+              const SizedBox(width: AppTokens.gap10),
+              Expanded(
+                child: Text(
+                  '完成进度',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
               ),
-            ),
+              AppTag(
+                label: '$completed / $total',
+                variant: ratio >= 1 ? AppTagVariant.success : AppTagVariant.primary,
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          Text(
-            '$completed / $total',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+          const SizedBox(height: AppTokens.gap14),
+          AppProgressBar(value: ratio),
+          const SizedBox(height: AppTokens.gap14),
+          Row(
+            children: [
+              Expanded(child: _Metric(label: '已完成', value: '$completed')),
+              const SizedBox(width: AppTokens.gap10),
+              Expanded(child: _Metric(label: '总课程', value: '$total')),
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            '课程模块',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+        ),
+        Text(
+          '$count 个分组',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+      ],
     );
   }
 }
@@ -206,51 +282,58 @@ class _GroupCardState extends State<_GroupCard> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final group = widget.group;
-    final completedCount =
-        group.items.where((i) => i.isCompleted).length;
+    final completed = group.items.where((item) => item.isCompleted).length;
+    final ratio = group.items.isEmpty ? 0.0 : completed / group.items.length;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      margin: const EdgeInsets.only(bottom: 8),
+    return AppSurface(
+      padding: EdgeInsets.zero,
       child: Column(
         children: [
-          InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      group.name,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            group.name.isEmpty ? '课程模块' : group.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                          const SizedBox(height: AppTokens.gap8),
+                          AppProgressBar(value: ratio),
+                        ],
                       ),
                     ),
-                  ),
-                  Text(
-                    '$completedCount / ${group.items.length}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
+                    const SizedBox(width: AppTokens.gap12),
+                    AppTag(
+                      label: '$completed / ${group.items.length}',
+                      variant: ratio >= 1 ? AppTagVariant.success : AppTagVariant.primary,
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    _expanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ],
+                    const SizedBox(width: AppTokens.gap8),
+                    Icon(
+                      _expanded ? AppIcons.chevronDown : AppIcons.chevronRight,
+                      size: AppTokens.iconMd,
+                      color: context.colors.textSecondary,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
           if (_expanded)
-            ...group.items.map(
-              (item) => _CourseTile(item: item),
-            ),
+            for (final item in group.items)
+              _CourseTile(item: item),
         ],
       ),
     );
@@ -264,14 +347,13 @@ class _CourseTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final colors = context.colors;
+
     return Container(
       decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: colorScheme.outlineVariant.withAlpha(80)),
-        ),
+        border: Border(top: BorderSide(color: colors.border)),
       ),
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Row(
         children: [
           Expanded(
@@ -283,168 +365,189 @@ class _CourseTile extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
-                const SizedBox(height: 4),
-                Row(
+                const SizedBox(height: AppTokens.gap6),
+                Wrap(
+                  spacing: AppTokens.gap8,
+                  runSpacing: AppTokens.gap6,
                   children: [
-                    if (item.credits.isNotEmpty) ...[
-                      Text(
-                        '${item.credits}学分',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    if (item.examType.isNotEmpty) ...[
-                      Text(
-                        item.examType,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    Text(
-                      item.categoryLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
+                    if (item.credits.isNotEmpty) AppTag(label: '${item.credits} 学分'),
+                    if (item.examType.isNotEmpty) AppTag(label: item.examType),
+                    if (item.categoryLabel.isNotEmpty) AppTag(label: item.categoryLabel),
                   ],
                 ),
               ],
             ),
           ),
-          _ScoreBadge(item: item, colorScheme: colorScheme),
+          const SizedBox(width: AppTokens.gap10),
+          AppTag(
+            label: item.scoreText.isEmpty ? '待修读' : item.scoreText,
+            variant: _statusVariant(item),
+          ),
+        ],
+      ),
+    );
+  }
+
+  AppTagVariant _statusVariant(CoursePlanItem item) {
+    if (item.isCompleted) return AppTagVariant.success;
+    if (item.scoreText == '修读中') return AppTagVariant.primary;
+    return AppTagVariant.warning;
+  }
+}
+
+class _Metric extends StatelessWidget {
+  const _Metric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 68),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: AppTokens.gap4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.textSecondary,
+                ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _ScoreBadge extends StatelessWidget {
-  const _ScoreBadge({required this.item, required this.colorScheme});
+class _IconBox extends StatelessWidget {
+  const _IconBox({required this.icon});
 
-  final CoursePlanItem item;
-  final ColorScheme colorScheme;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
-    final isCompleted = item.isCompleted;
-    final isInProgress = item.scoreText == '修读中';
-    final bagsColor = isCompleted
-        ? Colors.green.shade50
-        : isInProgress
-        ? Colors.blue.shade50
-        : Colors.orange.shade50;
-    final textColor = isCompleted
-        ? Colors.green.shade700
-        : isInProgress
-        ? Colors.blue.shade700
-        : Colors.orange.shade700;
+    final colors = context.colors;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      width: 36,
+      height: 36,
       decoration: BoxDecoration(
-        color: bagsColor,
-        borderRadius: BorderRadius.circular(6),
+        color: colors.primarySoft,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
       ),
-      child: Text(
-        item.scoreText,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: textColor,
-        ),
-      ),
+      child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
     );
   }
 }
 
 class _ProgressSkeletonView extends StatelessWidget {
-  const _ProgressSkeletonView();
+  const _ProgressSkeletonView({required this.onBack});
+
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
     return SkeletonShimmer(
-      builder: (context, palette) => ListView(
+      builder: (context, palette) => AppPage(
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
         children: [
+          _ProgressHeader(onBack: onBack, onRefresh: null),
+          const SizedBox(height: AppTokens.gap16),
           SkeletonBar(
-            decoration: palette.line(radius: 8),
-            widthFactor: 1.0,
-            height: 44,
+            decoration: palette.line(radius: AppTokens.radiusMd),
+            widthFactor: 1,
+            height: 72,
           ),
-          const SizedBox(height: 10),
-          SkeletonBar(
-            decoration: palette.line(radius: 4),
-            widthFactor: 1.0,
-            height: 8,
-          ),
-          const SizedBox(height: 14),
-          for (int g = 0; g < 6; g++) ...[
-            Card(
-              clipBehavior: Clip.antiAlias,
-              margin: const EdgeInsets.only(bottom: 8),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                child: Column(
+          const SizedBox(height: AppTokens.gap16),
+          AppSurface(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              children: [
+                SkeletonBar(decoration: palette.line(radius: 8), widthFactor: 0.46, height: 18),
+                const SizedBox(height: AppTokens.gap14),
+                SkeletonBar(decoration: palette.line(radius: AppTokens.radiusFull), widthFactor: 1, height: 6),
+                const SizedBox(height: AppTokens.gap14),
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SkeletonBar(
-                            decoration: palette.line(radius: 6),
-                            widthFactor: 0.5,
-                            height: 16,
-                          ),
-                        ),
-                        SizedBox(
-                          width: 48,
-                          height: 12,
-                          child: Container(decoration: palette.line(radius: 6)),
-                        ),
-                      ],
-                    ),
-                    for (int i = 0; i < 3; i++) ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                SkeletonBar(
-                                  decoration: palette.line(radius: 4),
-                                  widthFactor: 0.7,
-                                  height: 14,
-                                ),
-                                const SizedBox(height: 6),
-                                SkeletonBar(
-                                  decoration: palette.line(radius: 4),
-                                  widthFactor: 0.4,
-                                  height: 10,
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(
-                            width: 48,
-                            height: 22,
-                            child: Container(decoration: palette.line(radius: 6)),
-                          ),
-                        ],
-                      ),
-                    ],
+                    Expanded(child: _SkeletonMetric(palette: palette)),
+                    const SizedBox(width: AppTokens.gap10),
+                    Expanded(child: _SkeletonMetric(palette: palette)),
                   ],
                 ),
-              ),
+              ],
             ),
+          ),
+          const SizedBox(height: AppTokens.gap16),
+          for (int i = 0; i < 4; i++) ...[
+            _SkeletonGroup(palette: palette),
+            const SizedBox(height: AppTokens.gap12),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonMetric extends StatelessWidget {
+  const _SkeletonMetric({required this.palette});
+
+  final SkeletonPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 68,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SkeletonBar(decoration: palette.line(radius: 8), widthFactor: 0.52, height: 15),
+          const SizedBox(height: AppTokens.gap8),
+          SkeletonBar(decoration: palette.line(radius: 8), widthFactor: 0.38, height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonGroup extends StatelessWidget {
+  const _SkeletonGroup({required this.palette});
+
+  final SkeletonPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurface(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SkeletonBar(decoration: palette.line(radius: 8), widthFactor: 0.62, height: 16),
+          const SizedBox(height: AppTokens.gap12),
+          SkeletonBar(decoration: palette.line(radius: AppTokens.radiusFull), widthFactor: 1, height: 6),
+          const SizedBox(height: AppTokens.gap12),
+          SkeletonBar(decoration: palette.line(radius: AppTokens.radiusMd), widthFactor: 1, height: 46),
+          const SizedBox(height: AppTokens.gap8),
+          SkeletonBar(decoration: palette.line(radius: AppTokens.radiusMd), widthFactor: 1, height: 46),
         ],
       ),
     );
@@ -454,51 +557,42 @@ class _ProgressSkeletonView extends StatelessWidget {
 class _FeedbackState extends StatelessWidget {
   const _FeedbackState({
     required this.title,
-    required this.subtitle,
-    required this.onRetry,
+    required this.message,
+    required this.onBack,
+    required this.onRefresh,
   });
 
   final String title;
-  final String subtitle;
-  final VoidCallback onRetry;
+  final String message;
+  final VoidCallback onBack;
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.school_outlined,
-              size: 56,
-              color: colorScheme.onSurfaceVariant.withAlpha(120),
+    return AppPage(
+      children: [
+        _ProgressHeader(onBack: onBack, onRefresh: onRefresh),
+        const SizedBox(height: AppTokens.gap16),
+        AppSurface(
+          child: SizedBox(
+            height: 320,
+            child: AppEmptyState(
+              title: title,
+              message: message,
+              icon: AppIcons.progress,
+              actionLabel: '重试',
+              onAction: onRefresh,
             ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            FilledButton.tonalIcon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('重试'),
-            ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
+}
+
+int _groupCount(CoursePlanResponse response) {
+  return response.sections.fold<int>(
+    0,
+    (sum, section) => sum + section.groups.length,
+  );
 }

@@ -10,6 +10,7 @@ import 'package:class_tool/data/model/class_meta.dart';
 import 'package:class_tool/data/model/class_table.dart';
 import 'package:class_tool/data/model/class_table_course.dart';
 import 'package:class_tool/data/model/today_course_snapshot.dart';
+import 'package:class_tool/data/repo/bell_schedule_repo.dart';
 import 'package:class_tool/data/repo/class_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
 import 'package:class_tool/data/services/morning_briefing_service.dart';
@@ -22,23 +23,31 @@ import 'package:get/get.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:workmanager/workmanager.dart';
 
-const String _widgetProviderName = 'TodayCoursesWidgetProvider';
-const String _widgetQualifiedProviderName =
-    'me.cubevlmu.gxnutool.TodayCoursesWidgetProvider';
-const String _dailyRefreshUniqueName = 'today_courses_widget_daily_refresh';
+const String _legacyDailyRefreshUniqueName =
+    'today_courses_widget_daily_refresh';
+const String _dailyRefreshUniquePrefix =
+    'today_courses_widget_daily_refresh_';
 const String _dailyRefreshTaskName = 'todayCoursesWidgetDailyRefresh';
 const String _autoSyncEnabledKey = 'today_courses_widget_auto_sync_enabled';
 const String _pendingSyncKey = 'today_courses_widget_pending_sync';
+const String _scheduledDailyWorkNameKey =
+    'today_courses_widget_scheduled_daily_work_name';
 
 enum TodayCoursesWidgetState { idle, loading, ready, error, loggedOut }
 
 class TodayCoursesWidgetRepo {
-  TodayCoursesWidgetRepo({UserRepo? userRepo, ClassRepo? classRepo})
+  TodayCoursesWidgetRepo({
+    UserRepo? userRepo,
+    ClassRepo? classRepo,
+    BellScheduleRepo? bellScheduleRepo,
+  })
     : _userRepo = userRepo ?? Get.find<UserRepo>(),
-      _classRepo = classRepo ?? Get.find<ClassRepo>();
+      _classRepo = classRepo ?? Get.find<ClassRepo>(),
+      _bellScheduleRepo = bellScheduleRepo ?? Get.find<BellScheduleRepo>();
 
   final UserRepo _userRepo;
   final ClassRepo _classRepo;
+  final BellScheduleRepo _bellScheduleRepo;
 
   bool _initialized = false;
   Future<void>? _syncTask;
@@ -56,9 +65,18 @@ class TodayCoursesWidgetRepo {
       todayCoursesWidgetInteractivityCallback,
     );
     await Workmanager().initialize(todayCoursesWidgetCallbackDispatcher);
+
+    final hasCached = loadCachedTodaySnapshotEntry() != null;
     await restoreFromCache();
+
     if (isAutoSyncEnabled) {
       await scheduleNextDailyRefresh();
+      if (!hasCached) {
+        Future<void>.microtask(() => syncAndUpdate(
+              showLoading: false,
+              reason: 'initial_sync',
+            ));
+      }
     }
 
     _connectivitySub = Connectivity().onConnectivityChanged.listen((
@@ -98,7 +116,9 @@ class TodayCoursesWidgetRepo {
     await cancelAutoSync();
   }
 
-  Future<void> scheduleNextDailyRefresh() async {
+  Future<void> scheduleNextDailyRefresh({
+    bool cancelPrevious = true,
+  }) async {
     if (!Platform.isAndroid) {
       return;
     }
@@ -114,20 +134,61 @@ class TodayCoursesWidgetRepo {
       nextRun = nextRun.add(const Duration(days: 1));
     }
 
-    await Workmanager().registerOneOffTask(
-      _dailyRefreshUniqueName,
-      _dailyRefreshTaskName,
-      initialDelay: nextRun.difference(now),
-      constraints: Constraints(networkType: NetworkType.connected),
-      existingWorkPolicy: ExistingWorkPolicy.replace,
+    final workName = _dailyWorkNameFor(nextRun);
+    final delay = nextRun.difference(now);
+
+    final previousWorkName =
+        StorageUtils.settings.get(_scheduledDailyWorkNameKey)?.toString();
+
+    if (cancelPrevious &&
+        previousWorkName != null &&
+        previousWorkName.isNotEmpty &&
+        previousWorkName != workName) {
+      await Workmanager().cancelByUniqueName(previousWorkName);
+    }
+
+    if (cancelPrevious) {
+      await Workmanager().cancelByUniqueName(_legacyDailyRefreshUniqueName);
+    }
+
+    await StorageUtils.settings.put(_scheduledDailyWorkNameKey, workName);
+
+    LogUtil.info(
+      '[TodayCoursesWidget] schedule daily sync '
+      'workName=$workName nextRun=$nextRun delay=${delay.inMinutes}min',
     );
+
+    await Workmanager().registerOneOffTask(
+      workName,
+      _dailyRefreshTaskName,
+      initialDelay: delay,
+      constraints: Constraints(networkType: NetworkType.connected),
+      existingWorkPolicy: ExistingWorkPolicy.keep,
+    );
+  }
+
+  String _dailyWorkNameFor(DateTime dateTime) {
+    final year = dateTime.year.toString().padLeft(4, '0');
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final day = dateTime.day.toString().padLeft(2, '0');
+    return '$_dailyRefreshUniquePrefix$year$month$day';
   }
 
   Future<void> cancelAutoSync() async {
     if (!Platform.isAndroid) {
       return;
     }
-    await Workmanager().cancelByUniqueName(_dailyRefreshUniqueName);
+
+    final previousWorkName =
+        StorageUtils.settings.get(_scheduledDailyWorkNameKey)?.toString();
+
+    if (previousWorkName != null && previousWorkName.isNotEmpty) {
+      await Workmanager().cancelByUniqueName(previousWorkName);
+    }
+
+    await Workmanager().cancelByUniqueName(_legacyDailyRefreshUniqueName);
+    await StorageUtils.settings.delete(_scheduledDailyWorkNameKey);
+    LogUtil.info('[TodayCoursesWidget] cancel daily sync');
   }
 
   Future<void> syncAndUpdate({
@@ -229,7 +290,9 @@ class TodayCoursesWidgetRepo {
         fallbackState: TodayCoursesWidgetState.error,
       );
     } finally {
-      await scheduleNextDailyRefresh();
+      await scheduleNextDailyRefresh(
+        cancelPrevious: reason != _dailyRefreshTaskName,
+      );
     }
   }
 
@@ -244,12 +307,14 @@ class TodayCoursesWidgetRepo {
       return;
     }
 
+    await _loadBellScheduleQuietly();
     final snapshot = buildTodayCourseSnapshot(
       semester: semester,
       currentWeek: currentWeek,
       weekMeta: weekMeta,
       weekCourses: weekCourses,
       meta: meta,
+      periodSettings: _effectivePeriodSettings(meta),
     );
     await updateFromSnapshot(snapshot);
   }
@@ -293,6 +358,16 @@ class TodayCoursesWidgetRepo {
 
     final entry = loadCachedTodaySnapshotEntry();
     if (entry == null) {
+      await _clearItems();
+      await _saveString('semesterText', '当前学期');
+      await _saveString('weekText', '--');
+      await _saveString('headlineText', '今日课程');
+      await _saveString('updatedAtText', '');
+      await _writeState(
+        state: TodayCoursesWidgetState.idle,
+        statusText: '等待同步',
+      );
+      await _updateWidget();
       return;
     }
     await _saveCoreData(entry.snapshot, updatedAt: entry.savedAt);
@@ -348,6 +423,7 @@ class TodayCoursesWidgetRepo {
     );
     final weekMeta = await weekMetaTask;
     final courseResponse = await courseResponseTask;
+    await _loadBellScheduleQuietly();
 
     return buildTodayCourseSnapshot(
       semester: effectiveSemester,
@@ -355,7 +431,26 @@ class TodayCoursesWidgetRepo {
       weekMeta: weekMeta,
       weekCourses: courseResponse.data.courses,
       meta: meta,
+      periodSettings: _effectivePeriodSettings(meta),
     );
+  }
+
+  List<ClassPeriodSetting> _effectivePeriodSettings(ClassTableMeta? meta) {
+    final bellSettings = _bellScheduleRepo.periodSettingsFor(
+      _classRepo.currentCampusId,
+    );
+    if (bellSettings.isNotEmpty) {
+      return bellSettings;
+    }
+    return meta?.periodSettings ?? const [];
+  }
+
+  Future<void> _loadBellScheduleQuietly() async {
+    try {
+      await _bellScheduleRepo.ensureLoaded(forceRefresh: false);
+    } catch (e, s) {
+      LogUtil.warnE('[TodayCoursesWidget] bell schedule preload failed', e, s);
+    }
   }
 
   Future<bool> _hasNetworkConnection() async {
@@ -414,11 +509,22 @@ class TodayCoursesWidgetRepo {
             .toList(growable: false),
       ),
     );
+    await _saveString(
+      'nextCourseJson',
+      snapshot.nextItem == null
+          ? '{}'
+          : jsonEncode(<String, String>{
+              'time': snapshot.nextItem!.timeText,
+              'title': snapshot.nextItem!.titleText,
+              'room': snapshot.nextItem!.roomText,
+            }),
+    );
   }
 
   Future<void> _clearItems() async {
     await _saveInt('courseCount', 0);
     await _saveString('coursesJson', '[]');
+    await _saveString('nextCourseJson', '{}');
   }
 
   Future<void> _writeState({
@@ -438,10 +544,17 @@ class TodayCoursesWidgetRepo {
   }
 
   Future<void> _updateWidget() async {
-    await HomeWidget.updateWidget(
-      name: _widgetProviderName,
-      qualifiedAndroidName: _widgetQualifiedProviderName,
-    );
+    const providers = [
+      'TodayCoursesWidgetProvider',
+      'TodayCoursesLargeWidgetProvider',
+    ];
+    const packageName = 'me.cubevlmu.gxnutool';
+    for (final name in providers) {
+      await HomeWidget.updateWidget(
+        name: name,
+        qualifiedAndroidName: '$packageName.$name',
+      );
+    }
   }
 
   String _buildUpdateTimeText(DateTime dateTime) {
@@ -454,13 +567,32 @@ class TodayCoursesWidgetRepo {
 @pragma('vm:entry-point')
 void todayCoursesWidgetCallbackDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
-    DartPluginRegistrant.ensureInitialized();
-    await StorageUtils.ensureInitialized();
-    await LogUtil.init();
-    Injector.injectRepos();
-    await MorningBriefingService.initialize();
-    await Get.find<TodayCoursesWidgetRepo>().syncAndUpdate(reason: taskName);
-    return true;
+    try {
+      DartPluginRegistrant.ensureInitialized();
+      await StorageUtils.ensureInitialized();
+      await LogUtil.init();
+      Injector.injectRepos();
+
+      LogUtil.info(
+        '[TodayCoursesWidget] background task start taskName=$taskName',
+      );
+
+      await Get.find<TodayCoursesWidgetRepo>().syncAndUpdate(
+        reason: taskName,
+      );
+
+      LogUtil.info(
+        '[TodayCoursesWidget] background task finish taskName=$taskName',
+      );
+      return true;
+    } catch (e, s) {
+      LogUtil.errorE(
+        '[TodayCoursesWidget] background task failed taskName=$taskName',
+        e,
+        s,
+      );
+      return false;
+    }
   });
 }
 

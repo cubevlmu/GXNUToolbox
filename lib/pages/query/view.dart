@@ -6,6 +6,17 @@
 
 import 'package:class_tool/data/model/grade.dart';
 import 'package:class_tool/pages/query/controller.dart';
+import 'package:class_tool/ui/app_button.dart';
+import 'package:class_tool/ui/app_combo_box.dart';
+import 'package:class_tool/ui/app_context.dart';
+import 'package:class_tool/ui/app_empty_state.dart';
+import 'package:class_tool/ui/app_icon_button.dart';
+import 'package:class_tool/ui/app_icons.dart';
+import 'package:class_tool/ui/app_page.dart';
+import 'package:class_tool/ui/app_surface.dart';
+import 'package:class_tool/ui/app_tag.dart';
+import 'package:class_tool/ui/app_tokens.dart';
+import 'package:class_tool/widgets/app_bottom_sheet.dart';
 import 'package:class_tool/widgets/simple_easy_refresher.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
 import 'package:flutter/material.dart';
@@ -38,128 +49,79 @@ class _QueryPageState extends State<QueryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('最高成绩查询'),
-        actions: [
-          GetBuilder<QueryController>(
-            id: 'query-content',
-            builder: (controller) {
-              final enabled =
-                  !controller.isLoading && !controller.isLoadingMore;
-              return IconButton(
-                icon: const Icon(Icons.tune_outlined),
-                tooltip: '筛选',
-                onPressed: enabled ? () => _openFilterSheet(context) : null,
-              );
-            },
-          ),
-          GetBuilder<QueryController>(
-            id: 'query-content',
-            builder: (controller) {
-              final enabled =
-                  !controller.isLoading && !controller.isLoadingMore;
-              return IconButton(
-                icon: const Icon(Icons.refresh_outlined),
-                tooltip: '刷新',
-                onPressed: enabled ? controller.refreshGrades : null,
-              );
-            },
-          ),
-        ],
-      ),
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: GetBuilder<QueryController>(
-          id: 'query-content',
-          builder: (controller) {
-            if (controller.isLoading && !controller.hasData) {
-              return const _QuerySkeletonView();
-            }
+      backgroundColor: context.colors.background,
+      body: GetBuilder<QueryController>(
+        id: 'query-content',
+        builder: (controller) {
+          final canInteract =
+              !controller.isLoading && !controller.isLoadingMore;
 
-            if (controller.error.isNotEmpty && !controller.hasData) {
-              return _QueryFeedbackState(
-                title: '成绩加载失败',
-                subtitle: controller.error,
-                onRetry: controller.refreshGrades,
-              );
-            }
-
-            if (!controller.hasData) {
-              return _QueryFeedbackState(
-                title: '暂无成绩',
-                subtitle: '点击搜索或调整筛选条件后再试',
-                onRetry: controller.refreshGrades,
-              );
-            }
-
-            return SimpleEasyRefresher(
-              easyRefreshController: controller.easyRefreshController,
-              onRefresh: controller.refreshGrades,
-              onLoad: controller.loadMoreGrades,
-              autoRefreshOnStart: false,
-              refreshEnabled:
-                  !controller.isLoading && !controller.isLoadingMore,
-              loadEnabled:
-                  controller.hasMore &&
-                  !controller.isLoading &&
-                  !controller.isLoadingMore,
-              childBuilder: (context, physics) => ListView.separated(
-                physics: controller.isLoading || controller.isLoadingMore
-                    ? const NeverScrollableScrollPhysics()
-                    : physics,
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-                itemCount: controller.grades.length + 1,
-                separatorBuilder: (_, index) =>
-                    SizedBox(height: index == 0 ? 14 : 12),
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _SummaryCard(
-                          grades: controller.grades,
-                          majorRank: controller.majorRank,
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(4, 10, 4, 0),
-                          child: Row(
-                            children: [
-                              Text(
-                                '成绩详情:',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                                    ),
-                              ),
-                              const Expanded(child: SizedBox.shrink()),
-                              Text(
-                                '共 ${controller.total} 门课程',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-                  return _GradeCard(grade: controller.grades[index - 1]);
-                },
-              ),
+          if (controller.isLoading && !controller.hasData) {
+            return _QuerySkeletonView(
+              onBack: () => Navigator.of(context).maybePop(),
             );
-          },
-        ),
+          }
+
+          if (controller.error.isNotEmpty && !controller.hasData) {
+            return _QueryFeedbackState(
+              title: '成绩加载失败',
+              message: controller.error,
+              onBack: () => Navigator.of(context).maybePop(),
+              onFilter: canInteract ? () => _openFilterSheet(context) : null,
+              onRefresh: canInteract ? controller.refreshGrades : null,
+            );
+          }
+
+          if (!controller.hasData) {
+            return _QueryFeedbackState(
+              title: '暂无成绩',
+              message: '点击筛选或刷新后再试',
+              onBack: () => Navigator.of(context).maybePop(),
+              onFilter: canInteract ? () => _openFilterSheet(context) : null,
+              onRefresh: canInteract ? controller.refreshGrades : null,
+            );
+          }
+
+          return SimpleEasyRefresher(
+            easyRefreshController: controller.easyRefreshController,
+            onRefresh: controller.refreshGrades,
+            onLoad: controller.loadMoreGrades,
+            autoRefreshOnStart: false,
+            refreshEnabled: canInteract,
+            loadEnabled: controller.hasMore && canInteract,
+            childBuilder: (context, physics) => AppPage(
+              physics: canInteract
+                  ? physics
+                  : const NeverScrollableScrollPhysics(),
+              children: [
+                _QueryHeader(
+                  onBack: () => Navigator.of(context).maybePop(),
+                  onFilter: canInteract
+                      ? () => _openFilterSheet(context)
+                      : null,
+                  onRefresh: canInteract ? controller.refreshGrades : null,
+                ),
+                const SizedBox(height: AppTokens.gap16),
+                _SummaryCard(
+                  grades: controller.grades,
+                  total: controller.total,
+                  majorRank: controller.majorRank,
+                ),
+                const SizedBox(height: AppTokens.gap16),
+                _ResultsHeader(
+                  total: controller.total,
+                  page: controller.page,
+                  totalPages: controller.totalPages,
+                ),
+                const SizedBox(height: AppTokens.gap8),
+                for (final grade in controller.grades) ...[
+                  _GradeCard(grade: grade),
+                  const SizedBox(height: AppTokens.gap12),
+                ],
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -169,11 +131,10 @@ class _QueryPageState extends State<QueryPage> {
       return;
     }
 
-    final result = await showModalBottomSheet<GradeFilter>(
+    final result = await showAppBottomSheet<GradeFilter>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => GradeFilterSheet(
+      child: GradeFilterSheet(
         initialFilter: controller.filter,
         options: controller.filterOptions,
       ),
@@ -185,194 +146,81 @@ class _QueryPageState extends State<QueryPage> {
   }
 }
 
-class _QuerySkeletonView extends StatelessWidget {
-  const _QuerySkeletonView();
-
-  @override
-  Widget build(BuildContext context) {
-    return SkeletonShimmer(
-      builder: (context, palette) => ListView(
-        physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-        children: [
-          Card(
-            color: Theme.of(context).colorScheme.primaryContainer,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _SkeletonSummaryItem(
-                      palette: palette,
-                      widthFactor: 0.58,
-                    ),
-                  ),
-                  Expanded(
-                    child: _SkeletonSummaryItem(
-                      palette: palette,
-                      widthFactor: 0.52,
-                    ),
-                  ),
-                  Expanded(
-                    child: _SkeletonSummaryItem(
-                      palette: palette,
-                      widthFactor: 0.48,
-                    ),
-                  ),
-                  Expanded(
-                    child: _SkeletonSummaryItem(
-                      palette: palette,
-                      widthFactor: 0.42,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _SkeletonGradeCard(palette: palette),
-          const SizedBox(height: 12),
-          _SkeletonGradeCard(palette: palette),
-          const SizedBox(height: 12),
-          _SkeletonGradeCard(palette: palette),
-        ],
-      ),
-    );
-  }
-}
-
-class _SkeletonSummaryItem extends StatelessWidget {
-  const _SkeletonSummaryItem({
-    required this.palette,
-    required this.widthFactor,
+class _QueryHeader extends StatelessWidget {
+  const _QueryHeader({
+    required this.onBack,
+    required this.onFilter,
+    required this.onRefresh,
   });
 
-  final SkeletonPalette palette;
-  final double widthFactor;
+  final VoidCallback onBack;
+  final VoidCallback? onFilter;
+  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    final colors = context.colors;
+
+    return Row(
       children: [
-        FractionallySizedBox(
-          widthFactor: widthFactor,
-          child: Container(height: 18, decoration: palette.line(radius: 8)),
+        AppIconButton(
+          icon: AppIcons.chevronLeft,
+          tooltip: '返回',
+          variant: AppIconButtonVariant.outline,
+          onPressed: onBack,
         ),
-        const SizedBox(height: 7),
-        FractionallySizedBox(
-          widthFactor: 0.52,
-          child: Container(height: 12, decoration: palette.line(radius: 8)),
+        const SizedBox(width: AppTokens.gap12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '成绩查询',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: AppTokens.gap4),
+              Text(
+                '最高成绩 / 绩点 / 学分',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: AppTokens.gap8),
+        AppIconButton(
+          icon: AppIcons.filter,
+          tooltip: '筛选',
+          variant: AppIconButtonVariant.ghost,
+          onPressed: onFilter,
+        ),
+        AppIconButton(
+          icon: AppIcons.refresh,
+          tooltip: '刷新',
+          variant: AppIconButtonVariant.ghost,
+          onPressed: onRefresh,
         ),
       ],
     );
   }
 }
 
-class _SkeletonGradeCard extends StatelessWidget {
-  const _SkeletonGradeCard({required this.palette});
-
-  final SkeletonPalette palette;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SkeletonBar(
-                        decoration: palette.line(radius: 8),
-                        widthFactor: 0.76,
-                        height: 18,
-                      ),
-                      const SizedBox(height: 9),
-                      SkeletonBar(
-                        decoration: palette.line(radius: 8),
-                        widthFactor: 0.38,
-                        height: 12,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  width: 54,
-                  height: 52,
-                  decoration: palette.block(radius: 14),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  width: 88,
-                  height: 28,
-                  decoration: palette.block(radius: 999),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 58,
-                  height: 28,
-                  decoration: palette.block(radius: 999),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 58,
-                  height: 28,
-                  decoration: palette.block(radius: 999),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: palette.block(radius: 14),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: palette.block(radius: 14),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: palette.block(radius: 14),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SkeletonBar(
-              decoration: palette.line(radius: 8),
-              widthFactor: 0.82,
-              height: 12,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.grades, required this.majorRank});
+  const _SummaryCard({
+    required this.grades,
+    required this.total,
+    required this.majorRank,
+  });
 
   final List<CourseGrade> grades;
+  final int total;
   final String majorRank;
 
   @override
@@ -389,77 +237,160 @@ class _SummaryCard extends StatelessWidget {
     final avgScore = grades.isEmpty
         ? 0.0
         : grades.fold<double>(0, (sum, item) => sum + item.score) /
-              grades.length;
+            grades.length;
 
-    return Card(
-      color: Theme.of(context).colorScheme.primaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-        child: Row(
-          children: [
-            Expanded(
-              child: _SummaryItem(
-                label: '绩点',
-                value: avgGpa.toStringAsFixed(2),
+    return AppSurface(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _SectionIcon(icon: AppIcons.chart),
+              const SizedBox(width: AppTokens.gap10),
+              Expanded(
+                child: Text(
+                  '成绩概览',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
               ),
-            ),
-            Expanded(
-              child: _SummaryItem(
-                label: '平均分',
-                value: avgScore.toStringAsFixed(1),
+              AppTag(
+                label: total > 0 ? '$total 门课程' : '${grades.length} 门课程',
+                variant: AppTagVariant.primary,
               ),
-            ),
-            Expanded(
-              child: _SummaryItem(
-                label: '学分',
-                value: totalCredit.toStringAsFixed(1),
+            ],
+          ),
+          const SizedBox(height: AppTokens.gap14),
+          Row(
+            children: [
+              Expanded(
+                child: _SummaryMetric(
+                  label: '平均绩点',
+                  value: avgGpa.toStringAsFixed(2),
+                ),
               ),
-            ),
-            Expanded(
-              child: _SummaryItem(
-                label: '排名',
-                value: majorRank.isEmpty ? '-' : majorRank,
+              const SizedBox(width: AppTokens.gap10),
+              Expanded(
+                child: _SummaryMetric(
+                  label: '平均分',
+                  value: avgScore.toStringAsFixed(1),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: AppTokens.gap10),
+          Row(
+            children: [
+              Expanded(
+                child: _SummaryMetric(
+                  label: '已载入学分',
+                  value: totalCredit.toStringAsFixed(1),
+                ),
+              ),
+              const SizedBox(width: AppTokens.gap10),
+              Expanded(
+                child: _SummaryMetric(
+                  label: '专业排名',
+                  value: majorRank.isEmpty ? '-' : majorRank,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _SummaryItem extends StatelessWidget {
-  const _SummaryItem({required this.label, required this.value});
+class _SummaryMetric extends StatelessWidget {
+  const _SummaryMetric({required this.label, required this.value});
 
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final colors = context.colors;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: colorScheme.onPrimaryContainer,
-            fontWeight: FontWeight.w800,
+    return Container(
+      constraints: const BoxConstraints(minHeight: 74),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w800,
+                ),
           ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: colorScheme.onPrimaryContainer.withValues(alpha: 0.72),
+          const SizedBox(height: AppTokens.gap4),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.textSecondary,
+                ),
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ResultsHeader extends StatelessWidget {
+  const _ResultsHeader({
+    required this.total,
+    required this.page,
+    required this.totalPages,
+  });
+
+  final int total;
+  final int page;
+  final int totalPages;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 2, 2, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '成绩详情',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ),
+          Text(
+            '第 $page/$totalPages 页 · 共 $total 门',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -472,132 +403,135 @@ class _GradeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colors = context.colors;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        grade.courseName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+    return AppSurface(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      grade.courseName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
                       ),
-                      const SizedBox(height: 5),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.event_note_outlined,
-                            size: 15,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              grade.semester,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
+                    ),
+                    const SizedBox(height: AppTokens.gap6),
+                    Row(
+                      children: [
+                        Icon(
+                          AppIcons.calendar,
+                          size: AppTokens.iconSm,
+                          color: colors.textSecondary,
+                        ),
+                        const SizedBox(width: AppTokens.gap4),
+                        Expanded(
+                          child: Text(
+                            grade.semester,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.textSecondary,
                             ),
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                _ScoreBadge(score: grade.finalGrade),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (grade.courseNatureLabel.isNotEmpty)
-                  _InfoChip(label: grade.courseNatureLabel),
-                if (grade.examTypeLabel.isNotEmpty)
-                  _InfoChip(label: grade.examTypeLabel),
-                if (grade.studyNatureLabel.isNotEmpty)
-                  _InfoChip(label: grade.studyNatureLabel),
-                _InfoChip(label: grade.specialGradeLabel),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                _DataBlock(
-                  icon: Icons.trending_up_rounded,
+              ),
+              const SizedBox(width: AppTokens.gap10),
+              _ScoreBadge(score: grade.finalGrade),
+            ],
+          ),
+          const SizedBox(height: AppTokens.gap14),
+          Wrap(
+            spacing: AppTokens.gap8,
+            runSpacing: AppTokens.gap8,
+            children: [
+              if (grade.courseNatureLabel.isNotEmpty)
+                AppTag(
+                  label: grade.courseNatureLabel,
+                  variant: AppTagVariant.primary,
+                ),
+              if (grade.examTypeLabel.isNotEmpty)
+                AppTag(label: grade.examTypeLabel),
+              if (grade.studyNatureLabel.isNotEmpty)
+                AppTag(label: grade.studyNatureLabel),
+              if (grade.specialGradeLabel.isNotEmpty)
+                AppTag(
+                  label: grade.specialGradeLabel,
+                  variant: _tagVariantForSpecialGrade(grade.specialGradeLabel),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppTokens.gap14),
+          Row(
+            children: [
+              Expanded(
+                child: _DataBlock(
+                  icon: AppIcons.chart,
                   label: '绩点',
                   value: grade.gradePoint.toStringAsFixed(1),
                 ),
-                const SizedBox(width: 8),
-                _DataBlock(
-                  icon: Icons.stars_outlined,
+              ),
+              const SizedBox(width: AppTokens.gap8),
+              Expanded(
+                child: _DataBlock(
+                  icon: AppIcons.credit,
                   label: '学分',
                   value: grade.credit.toStringAsFixed(1),
                 ),
-                const SizedBox(width: 8),
-                _DataBlock(
-                  icon: Icons.history_edu_outlined,
+              ),
+              const SizedBox(width: AppTokens.gap8),
+              Expanded(
+                child: _DataBlock(
+                  icon: AppIcons.book,
                   label: '初修',
                   value: grade.retakeGrade,
                 ),
-              ],
-            ),
-            if (grade.gradeMode.isNotEmpty || grade.gradeBreakdown.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(
-                  grade.gradeMode.isNotEmpty
-                      ? grade.gradeMode
-                      : grade.gradeBreakdown,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+              ),
+            ],
+          ),
+          if (grade.gradeMode.isNotEmpty || grade.gradeBreakdown.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: AppTokens.gap12),
+              child: Text(
+                grade.gradeMode.isNotEmpty
+                    ? grade.gradeMode
+                    : grade.gradeBreakdown,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.textSecondary,
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
-}
 
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Chip(
-      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-      visualDensity: VisualDensity.compact,
-      side: BorderSide.none,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
+  AppTagVariant _tagVariantForSpecialGrade(String label) {
+    if (label.contains('不及格') || label.contains('重修')) {
+      return AppTagVariant.danger;
+    }
+    if (label.contains('及格') || label.contains('通过')) {
+      return AppTagVariant.success;
+    }
+    return AppTagVariant.neutral;
   }
 }
 
-@immutable
 class _ScoreBadge extends StatelessWidget {
   const _ScoreBadge({required this.score});
 
@@ -605,14 +539,21 @@ class _ScoreBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final colors = context.colors;
+    final variant = _scoreVariant(score);
+    final (bg, fg) = switch (variant) {
+      AppTagVariant.success => (colors.successSoft, colors.success),
+      AppTagVariant.warning => (colors.warningSoft, colors.warning),
+      AppTagVariant.danger => (colors.dangerSoft, colors.danger),
+      _ => (colors.primarySoft, colors.primary),
+    };
 
     return Container(
-      constraints: const BoxConstraints(minWidth: 54),
+      constraints: const BoxConstraints(minWidth: 58),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(14),
+        color: bg,
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -622,23 +563,36 @@ class _ScoreBadge extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: colorScheme.onSecondaryContainer,
-              fontWeight: FontWeight.w900,
-            ),
+                  color: fg,
+                  fontWeight: FontWeight.w900,
+                ),
           ),
           Text(
             '成绩',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: colorScheme.onSecondaryContainer.withValues(alpha: 0.72),
-            ),
+                  color: fg.withValues(alpha: 0.78),
+                ),
           ),
         ],
       ),
     );
   }
+
+  AppTagVariant _scoreVariant(String value) {
+    final scoreValue = double.tryParse(value);
+    if (scoreValue == null) {
+      return AppTagVariant.primary;
+    }
+    if (scoreValue < 60) {
+      return AppTagVariant.danger;
+    }
+    if (scoreValue < 75) {
+      return AppTagVariant.warning;
+    }
+    return AppTagVariant.success;
+  }
 }
 
-@immutable
 class _DataBlock extends StatelessWidget {
   const _DataBlock({
     required this.icon,
@@ -652,39 +606,59 @@ class _DataBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final colors = context.colors;
 
     return Container(
-      height: 72,
-      width: 72,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      constraints: const BoxConstraints(minHeight: 74),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.36),
-        borderRadius: BorderRadius.circular(14),
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Icon(icon, size: 16, color: colorScheme.primary),
+          Icon(icon, size: AppTokens.iconSm, color: colors.primary),
           Text(
             value.isEmpty ? '-' : value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
           ),
           Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
+                  color: colors.textSecondary,
+                ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SectionIcon extends StatelessWidget {
+  const _SectionIcon({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        color: colors.primarySoft,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+      ),
+      child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
     );
   }
 }
@@ -715,6 +689,7 @@ class _GradeFilterSheetState extends State<GradeFilterSheet> {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
+      top: false,
       child: DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.82,
@@ -725,74 +700,100 @@ class _GradeFilterSheetState extends State<GradeFilterSheet> {
             controller: scrollController,
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
             children: [
-              Text(
-                '筛选条件',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              Row(
+                children: [
+                  _SectionIcon(icon: AppIcons.filter),
+                  const SizedBox(width: AppTokens.gap10),
+                  Expanded(
+                    child: Text(
+                      '筛选条件',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              _DropdownField(
-                label: '起始学年学期',
-                value: filter.startSemester,
-                options: widget.options.startSemesters,
-                onChanged: (value) => setState(
-                  () => filter = filter.copyWith(startSemester: value ?? '001'),
+              const SizedBox(height: AppTokens.gap16),
+              AppSurface(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  children: [
+                    _DropdownField(
+                      label: '起始学年学期',
+                      value: filter.startSemester,
+                      options: widget.options.startSemesters,
+                      onChanged: (value) => setState(
+                        () => filter = filter.copyWith(
+                          startSemester: value ?? '001',
+                        ),
+                      ),
+                    ),
+                    _DropdownField(
+                      label: '终止学年学期',
+                      value: filter.endSemester,
+                      options: widget.options.endSemesters,
+                      onChanged: (value) => setState(
+                        () => filter = filter.copyWith(
+                          endSemester: value ?? '001',
+                        ),
+                      ),
+                    ),
+                    _DropdownField(
+                      label: '是否及格',
+                      value: filter.passStatus,
+                      options: widget.options.passStatuses,
+                      onChanged: (value) => setState(
+                        () => filter = filter.copyWith(
+                          passStatus: value ?? '',
+                        ),
+                      ),
+                    ),
+                    _DropdownField(
+                      label: '课程平台',
+                      value: filter.courseNature,
+                      options: widget.options.courseNatures,
+                      onChanged: (value) => setState(
+                        () => filter = filter.copyWith(
+                          courseNature: value ?? '',
+                        ),
+                      ),
+                    ),
+                    _DropdownField(
+                      label: '是否补考',
+                      value: filter.makeup,
+                      options: widget.options.makeupTypes,
+                      onChanged: (value) => setState(
+                        () => filter = filter.copyWith(makeup: value ?? ''),
+                      ),
+                    ),
+                    _DropdownField(
+                      label: '是否显示公章',
+                      value: filter.seal,
+                      options: widget.options.sealOptions,
+                      onChanged: (value) => setState(
+                        () => filter = filter.copyWith(seal: value ?? '1'),
+                      ),
+                    ),
+                    _DropdownField(
+                      label: '课程归属',
+                      value: filter.courseAttribution,
+                      options: widget.options.courseAttributions,
+                      onChanged: (value) => setState(
+                        () => filter = filter.copyWith(
+                          courseAttribution: value ?? '',
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              _DropdownField(
-                label: '终止学年学期',
-                value: filter.endSemester,
-                options: widget.options.endSemesters,
-                onChanged: (value) => setState(
-                  () => filter = filter.copyWith(endSemester: value ?? '001'),
-                ),
-              ),
-              _DropdownField(
-                label: '是否及格',
-                value: filter.passStatus,
-                options: widget.options.passStatuses,
-                onChanged: (value) => setState(
-                  () => filter = filter.copyWith(passStatus: value ?? ''),
-                ),
-              ),
-              _DropdownField(
-                label: '课程平台',
-                value: filter.courseNature,
-                options: widget.options.courseNatures,
-                onChanged: (value) => setState(
-                  () => filter = filter.copyWith(courseNature: value ?? ''),
-                ),
-              ),
-              _DropdownField(
-                label: '是否补考',
-                value: filter.makeup,
-                options: widget.options.makeupTypes,
-                onChanged: (value) => setState(
-                  () => filter = filter.copyWith(makeup: value ?? ''),
-                ),
-              ),
-              _DropdownField(
-                label: '是否显示公章',
-                value: filter.seal,
-                options: widget.options.sealOptions,
-                onChanged: (value) => setState(
-                  () => filter = filter.copyWith(seal: value ?? '1'),
-                ),
-              ),
-              _DropdownField(
-                label: '课程归属',
-                value: filter.courseAttribution,
-                options: widget.options.courseAttributions,
-                onChanged: (value) => setState(
-                  () =>
-                      filter = filter.copyWith(courseAttribution: value ?? ''),
-                ),
-              ),
-              const SizedBox(height: 8),
-              FilledButton(
+              const SizedBox(height: AppTokens.gap14),
+              AppButton(
+                label: '应用筛选',
+                icon: AppIcons.check,
+                fullWidth: true,
                 onPressed: () => Navigator.pop(context, filter),
-                child: const Text('应用筛选'),
               ),
             ],
           );
@@ -817,84 +818,291 @@ class _DropdownField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = _dropdownItems(options, value);
+    final items = _resolveItems(options, value);
+    final selected = items.any((item) => item.value == value)
+        ? items.firstWhere((item) => item.value == value)
+        : null;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: DropdownButtonFormField<String>(
-        initialValue: items.any((item) => item.value == value) ? value : null,
-        isExpanded: true,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-        ),
+      child: AppComboBox<GradeFilterOption>(
+        label: label,
+        value: selected,
         items: items,
-        onChanged: onChanged,
+        itemLabelBuilder: (item) =>
+            item.label.isEmpty ? item.value : item.label,
+        onChanged: (item) => onChanged(item?.value),
       ),
     );
   }
 
-  List<DropdownMenuItem<String>> _dropdownItems(
+  List<GradeFilterOption> _resolveItems(
     List<GradeFilterOption> options,
     String currentValue,
   ) {
-    final source = options.isEmpty && currentValue.isNotEmpty
-        ? [GradeFilterOption(value: currentValue, label: currentValue)]
-        : options;
-    return source
-        .map(
-          (option) => DropdownMenuItem<String>(
-            value: option.value,
-            child: Text(option.label.isEmpty ? option.value : option.label),
-          ),
-        )
-        .toList(growable: false);
+    if (options.isEmpty && currentValue.isNotEmpty) {
+      return [GradeFilterOption(value: currentValue, label: currentValue)];
+    }
+    return options;
   }
 }
 
 class _QueryFeedbackState extends StatelessWidget {
   const _QueryFeedbackState({
     required this.title,
-    required this.subtitle,
-    required this.onRetry,
+    required this.message,
+    required this.onBack,
+    required this.onFilter,
+    required this.onRefresh,
   });
 
   final String title;
-  final String subtitle;
-  final VoidCallback onRetry;
+  final String message;
+  final VoidCallback onBack;
+  final VoidCallback? onFilter;
+  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('重试'),
-            ),
-          ],
+    return AppPage(
+      children: [
+        _QueryHeader(
+          onBack: onBack,
+          onFilter: onFilter,
+          onRefresh: onRefresh,
         ),
+        const SizedBox(height: AppTokens.gap16),
+        AppSurface(
+          child: SizedBox(
+            height: 320,
+            child: AppEmptyState(
+              title: title,
+              message: message,
+              icon: AppIcons.grade,
+              actionLabel: '重试',
+              onAction: onRefresh,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuerySkeletonView extends StatelessWidget {
+  const _QuerySkeletonView({required this.onBack});
+
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return SkeletonShimmer(
+      builder: (context, palette) => AppPage(
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          _QueryHeader(
+            onBack: onBack,
+            onFilter: null,
+            onRefresh: null,
+          ),
+          const SizedBox(height: AppTokens.gap16),
+          AppSurface(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: palette.block(radius: AppTokens.radiusSm),
+                    ),
+                    const SizedBox(width: AppTokens.gap10),
+                    Expanded(
+                      child: SkeletonBar(
+                        decoration: palette.line(radius: 8),
+                        widthFactor: 0.42,
+                        height: 18,
+                      ),
+                    ),
+                    Container(
+                      width: 72,
+                      height: 24,
+                      decoration: palette.block(radius: AppTokens.radiusFull),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppTokens.gap14),
+                Row(
+                  children: [
+                    Expanded(child: _SkeletonMetric(palette: palette)),
+                    const SizedBox(width: AppTokens.gap10),
+                    Expanded(child: _SkeletonMetric(palette: palette)),
+                  ],
+                ),
+                const SizedBox(height: AppTokens.gap10),
+                Row(
+                  children: [
+                    Expanded(child: _SkeletonMetric(palette: palette)),
+                    const SizedBox(width: AppTokens.gap10),
+                    Expanded(child: _SkeletonMetric(palette: palette)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppTokens.gap12),
+          _SkeletonGradeCard(palette: palette),
+          const SizedBox(height: AppTokens.gap12),
+          _SkeletonGradeCard(palette: palette),
+          const SizedBox(height: AppTokens.gap12),
+          _SkeletonGradeCard(palette: palette),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonMetric extends StatelessWidget {
+  const _SkeletonMetric({required this.palette});
+
+  final SkeletonPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 74,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SkeletonBar(
+            decoration: palette.line(radius: 8),
+            widthFactor: 0.54,
+            height: 18,
+          ),
+          const SizedBox(height: AppTokens.gap8),
+          SkeletonBar(
+            decoration: palette.line(radius: 8),
+            widthFactor: 0.72,
+            height: 12,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonGradeCard extends StatelessWidget {
+  const _SkeletonGradeCard({required this.palette});
+
+  final SkeletonPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurface(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonBar(
+                      decoration: palette.line(radius: 8),
+                      widthFactor: 0.76,
+                      height: 18,
+                    ),
+                    const SizedBox(height: AppTokens.gap8),
+                    SkeletonBar(
+                      decoration: palette.line(radius: 8),
+                      widthFactor: 0.42,
+                      height: 12,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppTokens.gap12),
+              Container(
+                width: 58,
+                height: 52,
+                decoration: palette.block(radius: AppTokens.radiusMd),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTokens.gap14),
+          Row(
+            children: [
+              Container(
+                width: 88,
+                height: 24,
+                decoration: palette.block(radius: AppTokens.radiusFull),
+              ),
+              const SizedBox(width: AppTokens.gap8),
+              Container(
+                width: 58,
+                height: 24,
+                decoration: palette.block(radius: AppTokens.radiusFull),
+              ),
+              const SizedBox(width: AppTokens.gap8),
+              Container(
+                width: 58,
+                height: 24,
+                decoration: palette.block(radius: AppTokens.radiusFull),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTokens.gap14),
+          Row(
+            children: [
+              Expanded(child: _SkeletonDataBlock(palette: palette)),
+              const SizedBox(width: AppTokens.gap8),
+              Expanded(child: _SkeletonDataBlock(palette: palette)),
+              const SizedBox(width: AppTokens.gap8),
+              Expanded(child: _SkeletonDataBlock(palette: palette)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonDataBlock extends StatelessWidget {
+  const _SkeletonDataBlock({required this.palette});
+
+  final SkeletonPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 74,
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Container(
+            width: 16,
+            height: 16,
+            decoration: palette.block(radius: AppTokens.radiusXs),
+          ),
+          SkeletonBar(
+            decoration: palette.line(radius: 8),
+            widthFactor: 0.58,
+            height: 14,
+          ),
+          SkeletonBar(
+            decoration: palette.line(radius: 8),
+            widthFactor: 0.42,
+            height: 11,
+          ),
+        ],
       ),
     );
   }

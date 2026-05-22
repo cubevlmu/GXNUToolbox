@@ -8,10 +8,12 @@ class TodayCourseSnapshot {
     required this.currentWeekText,
     required this.headlineText,
     required this.items,
+    this.nextItem,
   });
 
   factory TodayCourseSnapshot.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'];
+    final rawNext = json['nextItem'];
     return TodayCourseSnapshot(
       semesterText: json['semesterText']?.toString() ?? '当前学期',
       currentWeekText: json['currentWeekText']?.toString() ?? '--',
@@ -26,6 +28,9 @@ class TodayCourseSnapshot {
                 )
                 .toList(growable: false)
           : const <TodayCourseItemSnapshot>[],
+      nextItem: rawNext is Map
+          ? TodayCourseItemSnapshot.fromJson(rawNext.cast<String, dynamic>())
+          : null,
     );
   }
 
@@ -33,6 +38,7 @@ class TodayCourseSnapshot {
   final String currentWeekText;
   final String headlineText;
   final List<TodayCourseItemSnapshot> items;
+  final TodayCourseItemSnapshot? nextItem;
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -40,6 +46,7 @@ class TodayCourseSnapshot {
       'currentWeekText': currentWeekText,
       'headlineText': headlineText,
       'items': items.map((item) => item.toJson()).toList(growable: false),
+      if (nextItem != null) 'nextItem': nextItem!.toJson(),
     };
   }
 }
@@ -80,28 +87,90 @@ TodayCourseSnapshot buildTodayCourseSnapshot({
   required List<ClassMeta> weekMeta,
   required List<ClassTableCourse> weekCourses,
   required ClassTableMeta? meta,
+  List<ClassPeriodSetting>? periodSettings,
+  DateTime? now,
 }) {
   final todayMeta = _findTodayMeta(weekMeta);
   final todayCourses = _buildTodayCourses(weekCourses, todayMeta);
+  final effectiveNow = now ?? DateTime.now();
+
+  final nextCourse = _findNextUpcomingCourse(
+    todayCourses: todayCourses,
+    meta: meta,
+    periodSettings: periodSettings,
+    now: effectiveNow,
+  );
 
   return TodayCourseSnapshot(
     semesterText: semester.isNotEmpty ? '$semester学期' : '当前学期',
     currentWeekText: currentWeek > 0 ? '第$currentWeek周' : '--',
     headlineText: _buildHeadline(currentWeek, todayMeta),
     items: todayCourses
-        .map(
-          (course) => TodayCourseItemSnapshot(
-            timeText: _findStartTime(course.section, meta),
-            titleText: course.courseName.trim().isEmpty
-                ? '课程待定'
-                : course.courseName.trim(),
-            roomText: course.classroomName.trim().isEmpty
-                ? '教室待定'
-                : course.classroomName.trim(),
-          ),
-        )
+        .map((course) => TodayCourseItemSnapshot(
+              timeText: _findStartTime(course.section, meta, periodSettings),
+              titleText: course.courseName.trim().isEmpty
+                  ? '课程待定'
+                  : course.courseName.trim(),
+              roomText: course.classroomName.trim().isEmpty
+                  ? '教室待定'
+                  : course.classroomName.trim(),
+            ))
         .toList(growable: false),
+    nextItem: nextCourse == null
+        ? null
+        : TodayCourseItemSnapshot(
+            timeText: _findStartTime(nextCourse.section, meta, periodSettings),
+            titleText: nextCourse.courseName.trim().isEmpty
+                ? '课程待定'
+                : nextCourse.courseName.trim(),
+            roomText: nextCourse.classroomName.trim().isEmpty
+                ? '教室待定'
+                : nextCourse.classroomName.trim(),
+          ),
   );
+}
+
+ClassTableCourse? _findNextUpcomingCourse({
+  required List<ClassTableCourse> todayCourses,
+  required ClassTableMeta? meta,
+  List<ClassPeriodSetting>? periodSettings,
+  required DateTime now,
+}) {
+  final sorted = [...todayCourses]..sort((a, b) => a.section.compareTo(b.section));
+
+  for (final course in sorted) {
+    final start = _parseSectionDateTime(
+      course.section,
+      meta,
+      periodSettings,
+      now,
+    );
+    if (start == null) continue;
+    if (start.isAfter(now)) return course;
+  }
+
+  return null;
+}
+
+DateTime? _parseSectionDateTime(
+  int section,
+  ClassTableMeta? meta,
+  List<ClassPeriodSetting>? periodSettings,
+  DateTime now,
+) {
+  final settings = periodSettings ?? meta?.periodSettings ?? const [];
+  for (final item in settings) {
+    if (item.section != section) continue;
+    final raw = item.startTime.trim();
+    if (raw.isEmpty) return null;
+    final parts = raw.split(':');
+    if (parts.length < 2) return null;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return null;
+    return DateTime(now.year, now.month, now.day, hour, minute);
+  }
+  return null;
 }
 
 ClassMeta? _findTodayMeta(List<ClassMeta> items) {
@@ -147,11 +216,13 @@ String _buildHeadline(int currentWeek, ClassMeta? todayMeta) {
   return '${todayMeta.weekdayName} · $weekText';
 }
 
-String _findStartTime(int section, ClassTableMeta? meta) {
-  if (meta == null) {
-    return '--:--';
-  }
-  for (final item in meta.periodSettings) {
+String _findStartTime(
+  int section,
+  ClassTableMeta? meta,
+  List<ClassPeriodSetting>? periodSettings,
+) {
+  final settings = periodSettings ?? meta?.periodSettings ?? const [];
+  for (final item in settings) {
     if (item.section == section && item.startTime.trim().isNotEmpty) {
       return item.startTime.trim();
     }

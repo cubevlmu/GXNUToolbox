@@ -8,6 +8,7 @@ import 'dart:convert';
 
 import 'package:class_tool/data/api/api.dart';
 import 'package:class_tool/data/model/bell_schedule.dart';
+import 'package:class_tool/data/model/class_table.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:class_tool/utils/storage_utils.dart';
@@ -137,8 +138,44 @@ class BellScheduleRepo {
     return null;
   }
 
+  List<ClassPeriodSetting> periodSettingsFor(String campusId) {
+    final cached = loadCached();
+    if (cached == null) return const [];
+
+    for (final campus in cached.campuses) {
+      if (_campusNameMatches(campus.campusName, campusId)) {
+        return campus.periods
+            .map(
+              (period) => ClassPeriodSetting(
+                startTime: period.startTime,
+                endTime: period.endTime,
+                sectionText: period.periodNumber.toString(),
+                sectionName: period.periodName,
+              ),
+            )
+            .toList(growable: false);
+      }
+    }
+    return const [];
+  }
+
   bool _campusNameMatches(String campusName, String campusId) {
-    final idMap = {'1': '王城', '2': '育才', '3': '雁山'};
-    return idMap[campusId] == campusName;
+    final normalizedName = campusName.trim();
+    final normalizedId = campusId.trim();
+    final idMap = {
+      '1': '王城',
+      '01': '王城',
+      '2': '育才',
+      '02': '育才',
+      '3': '雁山',
+      '03': '雁山',
+    };
+    final mappedName = idMap[normalizedId];
+    if (mappedName != null) {
+      return normalizedName.contains(mappedName);
+    }
+    return normalizedId.isNotEmpty &&
+        (normalizedName.contains(normalizedId) ||
+            normalizedId.contains(normalizedName));
   }
 }
