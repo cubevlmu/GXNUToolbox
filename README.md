@@ -1,177 +1,204 @@
 # GXNU Class Tool
 
-<a id="readme-top"></a>
-
 [![Flutter][flutter-shield]][flutter-url]
 [![Dart][dart-shield]][dart-url]
 [![GetX][getx-shield]][getx-url]
 
-<br />
 <div align="center">
   <img src="assets/images/icon.png" alt="GXNU Class Tool Logo" width="120" height="120">
 
-  <h3 align="center">GXNU Class Tool</h3>
+  <h3>GXNU Class Tool</h3>
 
-  <p align="center">
+  <p>
     A Flutter course schedule application for Guangxi Normal University.
     <br />
-    Focused on unified identity authentication login, schedule synchronization, Material Design experience, and a lightweight, stable mobile user experience.
+    Supporting unified identity authentication, schedule sync, exam & grade queries, credit tracking, and an Android home widget.
   </p>
 </div>
 
-## Table of Contents
+## Features
 
-- [About The Project](#about-the-project)
-- [Built With](#built-with)
-- [Features](#features)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-- [Build Release](#build-release)
-- [Notes](#notes)
-- [Roadmap](#roadmap)
-
-## About The Project
-
-GXNU Class Tool is a Flutter-based course schedule tool for Guangxi Normal University. The current repository is primarily intended for Android and Windows environments.
-
-Current project focus includes:
-
-- Login and login state restoration based on unified identity authentication
-- Semester and week switching with real-time schedule synchronization
-- Home page today's course overview and schedule detail viewing
-- Material Design 3 style mobile interface
-- Local login information persistence, offline fallback, and basic performance optimization
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+- **Unified Auth** — SSO-based login with local credential storage and automatic session restore
+- **Course Schedule** — semester/week switching, daily course overview, and course detail drawer
+- **Query Tools** — grade query, exam schedule, credit progress, and course plan tracking
+- **Student Info** — campus card parsed directly from the academic system
+- **Bell Schedule** — per-campus period timetable with Hive caching
+- **Android Widget** — today's course list on the home screen with automatic daily refresh
+- **Morning Briefing** — notification with first class info after background sync
+- **Light / Dark Mode** — GXNU Blue Minimal design system with full dark mode support
+- **Login Persistence** — offline session fallback and re-login recovery
 
 ## Built With
 
-- [Flutter](https://flutter.dev/)
-- [Dart](https://dart.dev/)
-- [GetX](https://pub.dev/packages/get)
-- [Dio](https://pub.dev/packages/dio)
-- [Hive](https://pub.dev/packages/hive)
-- [easy_refresh](https://pub.dev/packages/easy_refresh)
-- [connectivity_plus](https://pub.dev/packages/connectivity_plus)
-- [flutter_secure_storage](https://pub.dev/packages/flutter_secure_storage)
-- [package_info_plus](https://pub.dev/packages/package_info_plus)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Features
-
-- Unified identity authentication login with remember login state support
-- Splash page auto network check and login state sync
-- Home page displays current semester, current week, and today's course schedule
-- Schedule page supports semester switching, week switching, manual refresh, and course detail drawer
-- Settings page supports theme mode switching, about page, and logout
-- First-screen skeleton screen, controller lifecycle convergence, on-demand initialization, and other basic performance optimizations
-- Android adaptive launch icon and Material 3 style theme
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+- [Flutter](https://flutter.dev/) — cross-platform framework
+- [Dart](https://dart.dev/) — language
+- [GetX](https://pub.dev/packages/get) — state management, routing, DI
+- [Dio](https://pub.dev/packages/dio) — HTTP client
+- [Hive](https://pub.dev/packages/hive) — local key-value storage
+- [Fluent UI System Icons](https://pub.dev/packages/fluentui_system_icons) — icon library
+- [home_widget](https://pub.dev/packages/home_widget) — Android home screen widget
+- [workmanager](https://pub.dev/packages/workmanager) — background task scheduling
+- [connectivity_plus](https://pub.dev/packages/connectivity_plus) — network status
+- [flutter_secure_storage](https://pub.dev/packages/flutter_secure_storage) — encrypted credential storage
 
 ## Project Structure
 
 ```text
 lib/
-├── data/       # API, authentication storage, models, repository layer
-├── pages/      # Login, home, schedule, settings, splash, etc. pages
-├── utils/      # Network, logging, storage, dialogs, etc. utilities
-├── widgets/    # Common components, bottom sheets, skeleton animations, etc.
+├── data/
+│   ├── api/          # API client, interceptors, endpoints
+│   ├── auth/         # credential storage (Hive + secure storage)
+│   ├── model/        # data models
+│   ├── repo/         # repositories with caching & login recovery
+│   └── services/     # morning briefing, snapshot cache
+├── pages/
+│   ├── home/         # today's overview with next course
+│   ├── classes/      # weekly schedule table
+│   ├── query/        # grade query with filters
+│   ├── exams/        # exam schedule by semester & batch
+│   ├── credit/       # credit progress by module
+│   ├── progress/     # course plan completion tracking
+│   ├── info/         # student info card
+│   ├── time/         # bell schedule per campus
+│   ├── features/     # feature entry list
+│   ├── settings/     # theme, auto sync, about, logout
+│   ├── login/        # identity authentication login
+│   ├── splash/       # startup login sync
+│   └── main/         # bottom tab navigation shell
+├── ui/               # design system primitives (AppSurface, AppTile, etc.)
+├── utils/            # HTTP, logging, storage, shared dialogs
+├── widgets/          # reusable widgets (skeleton, bottom sheet, easy refresher)
 ├── class_tool_app.dart
 └── main.dart
 ```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
 ## Getting Started
 
-### Prerequisites
+**Prerequisites**
 
-- Flutter stable SDK
-- Dart SDK bundled with Flutter
-- Android Studio, VS Code, or other Flutter IDE
-
-Check local environment:
+- Flutter SDK 3.x (stable)
+- Android Studio or VS Code
+- Android device/emulator (for widget & notification features)
 
 ```sh
 flutter doctor
 ```
 
-### Installation
-
-1. Clone the repository.
-
-   ```sh
-   git clone github.com/cubevlmu/GXNUTool.git
-   cd class_tool
-   ```
-
-2. Install dependencies.
-
-   ```sh
-   flutter pub get
-   ```
-
-3. If you need to regenerate the app icon, run:
-
-   ```sh
-   dart run flutter_launcher_icons
-   ```
-
-### Run
+**Install**
 
 ```sh
-flutter run
+git clone https://github.com/cubevlmu/GXNUTool.git
+cd class_tool
+flutter pub get
 ```
 
-Examples:
+**Local constants**
+
+This project keeps build-time update service credentials out of git.
+Before running the app, create your local constants file:
+
+```sh
+# macOS / Linux
+cp lib/constant.example.dart lib/constant.dart
+
+# Windows PowerShell
+Copy-Item lib/constant.example.dart lib/constant.dart
+```
+
+Then edit `lib/constant.dart` with your local update service values:
+
+```dart
+static const String updateBaseUrl = 'http://127.0.0.1:8080';
+static const String updateAppId = 'me.cubevlmu.class_tool';
+static const String updateClientSecret = 'replace-with-client-secret';
+static const String updateEd25519PublicKey =
+    'replace-with-ed25519-public-key';
+```
+
+`lib/constant.dart` is ignored by git and must not be committed. Commit changes
+to `lib/constant.example.dart` only when the public template itself changes.
+
+Update-related defaults:
+
+- App version is read from `pubspec.yaml` through `package_info_plus`.
+- `versionCode` is generated by `gx_update_client` using
+  `major * 1_000_000 + minor * 1_000 + patch`.
+- Debug builds use update channel `dev`; release builds use `stable`.
+- Android uses platform `android` and arch `arm64-v8a`.
+- Windows uses platform `windows` and arch `x64`.
+- `download_token_secret` is a server-side secret only. Do not put it in the
+  Flutter client.
+
+For Android emulator tests, `127.0.0.1` points to the emulator itself. Use
+`http://10.0.2.2:8080` for a server running on the host machine. On a physical
+Android device, use the host machine LAN IP, for example
+`http://192.168.x.x:8080`.
+
+**Regenerate app icons** (after changing `assets/logo/logo.svg`)
+
+```sh
+dart run flutter_launcher_icons
+```
+
+**Run**
 
 ```sh
 flutter run -d android
 flutter run -d windows
 ```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
 ## Build Release
 
-### Android
-
 ```sh
-flutter build appbundle --release --obfuscate --split-debug-info=./symbols --tree-shake-icons
+# Android (APK)
 flutter build apk --release --target-platform android-arm64 --obfuscate --split-debug-info=./symbols --tree-shake-icons
-```
 
-### Windows
+# Android (App Bundle)
+flutter build appbundle --release --obfuscate --split-debug-info=./symbols --tree-shake-icons
 
-```sh
+# Windows
 flutter build windows --release --obfuscate --split-debug-info=./symbols --tree-shake-icons
 ```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+## Design System
+
+The project uses a custom design system under `lib/ui/`:
+
+| Component | Purpose |
+|-----------|---------|
+| `AppPalette` | ThemeExtension with light/dark color tokens |
+| `AppColors` | Light and dark palette providers |
+| `AppIcons` | Fluent UI icon abstraction layer |
+| `AppSurface` | Lightweight container replacing Material `Card` |
+| `AppTile` | List item replacing Material `ListTile` |
+| `AppSection` | Grouped list section |
+| `AppButton` | primary/secondary/danger button variants |
+| `AppComboBox` | Dropdown replacing `DropdownButtonFormField` |
+| `AppSegmentedControl` | Segmented picker replacing `SegmentedButton` |
+| `AppEmptyState` | Unified empty/error/loading state |
+| `AppBottomTabBar` | Custom bottom navigation |
+
+Pages reference these components exclusively. Direct use of Material `Card`, `ListTile`, `Chip`, and `Icons.*` is prohibited in page-level code.
 
 ## Notes
 
-- The current project depends on school-related system interfaces. Interface structure or login policy changes may cause login failures.
-- When verification codes, remote login verification, or excessive login failures are triggered, manual re-login may be required.
-- The app stores necessary login information locally to support automatic login; remote account hosting is not implemented in this repository.
-- It is recommended to verify startup speed, scrolling performance, and schedule loading experience in real device `release` mode.
-- The repository currently does not include a separate license file. If open source release is planned, it is recommended to supplement later.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+- This project depends on Guangxi Normal University's academic system APIs. Login policy or interface changes may cause temporary failures.
+- When verification codes, remote login checks, or excessive login failures are triggered, manual re-login may be required.
+- Account credentials are stored encrypted locally and never uploaded. No remote account hosting is implemented.
+- Always verify startup speed and schedule loading in `release` mode on real devices.
 
 ## Roadmap
 
-- [x] Unified identity authentication login and login state restoration
-- [x] Home page, schedule page, settings page basic functionality
-- [x] Material Design 3 style theme with light/dark mode
-- [x] Course detail drawer and week/semester switching
-- [x] Home page skeleton screen and some startup performance optimizations
-- [x] More complete README and module documentation
-- [x] Better exception states and error messaging
-- [x] More performance analysis and device-side verification
-- [ ] Future expansion of more campus-related features
+- [x] Unified identity authentication login with auto re-login
+- [x] Course schedule with semester/week switching and detail drawer
+- [x] Grade query with multi-dimensional filters
+- [x] Exam schedule, credit progress, and course plan tracking
+- [x] Student info card and bell schedule pages
+- [x] Android home widget with daily background sync
+- [x] Morning briefing notification
+- [x] GXNU Blue Minimal design system with light/dark mode
+- [x] Skeleton screens and startup performance optimization
+- [ ] Additional campus service integrations
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

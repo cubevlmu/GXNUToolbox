@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:class_tool/data/services/morning_briefing_service.dart';
+import 'package:class_tool/data/services/app_update_service.dart';
 import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
 import 'package:class_tool/utils/storage_utils.dart';
@@ -30,6 +31,8 @@ class SettingsController extends GetxController {
   final RxBool autoWidgetSyncEnabled =
       Get.find<TodayCoursesWidgetRepo>().isAutoSyncEnabled.obs;
   final RxBool morningBriefingEnabled = MorningBriefingService.isEnabled.obs;
+  final RxBool startupUpdatePromptEnabled =
+      AppUpdateService.startupOptionalUpdatePromptEnabled.obs;
 
   bool get supportsScheduledSync => Platform.isAndroid;
   bool get supportsMorningBriefing => Platform.isAndroid;
@@ -94,6 +97,14 @@ class SettingsController extends GetxController {
     }
     final actual = await MorningBriefingService.setEnabled(enabled);
     morningBriefingEnabled.value = actual;
+  }
+
+  Future<void> changeStartupUpdatePrompt(bool enabled) async {
+    if (startupUpdatePromptEnabled.value == enabled) {
+      return;
+    }
+    startupUpdatePromptEnabled.value = enabled;
+    await AppUpdateService.setStartupOptionalUpdatePromptEnabled(enabled);
   }
 
   Future<void> runMorningSyncDebug() async {
