@@ -11,6 +11,7 @@ class HomeController extends GetxController {
   final RxString todayWeekdayText = '今天'.obs;
   final RxInt todayCourseCount = 0.obs;
   final RxList<String> todayCourseSummaries = <String>[].obs;
+  final Rx<TodayCourseItemSnapshot?> nextCourse = Rx<TodayCourseItemSnapshot?>(null);
   final RxBool _hasResolvedTodaySnapshot = false.obs;
 
   bool get isLoading => _classesController.isLoading;
@@ -48,6 +49,7 @@ class HomeController extends GetxController {
     todayWeekdayText.value = snapshot.headlineText;
     todayCourseCount.value = snapshot.items.length;
     todayCourseSummaries.assignAll(snapshot.items.map((item) => item.summary));
+    nextCourse.value = snapshot.nextItem;
     _hasResolvedTodaySnapshot.value = true;
   }
 

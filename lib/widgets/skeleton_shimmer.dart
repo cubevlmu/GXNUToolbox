@@ -1,3 +1,4 @@
+import 'package:class_tool/ui/app_context.dart';
 import 'package:flutter/material.dart';
 
 class SkeletonShimmer extends StatefulWidget {
@@ -35,30 +36,13 @@ class _SkeletonShimmerState extends State<SkeletonShimmer>
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseSurface = isDark
-        ? colorScheme.surfaceContainerHighest
-        : colorScheme.surfaceContainerHigh;
-    final highlightSurface = isDark
-        ? Color.alphaBlend(
-            Colors.white.withValues(alpha: 0.14),
-            colorScheme.surfaceBright,
-          )
-        : Color.alphaBlend(
-            Colors.white.withValues(alpha: 0.38),
-            colorScheme.surface,
-          );
-    final baseTone = Color.alphaBlend(
-      colorScheme.onSurface.withValues(alpha: isDark ? 0.08 : 0.045),
-      baseSurface,
-    );
-    final highlightTone = Color.alphaBlend(
-      (isDark ? Colors.white : Colors.black).withValues(
-        alpha: isDark ? 0.05 : 0.025,
-      ),
-      highlightSurface,
-    );
+    final colors = context.colors;
+    final baseTone = colors.surfaceAlt;
+    final highlightTone = Color.lerp(
+      colors.surfaceAlt,
+      colors.surfacePressed,
+      0.72,
+    )!;
 
     return AnimatedBuilder(
       animation: _controller,

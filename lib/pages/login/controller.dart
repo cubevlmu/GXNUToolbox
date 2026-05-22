@@ -9,8 +9,8 @@ import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
 import 'package:class_tool/pages/settings/controller.dart';
 import 'package:class_tool/pages/splash/view.dart';
+import 'package:class_tool/ui/app_toast.dart';
 import 'package:class_tool/utils/log_util.dart';
-import 'package:class_tool/utils/snackbar_utils.dart';
 import 'package:get/get.dart';
 
 class LoginController extends GetxController {
@@ -60,12 +60,12 @@ class LoginController extends GetxController {
     final trimmedAccount = account.trim();
     if (trimmedAccount.isEmpty) {
       LogUtil.warn('[LoginController] login blocked: empty username');
-      SnackbarUtils.showWarning(msg: '请输入学号或工号');
+      AppToast.warningGlobal(message: '请输入学号或工号');
       return;
     }
     if (password.isEmpty) {
       LogUtil.warn('[LoginController] login blocked: empty password');
-      SnackbarUtils.showWarning(msg: '请输入密码');
+      AppToast.warningGlobal(message: '请输入密码');
       return;
     }
 
@@ -81,7 +81,7 @@ class LoginController extends GetxController {
       );
       if (!success) {
         LogUtil.warn('[LoginController] login failed username=$trimmedAccount');
-        SnackbarUtils.showError(msg: '登录失败，请检查账号、密码或登录状态');
+        AppToast.errorGlobal(message: '登录失败，请检查账号、密码或登录状态');
         return;
       }
 

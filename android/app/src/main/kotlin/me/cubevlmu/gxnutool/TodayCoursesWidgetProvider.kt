@@ -38,6 +38,8 @@ class TodayCoursesWidgetProvider : HomeWidgetProvider() {
         val weekText = widgetData.getString("weekText", "--") ?: "--"
         val updatedAtText = widgetData.getString("updatedAtText", "") ?: ""
         val courseCount = widgetData.getInt("courseCount", 0)
+        val coursesJson = widgetData.getString("coursesJson", "[]") ?: "[]"
+        val hasCourses = courseCount > 0 && coursesJson.length > 2
 
         setTextViewText(R.id.headline_text, headlineText)
         setTextViewText(R.id.week_text, weekText)
@@ -47,7 +49,7 @@ class TodayCoursesWidgetProvider : HomeWidgetProvider() {
         setViewVisibility(R.id.refresh_button, if (isLoading) View.GONE else View.VISIBLE)
         setViewVisibility(R.id.refresh_progress, if (isLoading) View.VISIBLE else View.GONE)
 
-        val showEmpty = courseCount == 0
+        val showEmpty = !hasCourses
         setViewVisibility(R.id.empty_text, if (showEmpty) View.VISIBLE else View.GONE)
         setViewVisibility(R.id.course_list, if (showEmpty) View.GONE else View.VISIBLE)
         if (showEmpty) {

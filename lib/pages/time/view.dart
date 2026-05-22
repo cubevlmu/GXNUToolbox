@@ -6,6 +6,15 @@
 
 import 'package:class_tool/data/model/bell_schedule.dart';
 import 'package:class_tool/pages/time/controller.dart';
+import 'package:class_tool/ui/app_context.dart';
+import 'package:class_tool/ui/app_empty_state.dart';
+import 'package:class_tool/ui/app_icon_button.dart';
+import 'package:class_tool/ui/app_icons.dart';
+import 'package:class_tool/ui/app_page.dart';
+import 'package:class_tool/ui/app_segmented_control.dart';
+import 'package:class_tool/ui/app_surface.dart';
+import 'package:class_tool/ui/app_tag.dart';
+import 'package:class_tool/ui/app_tokens.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -37,104 +46,227 @@ class _TimePageState extends State<TimePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('作息时间'),
-        actions: [
-          GetBuilder<TimeController>(
-            id: 'time-content',
-            builder: (c) => IconButton(
-              icon: const Icon(Icons.refresh_outlined),
-              tooltip: '刷新',
-              onPressed: c.isLoading.value ? null : c.refresh,
+      backgroundColor: context.colors.background,
+      body: GetBuilder<TimeController>(
+        id: 'time-content',
+        builder: (controller) {
+          if (controller.isLoading.value && controller.campuses.isEmpty) {
+            return _TimeSkeletonView(
+              onBack: () => Navigator.of(context).maybePop(),
+            );
+          }
+
+          if (controller.error.isNotEmpty && controller.campuses.isEmpty) {
+            return _FeedbackState(
+              title: '作息时间加载失败',
+              message: controller.error.value,
+              onBack: () => Navigator.of(context).maybePop(),
+              onRefresh: controller.refresh,
+            );
+          }
+
+          if (controller.campuses.isEmpty) {
+            return _FeedbackState(
+              title: '暂无作息数据',
+              message: '点击刷新后重试',
+              onBack: () => Navigator.of(context).maybePop(),
+              onRefresh: controller.refresh,
+            );
+          }
+
+          return AppPage(
+            children: [
+              _TimeHeader(
+                onBack: () => Navigator.of(context).maybePop(),
+                onRefresh:
+                    controller.isLoading.value ? null : controller.refresh,
+              ),
+              const SizedBox(height: AppTokens.gap16),
+              _CampusSelector(controller: controller),
+              const SizedBox(height: AppTokens.gap16),
+              Obx(() {
+                final campus = controller.selectedCampus;
+                if (campus == null) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ScheduleSummary(
+                      campus: campus,
+                      semester: controller.semester.value,
+                      campusCount: controller.campuses.length,
+                    ),
+                    const SizedBox(height: AppTokens.gap16),
+                    _ListHeader(count: campus.periods.length),
+                    const SizedBox(height: AppTokens.gap8),
+                    for (final period in campus.periods) ...[
+                      _PeriodTile(period: period),
+                      const SizedBox(height: AppTokens.gap10),
+                    ],
+                  ],
+                );
+              }),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TimeHeader extends StatelessWidget {
+  const _TimeHeader({required this.onBack, required this.onRefresh});
+
+  final VoidCallback onBack;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Row(
+      children: [
+        AppIconButton(
+          icon: AppIcons.chevronLeft,
+          tooltip: '返回',
+          variant: AppIconButtonVariant.outline,
+          onPressed: onBack,
+        ),
+        const SizedBox(width: AppTokens.gap12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '作息时间',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: AppTokens.gap4),
+              Text(
+                '查看各校区上课时间安排',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        AppIconButton(
+          icon: AppIcons.refresh,
+          tooltip: '刷新',
+          variant: AppIconButtonVariant.outline,
+          onPressed: onRefresh,
+        ),
+      ],
+    );
+  }
+}
+
+class _CampusSelector extends StatelessWidget {
+  const _CampusSelector({required this.controller});
+
+  final TimeController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      return AppSegmentedControl<int>(
+        value: controller.selectedCampusIndex.value,
+        items: [
+          for (var i = 0; i < controller.campuses.length; i++)
+            AppSegmentedItem<int>(
+              value: i,
+              label: controller.campuses[i].campusName,
+              icon: AppIcons.building,
             ),
+        ],
+        onChanged: (value) => controller.selectedCampusIndex.value = value,
+      );
+    });
+  }
+}
+
+class _ScheduleSummary extends StatelessWidget {
+  const _ScheduleSummary({
+    required this.campus,
+    required this.semester,
+    required this.campusCount,
+  });
+
+  final CampusSchedule campus;
+  final String semester;
+  final int campusCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurface(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          _IconBox(icon: AppIcons.schedule),
+          const SizedBox(width: AppTokens.gap10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  campus.campusName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: AppTokens.gap4),
+                Text(
+                  '$semester 学期 · $campusCount 个校区',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: context.colors.textSecondary,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          AppTag(
+            label: '${campus.periods.length} 节',
+            variant: AppTagVariant.primary,
           ),
         ],
       ),
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: GetBuilder<TimeController>(
-          id: 'time-content',
-          builder: (c) {
-            if (c.isLoading.value && c.campuses.isEmpty) {
-              return const _TimeSkeletonView();
-            }
-            if (c.error.isNotEmpty && c.campuses.isEmpty) {
-              return _FeedbackState(
-                title: '加载失败',
-                subtitle: c.error.value,
-                onRetry: c.refresh,
-              );
-            }
-            if (c.campuses.isEmpty) {
-              return _FeedbackState(
-                title: '暂无数据',
-                subtitle: '点击刷新重试',
-                onRetry: c.refresh,
-              );
-            }
+    );
+  }
+}
 
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Obx(() {
-                    return SegmentedButton<int>(
-                      segments: List.generate(
-                        c.campuses.length,
-                        (i) => ButtonSegment<int>(
-                          value: i,
-                          label: Text(c.campuses[i].campusName),
-                        ),
-                      ),
-                      selected: {c.selectedCampusIndex.value},
-                      onSelectionChanged: (v) {
-                        c.selectedCampusIndex.value = v.first;
-                      },
-                    );
-                  }),
+class _ListHeader extends StatelessWidget {
+  const _ListHeader({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            '节次安排',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-                  child: Row(
-                    children: [
-                      Text(
-                        '${c.semester.value} 学期',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const Expanded(child: SizedBox.shrink()),
-                      Text(
-                        '${c.campuses.length}个校区',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Obx(() {
-                    final campus = c.selectedCampus;
-                    if (campus == null) return const SizedBox.shrink();
-                    return ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                      itemCount: campus.periods.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 4),
-                      itemBuilder: (_, index) {
-                        final period = campus.periods[index];
-                        return _PeriodTile(period: period);
-                      },
-                    );
-                  }),
-                ),
-              ],
-            );
-          },
+          ),
         ),
-      ),
+        Text(
+          '$count 条',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+      ],
     );
   }
 }
@@ -146,104 +278,104 @@ class _PeriodTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: colorScheme.tertiaryContainer,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                '${period.periodNumber}',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: colorScheme.onTertiaryContainer,
+    final colors = context.colors;
+    return AppSurface(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: colors.primarySoft,
+              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '${period.periodNumber}',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: colors.primary,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ),
+          const SizedBox(width: AppTokens.gap12),
+          Expanded(
+            child: Text(
+              period.periodName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+          const SizedBox(width: AppTokens.gap10),
+          Text(
+            period.timeText,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w800,
                 ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                period.periodName,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            Text(
-              period.timeText,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
+class _IconBox extends StatelessWidget {
+  const _IconBox({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: colors.primarySoft,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+      ),
+      child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
+    );
+  }
+}
+
 class _TimeSkeletonView extends StatelessWidget {
-  const _TimeSkeletonView();
+  const _TimeSkeletonView({required this.onBack});
+
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
     return SkeletonShimmer(
-      builder: (context, palette) => ListView(
+      builder: (context, palette) => AppPage(
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
         children: [
+          _TimeHeader(onBack: onBack, onRefresh: null),
+          const SizedBox(height: AppTokens.gap16),
           SkeletonBar(
-            decoration: palette.line(radius: 8),
-            widthFactor: 0.26,
-            height: 12,
+            decoration: palette.line(radius: AppTokens.radiusSm),
+            widthFactor: 1,
+            height: 52,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppTokens.gap16),
           SkeletonBar(
-            decoration: palette.line(radius: 10),
-            widthFactor: 1.0,
-            height: 38,
+            decoration: palette.line(radius: AppTokens.radiusMd),
+            widthFactor: 1,
+            height: 70,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppTokens.gap16),
           for (int i = 0; i < 8; i++) ...[
-            Card(
-              clipBehavior: Clip.antiAlias,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 36,
-                      height: 36,
-                      child: Container(decoration: palette.line(radius: 10)),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: SkeletonBar(
-                        decoration: palette.line(radius: 6),
-                        widthFactor: 0.4,
-                        height: 16,
-                      ),
-                    ),
-                    SizedBox(
-                      width: 72,
-                      height: 14,
-                      child: Container(decoration: palette.line(radius: 6)),
-                    ),
-                  ],
-                ),
-              ),
+            SkeletonBar(
+              decoration: palette.line(radius: AppTokens.radiusLg),
+              widthFactor: 1,
+              height: 64,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppTokens.gap10),
           ],
         ],
       ),
@@ -254,51 +386,35 @@ class _TimeSkeletonView extends StatelessWidget {
 class _FeedbackState extends StatelessWidget {
   const _FeedbackState({
     required this.title,
-    required this.subtitle,
-    required this.onRetry,
+    required this.message,
+    required this.onBack,
+    required this.onRefresh,
   });
 
   final String title;
-  final String subtitle;
-  final VoidCallback onRetry;
+  final String message;
+  final VoidCallback onBack;
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.schedule_outlined,
-              size: 56,
-              color: colorScheme.onSurfaceVariant.withAlpha(120),
+    return AppPage(
+      children: [
+        _TimeHeader(onBack: onBack, onRefresh: onRefresh),
+        const SizedBox(height: AppTokens.gap16),
+        AppSurface(
+          child: SizedBox(
+            height: 320,
+            child: AppEmptyState(
+              title: title,
+              message: message,
+              icon: AppIcons.schedule,
+              actionLabel: '重试',
+              onAction: onRefresh,
             ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            FilledButton.tonalIcon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('重试'),
-            ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

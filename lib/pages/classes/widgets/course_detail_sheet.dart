@@ -1,4 +1,7 @@
 import 'package:class_tool/pages/classes/controller.dart';
+import 'package:class_tool/ui/app_context.dart';
+import 'package:class_tool/ui/app_icons.dart';
+import 'package:class_tool/ui/app_tokens.dart';
 import 'package:class_tool/widgets/app_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 
@@ -43,31 +46,31 @@ class CourseDetailSheetContent extends StatelessWidget {
           ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 16),
-        _DetailRow(icon: Icons.stars_rounded, label: '学分', value: '3.0'),
+        _DetailRow(icon: AppIcons.credit, label: '学分', value: '3.0'),
         _DetailRow(
-          icon: Icons.calendar_month_rounded,
+          icon: AppIcons.calendar,
           label: '周次',
           value: course.weeks,
         ),
-        _DetailRow(icon: Icons.today_rounded, label: '星期', value: weekdayLabel),
+        _DetailRow(icon: AppIcons.schedule, label: '星期', value: weekdayLabel),
         _DetailRow(
-          icon: Icons.schedule_rounded,
+          icon: AppIcons.schedule,
           label: '节次',
           value: sectionText,
         ),
         _DetailRow(
-          icon: Icons.person_rounded,
+          icon: AppIcons.person,
           label: '教师',
           value: course.teacher,
         ),
         _DetailRow(
-          icon: Icons.place_rounded,
+          icon: AppIcons.location,
           label: '地点',
           value: course.classroom,
           isLink: true,
         ),
         _DetailRow(
-          icon: Icons.location_city_rounded,
+          icon: AppIcons.building,
           label: '开课校区',
           value: campus,
         ),
@@ -114,7 +117,7 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final colors = context.colors;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -123,15 +126,15 @@ class _DetailRow extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: Icon(icon, size: 20, color: colorScheme.primary),
+            child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
           ),
           const SizedBox(width: 12),
           SizedBox(
             width: 76,
             child: Text(
-              '$label：',
+              '$label: ',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+                color: colors.textSecondary,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -140,7 +143,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               value,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: isLink ? colorScheme.primary : null,
+                color: isLink ? colors.primary : null,
               ),
             ),
           ),

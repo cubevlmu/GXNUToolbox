@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="widget_card_background">#FF1D1B20</color>
-    <color name="widget_card_border">#33D0BCFF</color>
-    <color name="widget_course_background">#333A3840</color>
-    <color name="widget_time_badge_background">#FF4F378B</color>
-    <color name="widget_icon_button_background">#33FFFFFF</color>
-    <color name="widget_text_primary">#FFE6E0E9</color>
-    <color name="widget_text_secondary">#FFC9C3CF</color>
-    <color name="widget_text_tertiary">#99C9C3CF</color>
-    <color name="widget_text_accent">#FFD0BCFF</color>
-    <color name="widget_badge_text">#FFEADDFF</color>
+    <color name="widget_card_background">#171A20</color>
+    <color name="widget_card_border">#2A303A</color>
+    <color name="widget_course_background">#1F2430</color>
+    <color name="widget_time_badge_background">#1A2240</color>
+    <color name="widget_icon_button_background">#1A2240</color>
+    <color name="widget_text_primary">#EEF0F4</color>
+    <color name="widget_text_secondary">#C7CDD8</color>
+    <color name="widget_text_tertiary">#8F98A8</color>
+    <color name="widget_text_accent">#60A5FA</color>
+    <color name="widget_badge_text">#60A5FA</color>
 </resources>

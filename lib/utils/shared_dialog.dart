@@ -1,3 +1,7 @@
+import 'package:class_tool/ui/app_button.dart';
+import 'package:class_tool/ui/app_context.dart';
+import 'package:class_tool/ui/app_icons.dart';
+import 'package:class_tool/ui/app_tokens.dart';
 import 'package:flutter/material.dart';
 
 class SharedDialog {
@@ -13,72 +17,91 @@ class SharedDialog {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
-        final colorScheme = Theme.of(context).colorScheme;
-        return AlertDialog(
+        final colors = context.colors;
+
+        return Dialog(
+          backgroundColor: colors.surface,
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 24,
             vertical: 24,
           ),
-          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-          contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(AppTokens.radiusXl),
+            side: BorderSide(color: colors.border),
           ),
-          title: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: colorScheme.errorContainer,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  Icons.logout_rounded,
-                  color: colorScheme.onErrorContainer,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(title),
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            content,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-              height: 1.45,
-            ),
-          ),
-          actions: [
-            Row(
+          child: Padding(
+            padding: const EdgeInsets.all(AppTokens.gap20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colorScheme.error,
-                      foregroundColor: colorScheme.onError,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: colors.dangerSoft,
+                        borderRadius: BorderRadius.circular(
+                          AppTokens.radiusMd,
+                        ),
+                      ),
+                      child: Icon(
+                        AppIcons.logout,
+                        size: AppTokens.iconMd,
+                        color: colors.danger,
+                      ),
                     ),
-                    child: Text(confirmText),
+                    const SizedBox(width: AppTokens.gap12),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          title,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(
+                                color: colors.textPrimary,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppTokens.gap14),
+                Text(
+                  content,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colors.textSecondary,
+                    height: 1.45,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: Text(cancelText),
-                  ),
+                const SizedBox(height: AppTokens.gap20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppButton(
+                        label: cancelText,
+                        variant: AppButtonVariant.secondary,
+                        onPressed: () => Navigator.of(context).pop(false),
+                      ),
+                    ),
+                    const SizedBox(width: AppTokens.gap10),
+                    Expanded(
+                      child: AppButton(
+                        label: confirmText,
+                        variant: AppButtonVariant.danger,
+                        onPressed: () => Navigator.of(context).pop(true),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
         );
       },
     );

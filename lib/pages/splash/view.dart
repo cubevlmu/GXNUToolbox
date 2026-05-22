@@ -1,4 +1,7 @@
 import 'package:class_tool/pages/splash/controller.dart';
+import 'package:class_tool/ui/app_button.dart';
+import 'package:class_tool/ui/app_context.dart';
+import 'package:class_tool/ui/app_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -28,9 +31,10 @@ class _SplashPageState extends State<SplashPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final colors = context.colors;
 
     return Scaffold(
+      backgroundColor: colors.background,
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -44,65 +48,83 @@ class _SplashPageState extends State<SplashPage> {
                   children: [
                     Icon(
                       controller.stage.value == SplashStage.syncFailed
-                          ? Icons.error_outline_rounded
+                          ? AppIcons.error
                           : controller.stage.value ==
                                 SplashStage.offlineAvailable
-                          ? Icons.wifi_off_rounded
-                          : Icons.sync_rounded,
+                          ? AppIcons.warning
+                          : AppIcons.refresh,
                       size: 56,
-                      color: colorScheme.primary,
+                      color: colors.primary,
                     ),
                     const SizedBox(height: 20),
                     Text(
                       'GXNU课程表',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                          ?.copyWith(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                     const SizedBox(height: 12),
                     Text(
                       controller.message.value,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                        color: colors.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 28),
                     if (controller.stage.value == SplashStage.checkingNetwork ||
                         controller.stage.value == SplashStage.syncingLogin)
-                      const Center(
+                      Center(
                         child: SizedBox(
                           width: 28,
                           height: 28,
-                          child: CircularProgressIndicator(strokeWidth: 2.6),
+                          child: CircularProgressIndicator(
+                            color: colors.primary,
+                            strokeWidth: 2.6,
+                          ),
                         ),
                       ),
                     if (controller.stage.value ==
                         SplashStage.offlineAvailable) ...[
-                      FilledButton(
+                      AppButton(
+                        label: '重新检查',
+                        icon: AppIcons.refresh,
+                        fullWidth: true,
                         onPressed: controller.retry,
-                        child: const Text('重新检查'),
                       ),
                       const SizedBox(height: 12),
-                      OutlinedButton(
+                      AppButton(
+                        label: '进入离线模式',
+                        icon: AppIcons.warning,
+                        variant: AppButtonVariant.secondary,
+                        fullWidth: true,
                         onPressed: controller.goOffline,
-                        child: const Text('进入离线模式'),
                       ),
                       const SizedBox(height: 12),
-                      TextButton(
+                      AppButton(
+                        label: '返回登录页',
+                        variant: AppButtonVariant.secondary,
+                        fullWidth: true,
                         onPressed: controller.goLogin,
-                        child: const Text('返回登录页'),
                       ),
                     ],
                     if (controller.stage.value == SplashStage.syncFailed) ...[
-                      FilledButton(
+                      AppButton(
+                        label: '重试',
+                        icon: AppIcons.refresh,
+                        fullWidth: true,
                         onPressed: controller.retry,
-                        child: const Text('重试'),
                       ),
                       const SizedBox(height: 12),
-                      OutlinedButton(
+                      AppButton(
+                        label: '重新登录',
+                        icon: AppIcons.login,
+                        variant: AppButtonVariant.secondary,
+                        fullWidth: true,
                         onPressed: controller.goLogin,
-                        child: const Text('重新登录'),
                       ),
                     ],
                   ],
