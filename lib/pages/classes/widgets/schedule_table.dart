@@ -1,5 +1,7 @@
 import 'package:class_tool/pages/classes/controller.dart';
 import 'package:class_tool/pages/classes/widgets/course_detail_sheet.dart';
+import 'package:class_tool/ui/app_colors.dart';
+import 'package:class_tool/ui/app_context.dart';
 import 'package:flutter/material.dart';
 
 class ScheduleTableContent extends StatelessWidget {
@@ -16,14 +18,14 @@ class ScheduleTableContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final colors = context.colors;
     final tableBackgroundTop = Color.alphaBlend(
-      colorScheme.primary.withValues(alpha: 0.04),
-      colorScheme.surfaceContainerLowest,
+      colors.primary.withValues(alpha: 0.04),
+      colors.background,
     );
     final tableBackgroundBottom = Color.alphaBlend(
-      colorScheme.secondary.withValues(alpha: 0.03),
-      colorScheme.surface,
+      colors.info.withValues(alpha: 0.03),
+      colors.surface,
     );
 
     return LayoutBuilder(
@@ -154,15 +156,15 @@ class _ScheduleGridBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final headerCellColor = colorScheme.surfaceContainerHigh;
+    final colors = context.colors;
+    final headerCellColor = colors.surfaceAlt;
     final todayHeaderCellColor = Color.alphaBlend(
-      colorScheme.primary.withValues(alpha: 0.1),
-      colorScheme.surfaceContainerHigh,
+      colors.primary.withValues(alpha: 0.1),
+      colors.surfaceAlt,
     );
-    final leftHeaderColor = colorScheme.surfaceContainerHighest;
-    final borderColor = colorScheme.outlineVariant.withValues(alpha: 0.75);
-    final innerBorderColor = colorScheme.outlineVariant.withValues(alpha: 0.45);
+    final leftHeaderColor = colors.surfacePressed;
+    final borderColor = colors.border;
+    final innerBorderColor = colors.border.withValues(alpha: 0.65);
 
     return Column(
       children: [
@@ -302,7 +304,7 @@ class _CourseBlockCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final foregroundColor = _foregroundColorFor(course.color);
+    final foregroundColor = _foregroundColorFor(course.color);
         final secondaryForegroundColor = foregroundColor.withValues(alpha: 0.84);
         final titleFontSize = _adaptiveFontSize(
           width: constraints.maxWidth,
@@ -338,11 +340,11 @@ class _CourseBlockCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: course.color,
                 borderRadius: BorderRadius.circular(metrics.cardRadius),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
-                    color: Color(0x14000000),
+                    color: context.colors.textPrimary.withValues(alpha: 0.08),
                     blurRadius: 10,
-                    offset: Offset(0, 4),
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -401,9 +403,9 @@ class _CourseBlockCard extends StatelessWidget {
   Color _foregroundColorFor(Color background) {
     final brightness = ThemeData.estimateBrightnessForColor(background);
     if (brightness == Brightness.dark) {
-      return Colors.white;
+      return AppColors.dark.textPrimary;
     }
-    return const Color(0xFF102418);
+    return AppColors.light.textPrimary;
   }
 }
 

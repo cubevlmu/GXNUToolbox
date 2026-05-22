@@ -5,6 +5,14 @@
  */
 
 import 'package:class_tool/pages/info/controller.dart';
+import 'package:class_tool/ui/app_context.dart';
+import 'package:class_tool/ui/app_empty_state.dart';
+import 'package:class_tool/ui/app_icon_button.dart';
+import 'package:class_tool/ui/app_icons.dart';
+import 'package:class_tool/ui/app_page.dart';
+import 'package:class_tool/ui/app_surface.dart';
+import 'package:class_tool/ui/app_tag.dart';
+import 'package:class_tool/ui/app_tokens.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -36,236 +44,390 @@ class _InfoPageState extends State<InfoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('学生信息'),
-        actions: [
-          GetBuilder<InfoController>(
-            id: 'info-content',
-            builder: (c) => IconButton(
-              icon: const Icon(Icons.refresh_outlined),
-              tooltip: '刷新',
-              onPressed: c.isLoading ? null : c.refresh,
-            ),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: GetBuilder<InfoController>(
-          id: 'info-content',
-          builder: (c) {
-            if (c.isLoading && c.info == null) {
-              return const _InfoSkeletonView();
-            }
-            if (c.error.isNotEmpty && c.info == null) {
-              return _FeedbackState(
-                title: '加载失败',
-                subtitle: c.error,
-                onRetry: c.refresh,
-              );
-            }
-            final info = c.info;
-            if (info == null) {
-              return _FeedbackState(
-                title: '暂无数据',
-                subtitle: '点击刷新重试',
-                onRetry: c.refresh,
-              );
-            }
+      backgroundColor: context.colors.background,
+      body: GetBuilder<InfoController>(
+        id: 'info-content',
+        builder: (controller) {
+          if (controller.isLoading && controller.info == null) {
+            return _InfoSkeletonView(
+              onBack: () => Navigator.of(context).maybePop(),
+            );
+          }
 
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              children: [
-                if (info.basic.name != null)
-                  _SectionCard(
-                    title: '基本信息',
-                    subtitle: '${info.basic.studentId ?? ""} · ${info.basic.gender ?? ""} · ${info.basic.birthDate ?? ""}',
-                    fields: info.basic.displayFields,
-                    highlightKeys: const {'学号', '姓名', '性别', '出生日期'},
-                  ),
-                const SizedBox(height: 12),
-                _SectionCard(
-                  title: '学籍信息',
-                  fields: info.enrollment.displayFields,
+          if (controller.error.isNotEmpty && controller.info == null) {
+            return _FeedbackState(
+              title: '学生信息加载失败',
+              message: controller.error,
+              onBack: () => Navigator.of(context).maybePop(),
+              onRefresh: controller.refresh,
+            );
+          }
+
+          final info = controller.info;
+          if (info == null) {
+            return _FeedbackState(
+              title: '暂无学生信息',
+              message: '点击刷新后重试',
+              onBack: () => Navigator.of(context).maybePop(),
+              onRefresh: controller.refresh,
+            );
+          }
+
+          return AppPage(
+            children: [
+              _InfoHeader(
+                onBack: () => Navigator.of(context).maybePop(),
+                onRefresh: controller.isLoading ? null : controller.refresh,
+              ),
+              const SizedBox(height: AppTokens.gap16),
+              if (info.basic.name != null) ...[
+                _ProfileSummary(
+                  name: info.basic.name ?? '',
+                  studentId: info.basic.studentId ?? '',
+                  subtitle:
+                      '${info.basic.gender ?? ''} · ${info.basic.birthDate ?? ''}',
                 ),
-                if (info.household.displayFields.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _SectionCard(
-                    title: '户籍信息',
-                    fields: info.household.displayFields,
+                const SizedBox(height: AppTokens.gap16),
+                _InfoSection(
+                  title: '基本信息',
+                  icon: AppIcons.person,
+                  fields: info.basic.displayFields,
+                  highlightKeys: const {'学号', '姓名', '性别', '出生日期'},
+                ),
+                const SizedBox(height: AppTokens.gap12),
+              ],
+              _InfoSection(
+                title: '学籍信息',
+                icon: AppIcons.school,
+                fields: info.enrollment.displayFields,
+              ),
+              if (info.household.displayFields.isNotEmpty) ...[
+                const SizedBox(height: AppTokens.gap12),
+                _InfoSection(
+                  title: '户籍信息',
+                  icon: AppIcons.location,
+                  fields: info.household.displayFields,
+                ),
+              ],
+              if (info.preschool.displayFields.isNotEmpty) ...[
+                const SizedBox(height: AppTokens.gap12),
+                _InfoSection(
+                  title: '学前信息',
+                  icon: AppIcons.book,
+                  fields: info.preschool.displayFields,
+                ),
+              ],
+              if (info.contact.displayFields.isNotEmpty) ...[
+                const SizedBox(height: AppTokens.gap12),
+                _InfoSection(
+                  title: '联系方式',
+                  icon: AppIcons.info,
+                  fields: info.contact.displayFields,
+                ),
+              ],
+              if (info.family.isNotEmpty) ...[
+                const SizedBox(height: AppTokens.gap12),
+                for (int i = 0; i < info.family.length; i++) ...[
+                  _InfoSection(
+                    title: info.family[i].title ?? '家庭成员${i + 1}',
+                    icon: AppIcons.person,
+                    fields: info.family[i].displayFields,
+                    compact: true,
                   ),
-                ],
-                if (info.preschool.displayFields.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _SectionCard(
-                    title: '学前信息',
-                    fields: info.preschool.displayFields,
-                  ),
-                ],
-                if (info.contact.displayFields.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _SectionCard(
-                    title: '联系方式',
-                    fields: info.contact.displayFields,
-                  ),
-                ],
-                if (info.family.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  for (int i = 0; i < info.family.length; i++) ...[
-                    _SectionCard(
-                      title: info.family[i].title ?? "家庭成员${i + 1}",
-                      fields: info.family[i].displayFields,
-                      compact: true,
-                    ),
-                    if (i < info.family.length - 1)
-                      const SizedBox(height: 8),
-                  ],
+                  if (i < info.family.length - 1)
+                    const SizedBox(height: AppTokens.gap8),
                 ],
               ],
-            );
-          },
-        ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
+class _InfoHeader extends StatelessWidget {
+  const _InfoHeader({required this.onBack, required this.onRefresh});
+
+  final VoidCallback onBack;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Row(
+      children: [
+        AppIconButton(
+          icon: AppIcons.chevronLeft,
+          tooltip: '返回',
+          variant: AppIconButtonVariant.outline,
+          onPressed: onBack,
+        ),
+        const SizedBox(width: AppTokens.gap12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '学生信息',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: AppTokens.gap4),
+              Text(
+                '查看学籍、基本信息与联系方式',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        AppIconButton(
+          icon: AppIcons.refresh,
+          tooltip: '刷新',
+          variant: AppIconButtonVariant.ghost,
+          onPressed: onRefresh,
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileSummary extends StatelessWidget {
+  const _ProfileSummary({
+    required this.name,
+    required this.studentId,
+    required this.subtitle,
+  });
+
+  final String name;
+  final String studentId;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return AppSurface(
+      padding: const EdgeInsets.all(14),
+      backgroundColor: colors.primarySoft,
+      borderColor: colors.primary.withValues(alpha: 0.2),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: colors.primary,
+              borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+            ),
+            child: Icon(AppIcons.person, color: colors.textInverse),
+          ),
+          const SizedBox(width: AppTokens.gap12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name.isEmpty ? '学生' : name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: AppTokens.gap4),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          if (studentId.isNotEmpty)
+            AppTag(label: studentId, variant: AppTagVariant.primary),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoSection extends StatelessWidget {
+  const _InfoSection({
     required this.title,
+    required this.icon,
     required this.fields,
-    this.subtitle,
     this.highlightKeys = const {},
     this.compact = false,
   });
 
   final String title;
-  final String? subtitle;
+  final IconData icon;
   final Map<String, String> fields;
   final Set<String> highlightKeys;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     if (fields.isEmpty) return const SizedBox.shrink();
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: EdgeInsets.all(compact ? 12 : 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 2),
-              Text(
-                subtitle!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+    return AppSurface(
+      padding: EdgeInsets.all(compact ? 12 : 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _IconBox(icon: icon),
+              const SizedBox(width: AppTokens.gap10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                 ),
               ),
             ],
-            const SizedBox(height: 10),
-            ...fields.entries.map(
-              (entry) => Padding(
-                padding: EdgeInsets.only(bottom: compact ? 4 : 6),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: compact ? 72 : 88,
-                      child: Text(
-                        entry.key,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: highlightKeys.contains(entry.key)
-                              ? colorScheme.primary
-                              : colorScheme.onSurfaceVariant,
-                          fontWeight: highlightKeys.contains(entry.key)
-                              ? FontWeight.w600
-                              : null,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        entry.value,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+          ),
+          const SizedBox(height: AppTokens.gap12),
+          ...fields.entries.map(
+            (entry) => Padding(
+              padding: EdgeInsets.only(bottom: compact ? 6 : 8),
+              child: _InfoRow(
+                label: entry.key,
+                value: entry.value,
+                highlighted: highlightKeys.contains(entry.key),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    required this.highlighted,
+  });
+
+  final String label;
+  final String value;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 88,
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: highlighted ? colors.primary : colors.textSecondary,
+                  fontWeight: highlighted ? FontWeight.w700 : FontWeight.w500,
+                ),
+          ),
+        ),
+        const SizedBox(width: AppTokens.gap10),
+        Expanded(
+          child: Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _IconBox extends StatelessWidget {
+  const _IconBox({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: colors.primarySoft,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+      ),
+      child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
+    );
+  }
+}
+
 class _InfoSkeletonView extends StatelessWidget {
-  const _InfoSkeletonView();
+  const _InfoSkeletonView({required this.onBack});
+
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
     return SkeletonShimmer(
-      builder: (context, palette) => ListView(
+      builder: (context, palette) => AppPage(
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          for (int s = 0; s < 4; s++) ...[
-            Card(
-              clipBehavior: Clip.antiAlias,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SkeletonBar(
-                      decoration: palette.line(radius: 8),
-                      widthFactor: 0.3,
-                      height: 16,
-                    ),
-                    const SizedBox(height: 14),
-                    for (int r = 0; r < 5; r++) ...[
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 72,
-                              child: SkeletonBar(
-                                decoration: palette.line(radius: 4),
-                                widthFactor: 0.6,
-                                height: 12,
-                              ),
-                            ),
-                            Expanded(
-                              child: SkeletonBar(
-                                decoration: palette.line(radius: 4),
-                                widthFactor: 0.55,
-                                height: 14,
-                              ),
-                            ),
-                          ],
+          _InfoHeader(onBack: onBack, onRefresh: null),
+          const SizedBox(height: AppTokens.gap16),
+          for (int section = 0; section < 4; section++) ...[
+            AppSurface(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SkeletonBar(
+                    decoration: palette.line(radius: 8),
+                    widthFactor: 0.36,
+                    height: 18,
+                  ),
+                  const SizedBox(height: AppTokens.gap14),
+                  for (int row = 0; row < 5; row++) ...[
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 88,
+                          child: SkeletonBar(
+                            decoration: palette.line(radius: 6),
+                            widthFactor: 0.58,
+                            height: 12,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: AppTokens.gap10),
+                        Expanded(
+                          child: SkeletonBar(
+                            decoration: palette.line(radius: 6),
+                            widthFactor: 0.62,
+                            height: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppTokens.gap8),
                   ],
-                ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppTokens.gap12),
           ],
         ],
       ),
@@ -276,51 +438,35 @@ class _InfoSkeletonView extends StatelessWidget {
 class _FeedbackState extends StatelessWidget {
   const _FeedbackState({
     required this.title,
-    required this.subtitle,
-    required this.onRetry,
+    required this.message,
+    required this.onBack,
+    required this.onRefresh,
   });
 
   final String title;
-  final String subtitle;
-  final VoidCallback onRetry;
+  final String message;
+  final VoidCallback onBack;
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.person_outline,
-              size: 56,
-              color: colorScheme.onSurfaceVariant.withAlpha(120),
+    return AppPage(
+      children: [
+        _InfoHeader(onBack: onBack, onRefresh: onRefresh),
+        const SizedBox(height: AppTokens.gap16),
+        AppSurface(
+          child: SizedBox(
+            height: 320,
+            child: AppEmptyState(
+              title: title,
+              message: message,
+              icon: AppIcons.person,
+              actionLabel: '重试',
+              onAction: onRefresh,
             ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            FilledButton.tonalIcon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('重试'),
-            ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

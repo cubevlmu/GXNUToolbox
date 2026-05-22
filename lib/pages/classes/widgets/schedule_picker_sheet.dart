@@ -1,3 +1,6 @@
+import 'package:class_tool/ui/app_context.dart';
+import 'package:class_tool/ui/app_icons.dart';
+import 'package:class_tool/ui/app_tokens.dart';
 import 'package:class_tool/widgets/app_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 
@@ -86,6 +89,7 @@ class _ScheduleSelectionSheetContentState
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return SafeArea(
       top: false,
       child: ListView.builder(
@@ -99,14 +103,56 @@ class _ScheduleSelectionSheetContentState
           final key = _itemKeys.putIfAbsent(index, GlobalKey.new);
           return KeyedSubtree(
             key: key,
-            child: ListTile(
-              title: Text(item.label),
-              subtitle: item.subtitle == null ? null : Text(item.subtitle!),
-              trailing: isSelected ? const Icon(Icons.check_rounded) : null,
-              onTap: () {
-                widget.onSelected(item.label);
-                Navigator.of(context).pop();
-              },
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  widget.onSelected(item.label);
+                  Navigator.of(context).pop();
+                },
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 52),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  color: isSelected ? colors.primarySoft : Colors.transparent,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              item.label,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: isSelected ? colors.primary : colors.textPrimary,
+                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                  ),
+                            ),
+                            if (item.subtitle != null) ...[
+                              const SizedBox(height: AppTokens.gap2),
+                              Text(
+                                item.subtitle!,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: colors.textSecondary,
+                                    ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (isSelected)
+                        Icon(
+                          AppIcons.check,
+                          size: AppTokens.iconMd,
+                          color: colors.primary,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           );
         },

@@ -6,6 +6,16 @@
 
 import 'package:class_tool/data/model/credit_progress.dart';
 import 'package:class_tool/pages/credit/controller.dart';
+import 'package:class_tool/ui/app_combo_box.dart';
+import 'package:class_tool/ui/app_context.dart';
+import 'package:class_tool/ui/app_empty_state.dart';
+import 'package:class_tool/ui/app_icon_button.dart';
+import 'package:class_tool/ui/app_icons.dart';
+import 'package:class_tool/ui/app_page.dart';
+import 'package:class_tool/ui/app_progress_bar.dart';
+import 'package:class_tool/ui/app_surface.dart';
+import 'package:class_tool/ui/app_tag.dart';
+import 'package:class_tool/ui/app_tokens.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -37,439 +47,576 @@ class _CreditPageState extends State<CreditPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('学分进程'),
-        actions: [
-          GetBuilder<CreditController>(
-            id: 'credit-content',
-            builder: (c) => IconButton(
-              icon: const Icon(Icons.refresh_outlined),
-              tooltip: '刷新',
-              onPressed: c.isLoading.value ? null : c.loadData,
-            ),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: GetBuilder<CreditController>(
-          id: 'credit-content',
-          builder: (c) {
-            if (c.isLoading.value && c.response.value == null) {
-              return const _CreditSkeletonView();
-            }
-            if (c.error.isNotEmpty && c.response.value == null) {
-              return _FeedbackState(
-                title: '加载失败',
-                subtitle: c.error.value,
-                onRetry: c.loadData,
-              );
-            }
-
-            final resp = c.response.value;
-            if (resp == null || resp.sections.isEmpty) {
-              return _FeedbackState(
-                title: '暂无数据',
-                subtitle: '点击刷新重试',
-                onRetry: c.loadData,
-              );
-            }
-
-            return Column(
-              children: [
-                _SemesterDropdown(controller: c),
-                if (resp.totalRequired > 0) _SummaryCard(resp: resp),
-                const SizedBox(height: 6),
-                _TableHeader(),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-                    itemCount: resp.sections.length + 1,
-                    itemBuilder: (_, index) {
-                      if (index == resp.sections.length) {
-                        return _TotalRow(resp: resp);
-                      }
-                      final section = resp.sections[index];
-                      return Column(
-                        children: [
-                          if (section.items.isEmpty)
-                            _GroupRow(section: section)
-                          else ...[
-                            _GroupRow(section: section, isHeader: true),
-                            for (final item in section.items)
-                              _ItemRow(item: item),
-                          ],
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ],
+      backgroundColor: context.colors.background,
+      body: GetBuilder<CreditController>(
+        id: 'credit-content',
+        builder: (controller) {
+          if (controller.isLoading.value && controller.response.value == null) {
+            return _CreditSkeletonView(
+              onBack: () => Navigator.of(context).maybePop(),
             );
-          },
-        ),
+          }
+
+          if (controller.error.isNotEmpty &&
+              controller.response.value == null) {
+            return _FeedbackState(
+              title: '学分进程加载失败',
+              message: controller.error.value,
+              onBack: () => Navigator.of(context).maybePop(),
+              onRefresh: controller.loadData,
+            );
+          }
+
+          final response = controller.response.value;
+          if (response == null || response.sections.isEmpty) {
+            return _FeedbackState(
+              title: '暂无学分数据',
+              message: '点击刷新后重试',
+              onBack: () => Navigator.of(context).maybePop(),
+              onRefresh: controller.loadData,
+            );
+          }
+
+          return AppPage(
+            children: [
+              _CreditHeader(
+                onBack: () => Navigator.of(context).maybePop(),
+                onRefresh:
+                    controller.isLoading.value ? null : controller.loadData,
+              ),
+              const SizedBox(height: AppTokens.gap16),
+              _SemesterCombo(controller: controller),
+              const SizedBox(height: AppTokens.gap16),
+              _SummaryCard(response: response),
+              const SizedBox(height: AppTokens.gap16),
+              _SectionHeader(count: response.sections.length),
+              const SizedBox(height: AppTokens.gap8),
+              for (final section in response.sections) ...[
+                _CreditSectionCard(section: section),
+                const SizedBox(height: AppTokens.gap12),
+              ],
+              _TotalCard(response: response),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-class _SemesterDropdown extends StatelessWidget {
-  const _SemesterDropdown({required this.controller});
+class _CreditHeader extends StatelessWidget {
+  const _CreditHeader({required this.onBack, required this.onRefresh});
+
+  final VoidCallback onBack;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Row(
+      children: [
+        AppIconButton(
+          icon: AppIcons.chevronLeft,
+          tooltip: '返回',
+          variant: AppIconButtonVariant.outline,
+          onPressed: onBack,
+        ),
+        const SizedBox(width: AppTokens.gap12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '学分进程',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: AppTokens.gap4),
+              Text(
+                '查看已修、未修与修读中学分',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        AppIconButton(
+          icon: AppIcons.refresh,
+          tooltip: '刷新',
+          variant: AppIconButtonVariant.ghost,
+          onPressed: onRefresh,
+        ),
+      ],
+    );
+  }
+}
+
+class _SemesterCombo extends StatelessWidget {
+  const _SemesterCombo({required this.controller});
 
   final CreditController controller;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-      child: Obx(() {
-        return DropdownButtonFormField<String>(
-          initialValue: controller.selectedSemester.value,
-          decoration: const InputDecoration(
-            labelText: '学年学期',
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            isDense: true,
-          ),
-          items: [
-            const DropdownMenuItem<String>(value: '', child: Text('全部')),
-            ...controller.semesterOptions.map((s) {
-              return DropdownMenuItem<String>(value: s, child: Text(s));
-            }),
-          ],
-          onChanged:
-              controller.isLoading.value
-                  ? null
-                  : (v) {
-                      if (v != null) controller.changeSemester(v);
-                    },
-        );
-      }),
-    );
+    return Obx(() {
+      final items = ['', ...controller.semesterOptions];
+      return AppSurface(
+        padding: const EdgeInsets.all(14),
+        child: AppComboBox<String>(
+          label: '学年学期',
+          value: controller.selectedSemester.value,
+          items: items,
+          enabled: !controller.isLoading.value,
+          itemLabelBuilder: (item) => item.isEmpty ? '全部学期' : item,
+          onChanged: (value) {
+            if (value != null) {
+              controller.changeSemester(value);
+            }
+          },
+        ),
+      );
+    });
   }
 }
 
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.resp});
+  const _SummaryCard({required this.response});
 
-  final CreditProgressResponse resp;
+  final CreditProgressResponse response;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-      child: Card(
-        color: colorScheme.primaryContainer,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
+    final ratio = response.totalRequired <= 0
+        ? 0.0
+        : response.totalEarned / response.totalRequired;
+
+    return AppSurface(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              _SummaryTile(
-                label: '应修',
-                value: _fmt(resp.totalRequired),
+              _IconBox(icon: AppIcons.credit),
+              const SizedBox(width: AppTokens.gap10),
+              Expanded(
+                child: Text(
+                  '学分总览',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
               ),
-              _SummaryTile(
-                label: '已修',
-                value: _fmt(resp.totalEarned),
-                color: Colors.green.shade700,
-              ),
-              _SummaryTile(
-                label: '未修',
-                value: _fmt(resp.totalRemaining),
-                color: Colors.orange.shade700,
-              ),
-              _SummaryTile(
-                label: '修读中',
-                value: _fmt(resp.totalInProgress),
-                color: Colors.blue.shade700,
+              AppTag(
+                label: '${(ratio * 100).clamp(0, 100).toStringAsFixed(0)}%',
+                variant: _progressVariant(ratio),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: AppTokens.gap14),
+          AppProgressBar(value: ratio),
+          const SizedBox(height: AppTokens.gap14),
+          Row(
+            children: [
+              Expanded(
+                child: _Metric(label: '应修', value: _fmt(response.totalRequired)),
+              ),
+              const SizedBox(width: AppTokens.gap10),
+              Expanded(
+                child: _Metric(label: '已修', value: _fmt(response.totalEarned)),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTokens.gap10),
+          Row(
+            children: [
+              Expanded(
+                child: _Metric(label: '未修', value: _fmt(response.totalRemaining)),
+              ),
+              const SizedBox(width: AppTokens.gap10),
+              Expanded(
+                child: _Metric(
+                  label: '修读中',
+                  value: _fmt(response.totalInProgress),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
-
-  String _fmt(double v) => v == v.truncateToDouble() ? '${v.toInt()}' : '$v';
 }
 
-class _SummaryTile extends StatelessWidget {
-  const _SummaryTile({
-    required this.label,
-    required this.value,
-    this.color,
-  });
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.count});
 
-  final String label;
-  final String value;
-  final Color? color;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
+    final colors = context.colors;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            '分类进度',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
+                  fontWeight: FontWeight.w800,
+                ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
-            ),
-          ),
-        ],
-      ),
+        ),
+        Text(
+          '$count 个模块',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+      ],
     );
   }
 }
 
-class _TableHeader extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 4, 12, 2),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 32),
-          const Expanded(child: Text('模块', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
-          const Expanded(child: Text('属性', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
-          const SizedBox(width: 44, child: Text('应修', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12), textAlign: TextAlign.center)),
-          const SizedBox(width: 44, child: Text('已修', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12), textAlign: TextAlign.center)),
-          const SizedBox(width: 44, child: Text('未修', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12), textAlign: TextAlign.center)),
-          const SizedBox(width: 56, child: Text('修读中', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12), textAlign: TextAlign.center)),
-        ],
-      ),
-    );
-  }
-}
-
-class _GroupRow extends StatelessWidget {
-  const _GroupRow({required this.section, this.isHeader = false});
+class _CreditSectionCard extends StatelessWidget {
+  const _CreditSectionCard({required this.section});
 
   final CreditSection section;
-  final bool isHeader;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withAlpha(isHeader ? 120 : 80),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
+    final title = section.items.isEmpty
+        ? '模块合计'
+        : section.items.first.natureName;
+    final ratio = section.totalRequired <= 0
+        ? 0.0
+        : section.totalEarned / section.totalRequired;
+
+    return AppSurface(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(width: 8),
-          if (isHeader)
-            const Icon(Icons.keyboard_arrow_right, size: 16)
-          else
-            const SizedBox(width: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              section.items.isNotEmpty && !isHeader
-                  ? section.items.first.natureName
-                  : '合计',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: isHeader ? FontWeight.w700 : FontWeight.w500,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title.isEmpty ? '学分模块' : title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
               ),
-            ),
+              AppTag(label: _statusText(ratio), variant: _progressVariant(ratio)),
+            ],
           ),
-          const Expanded(child: SizedBox.shrink()),
-          _Num(value: _fmt(section.totalRequired)),
-          _Num(value: _fmt(section.totalEarned), color: Colors.green.shade700),
-          _Num(value: _fmt(section.totalRemaining), color: Colors.orange.shade700),
-          _Num(value: _fmt(section.totalInProgress), color: Colors.blue.shade700),
+          const SizedBox(height: AppTokens.gap12),
+          AppProgressBar(value: ratio),
+          const SizedBox(height: AppTokens.gap12),
+          Row(
+            children: [
+              Expanded(child: _SmallMetric(label: '应修', value: _fmt(section.totalRequired))),
+              Expanded(child: _SmallMetric(label: '已修', value: _fmt(section.totalEarned))),
+              Expanded(child: _SmallMetric(label: '未修', value: _fmt(section.totalRemaining))),
+              Expanded(child: _SmallMetric(label: '修读中', value: _fmt(section.totalInProgress))),
+            ],
+          ),
+          if (section.items.isNotEmpty) ...[
+            const SizedBox(height: AppTokens.gap12),
+            for (final item in section.items.take(4)) ...[
+              _CreditItemRow(item: item),
+              const SizedBox(height: AppTokens.gap8),
+            ],
+          ],
         ],
       ),
     );
   }
-
-  String _fmt(double v) => v == v.truncateToDouble() ? '${v.toInt()}' : '$v';
 }
 
-class _ItemRow extends StatelessWidget {
-  const _ItemRow({required this.item});
+class _CreditItemRow extends StatelessWidget {
+  const _CreditItemRow({required this.item});
 
   final CreditItem item;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final colors = context.colors;
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 1),
-      padding: const EdgeInsets.fromLTRB(44, 6, 12, 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              item.natureName,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              item.categoryName,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          _Num(value: _fmt(item.requiredCredits)),
-          _Num(value: _fmt(item.earnedCredits), color: Colors.green.shade700),
-          _Num(value: _fmt(item.remainingCredits), color: Colors.orange.shade700),
-          _Num(value: _fmt(item.inProgressCredits), color: Colors.blue.shade700),
-        ],
-      ),
-    );
-  }
-
-  String _fmt(double v) => v == v.truncateToDouble() ? '${v.toInt()}' : '$v';
-}
-
-class _TotalRow extends StatelessWidget {
-  const _TotalRow({required this.resp});
-
-  final CreditProgressResponse resp;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(top: 6),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(6),
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
       ),
       child: Row(
         children: [
-          const SizedBox(width: 8),
-          const Icon(Icons.check_circle_outline, size: 16),
-          const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              '总计',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.categoryName.isEmpty ? item.natureName : item.categoryName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: AppTokens.gap4),
+                Text(
+                  '已修 ${_fmt(item.earnedCredits)} / 应修 ${_fmt(item.requiredCredits)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                ),
+              ],
             ),
           ),
-          const Expanded(child: SizedBox.shrink()),
-          _Num(value: _fmt(resp.totalRequired)),
-          _Num(value: _fmt(resp.totalEarned), color: Colors.green),
-          _Num(value: _fmt(resp.totalRemaining), color: Colors.orange),
-          _Num(value: _fmt(resp.totalInProgress), color: Colors.blue),
+          AppTag(
+            label: item.remainingCredits <= 0 ? '已完成' : '差 ${_fmt(item.remainingCredits)}',
+            variant: item.remainingCredits <= 0
+                ? AppTagVariant.success
+                : AppTagVariant.warning,
+          ),
         ],
       ),
     );
   }
-
-  String _fmt(double v) => v == v.truncateToDouble() ? '${v.toInt()}' : '$v';
 }
 
-class _Num extends StatelessWidget {
-  const _Num({required this.value, this.color});
+class _TotalCard extends StatelessWidget {
+  const _TotalCard({required this.response});
 
-  final String value;
-  final Color? color;
+  final CreditProgressResponse response;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 44,
-      child: Text(
-        value,
-        textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
+    return AppSurface(
+      padding: const EdgeInsets.all(14),
+      backgroundColor: context.colors.primarySoft,
+      borderColor: context.colors.primary.withValues(alpha: 0.24),
+      child: Row(
+        children: [
+          _IconBox(icon: AppIcons.check),
+          const SizedBox(width: AppTokens.gap10),
+          Expanded(
+            child: Text(
+              '总计：已修 ${_fmt(response.totalEarned)} / 应修 ${_fmt(response.totalRequired)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _Metric extends StatelessWidget {
+  const _Metric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 68),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: AppTokens.gap4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.textSecondary,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SmallMetric extends StatelessWidget {
+  const _SmallMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+        ),
+        const SizedBox(height: AppTokens.gap2),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.textSecondary,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+class _IconBox extends StatelessWidget {
+  const _IconBox({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: colors.primarySoft,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+      ),
+      child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
     );
   }
 }
 
 class _CreditSkeletonView extends StatelessWidget {
-  const _CreditSkeletonView();
+  const _CreditSkeletonView({required this.onBack});
+
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
     return SkeletonShimmer(
-      builder: (context, palette) => ListView(
+      builder: (context, palette) => AppPage(
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
         children: [
+          _CreditHeader(onBack: onBack, onRefresh: null),
+          const SizedBox(height: AppTokens.gap16),
           SkeletonBar(
-            decoration: palette.line(radius: 8),
-            widthFactor: 1.0,
-            height: 44,
+            decoration: palette.line(radius: AppTokens.radiusMd),
+            widthFactor: 1,
+            height: 72,
           ),
-          const SizedBox(height: 10),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  for (int i = 0; i < 4; i++) ...[
-                    Expanded(
-                      child: Column(
-                        children: [
-                          SkeletonBar(
-                            decoration: palette.line(radius: 4),
-                            widthFactor: 0.5,
-                            height: 18,
-                          ),
-                          const SizedBox(height: 6),
-                          SkeletonBar(
-                            decoration: palette.line(radius: 4),
-                            widthFactor: 0.4,
-                            height: 10,
-                          ),
-                        ],
-                      ),
-                    ),
+          const SizedBox(height: AppTokens.gap16),
+          AppSurface(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              children: [
+                SkeletonBar(
+                  decoration: palette.line(radius: 8),
+                  widthFactor: 0.46,
+                  height: 18,
+                ),
+                const SizedBox(height: AppTokens.gap14),
+                SkeletonBar(
+                  decoration: palette.line(radius: AppTokens.radiusFull),
+                  widthFactor: 1,
+                  height: 6,
+                ),
+                const SizedBox(height: AppTokens.gap14),
+                Row(
+                  children: [
+                    Expanded(child: _SkeletonMetric(palette: palette)),
+                    const SizedBox(width: AppTokens.gap10),
+                    Expanded(child: _SkeletonMetric(palette: palette)),
                   ],
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 14),
-          for (int i = 0; i < 5; i++) ...[
-            SkeletonBar(
-              decoration: palette.line(radius: 6),
-              widthFactor: 1.0,
-              height: 32,
-            ),
-            const SizedBox(height: 4),
-            for (int j = 0; j < 2; j++) ...[
-              SkeletonBar(
-                decoration: palette.line(radius: 4),
-                widthFactor: 1.0,
-                height: 24,
-              ),
-              const SizedBox(height: 2),
-            ],
-            const SizedBox(height: 6),
+          const SizedBox(height: AppTokens.gap16),
+          for (int i = 0; i < 4; i++) ...[
+            _SkeletonSection(palette: palette),
+            const SizedBox(height: AppTokens.gap12),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonMetric extends StatelessWidget {
+  const _SkeletonMetric({required this.palette});
+
+  final SkeletonPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 68,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SkeletonBar(decoration: palette.line(radius: 8), widthFactor: 0.52, height: 15),
+          const SizedBox(height: AppTokens.gap8),
+          SkeletonBar(decoration: palette.line(radius: 8), widthFactor: 0.38, height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonSection extends StatelessWidget {
+  const _SkeletonSection({required this.palette});
+
+  final SkeletonPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurface(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        children: [
+          SkeletonBar(decoration: palette.line(radius: 8), widthFactor: 0.62, height: 16),
+          const SizedBox(height: AppTokens.gap12),
+          SkeletonBar(decoration: palette.line(radius: AppTokens.radiusFull), widthFactor: 1, height: 6),
+          const SizedBox(height: AppTokens.gap12),
+          SkeletonBar(decoration: palette.line(radius: AppTokens.radiusMd), widthFactor: 1, height: 46),
         ],
       ),
     );
@@ -479,37 +626,51 @@ class _CreditSkeletonView extends StatelessWidget {
 class _FeedbackState extends StatelessWidget {
   const _FeedbackState({
     required this.title,
-    required this.subtitle,
-    required this.onRetry,
+    required this.message,
+    required this.onBack,
+    required this.onRefresh,
   });
 
   final String title;
-  final String subtitle;
-  final VoidCallback onRetry;
+  final String message;
+  final VoidCallback onBack;
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.pie_chart_outline,
-              size: 56,
-              color: colorScheme.onSurfaceVariant.withAlpha(120),
+    return AppPage(
+      children: [
+        _CreditHeader(onBack: onBack, onRefresh: onRefresh),
+        const SizedBox(height: AppTokens.gap16),
+        AppSurface(
+          child: SizedBox(
+            height: 320,
+            child: AppEmptyState(
+              title: title,
+              message: message,
+              icon: AppIcons.credit,
+              actionLabel: '重试',
+              onAction: onRefresh,
             ),
-            const SizedBox(height: 16),
-            Text(title, style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
-            const SizedBox(height: 6),
-            Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
-            const SizedBox(height: 20),
-            FilledButton.tonalIcon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: const Text('重试')),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
+}
+
+String _fmt(double value) {
+  return value == value.truncateToDouble() ? '${value.toInt()}' : value.toStringAsFixed(1);
+}
+
+String _statusText(double ratio) {
+  if (ratio >= 1) return '已完成';
+  if (ratio <= 0) return '未开始';
+  return '进行中';
+}
+
+AppTagVariant _progressVariant(double ratio) {
+  if (ratio >= 1) return AppTagVariant.success;
+  if (ratio <= 0) return AppTagVariant.warning;
+  return AppTagVariant.primary;
 }

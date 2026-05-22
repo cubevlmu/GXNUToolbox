@@ -11,24 +11,20 @@ class SheetUtil {
   static Future<T?> newBottomSheet<T>({
     required Widget widget,
     BuildContext? context,
+    bool isScrollControlled = true,
   }) {
     final currentContext = context ?? Get.context;
     if (currentContext == null) {
       return Future<T?>.value();
     }
-    final theme = Theme.of(currentContext);
-
     return showModalBottomSheet<T>(
       context: currentContext,
       useRootNavigator: true,
-      isScrollControlled: true,
+      isScrollControlled: isScrollControlled,
       isDismissible: true,
       enableDrag: true,
-      backgroundColor: theme.colorScheme.surface,
+      backgroundColor: Colors.transparent,
       elevation: 0,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
       sheetAnimationStyle: const AnimationStyle(
         duration: Duration(milliseconds: 180),
         reverseDuration: Duration(milliseconds: 130),
@@ -44,7 +40,7 @@ class SheetUtil {
             child: SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxHeight: maxHeight),
                   child: Column(

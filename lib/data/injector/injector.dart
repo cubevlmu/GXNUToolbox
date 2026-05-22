@@ -16,6 +16,7 @@ class Injector {
     if (!Get.isRegistered<UserRepo>()) {
       final userRepo = UserRepo();
       final classRepo = ClassRepo(userRepo: userRepo);
+      final bellScheduleRepo = BellScheduleRepo(userRepo: userRepo);
       Get.put<UserRepo>(userRepo, permanent: true);
       Get.put<ClassRepo>(classRepo, permanent: true);
       Get.put<GradeRepo>(GradeRepo(userRepo: userRepo), permanent: true);
@@ -26,12 +27,13 @@ class Injector {
         permanent: true,
       );
       Get.put<StudentRepo>(StudentRepo(userRepo: userRepo), permanent: true);
+      Get.put<BellScheduleRepo>(bellScheduleRepo, permanent: true);
       Get.put<TodayCoursesWidgetRepo>(
-        TodayCoursesWidgetRepo(userRepo: userRepo, classRepo: classRepo),
-        permanent: true,
-      );
-      Get.put<BellScheduleRepo>(
-        BellScheduleRepo(userRepo: userRepo),
+        TodayCoursesWidgetRepo(
+          userRepo: userRepo,
+          classRepo: classRepo,
+          bellScheduleRepo: bellScheduleRepo,
+        ),
         permanent: true,
       );
       return;
@@ -79,19 +81,20 @@ class Injector {
       );
     }
 
+    if (!Get.isRegistered<BellScheduleRepo>()) {
+      Get.put<BellScheduleRepo>(
+        BellScheduleRepo(userRepo: Get.find<UserRepo>()),
+        permanent: true,
+      );
+    }
+
     if (!Get.isRegistered<TodayCoursesWidgetRepo>()) {
       Get.put<TodayCoursesWidgetRepo>(
         TodayCoursesWidgetRepo(
           userRepo: Get.find<UserRepo>(),
           classRepo: Get.find<ClassRepo>(),
+          bellScheduleRepo: Get.find<BellScheduleRepo>(),
         ),
-        permanent: true,
-      );
-    }
-
-    if (!Get.isRegistered<BellScheduleRepo>()) {
-      Get.put<BellScheduleRepo>(
-        BellScheduleRepo(userRepo: Get.find<UserRepo>()),
         permanent: true,
       );
     }
