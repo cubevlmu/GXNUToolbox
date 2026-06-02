@@ -1,9 +1,11 @@
-import 'package:class_tool/constant.dart';
+import 'dart:async';
+
 import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
 import 'package:class_tool/data/services/app_update_service.dart';
 import 'package:class_tool/pages/login/view.dart';
 import 'package:class_tool/pages/main/view.dart';
+import 'package:class_tool/ui/app_update_prompt.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
@@ -12,7 +14,7 @@ import 'package:gx_update_client/gx_update_client.dart';
 
 /// 启动页阶段。
 ///
-/// 更新检查放在登录状态同步之前，避免旧版本继续进入主流程。
+/// 更新检查与登录状态同步并行执行，避免非关键版本校验拖慢启动。
 enum SplashStage {
   checkingUpdate,
   updateAvailable,
@@ -30,8 +32,8 @@ class SplashController extends GetxController {
     : _userRepo = userRepo ?? Get.find<UserRepo>();
 
   final UserRepo _userRepo;
-  final Rx<SplashStage> stage = SplashStage.checkingUpdate.obs;
-  final RxString message = '正在检查应用版本'.obs;
+  final Rx<SplashStage> stage = SplashStage.checkingNetwork.obs;
+  final RxString message = '正在准备启动'.obs;
 
   final RxString updateTitle = ''.obs;
   final RxString updateVersion = ''.obs;
@@ -41,6 +43,10 @@ class SplashController extends GetxController {
 
   bool _hasStoredLogin = false;
   bool _checking = false;
+  bool _navigated = false;
+  bool _updateBlocksStartup = false;
+  SplashStage _activeStartupStage = SplashStage.checkingNetwork;
+  String _activeStartupMessage = '正在准备启动';
   UpdateInfo? _pendingUpdate;
 
   @override
@@ -80,6 +86,7 @@ class SplashController extends GetxController {
       return;
     }
 
+    _updateBlocksStartup = true;
     stage.value = SplashStage.downloadingUpdate;
     downloadProgress.value = 0;
     message.value = '正在下载更新包';
@@ -122,6 +129,12 @@ class SplashController extends GetxController {
     if (update != null && update.isForce) {
       return;
     }
+    _updateBlocksStartup = false;
+    _clearPendingUpdate();
+    if (_checking) {
+      _restoreStartupStage();
+      return;
+    }
     await _continueStartup();
   }
 
@@ -144,31 +157,33 @@ class SplashController extends GetxController {
     }
 
     _checking = true;
+    _navigated = false;
+    _updateBlocksStartup = false;
     try {
       _clearPendingUpdate();
-      final canContinue = await _checkUpdateGate();
-      if (!canContinue) {
-        return;
-      }
+      _startUpdateCheckInBackground();
       await _continueStartup();
     } finally {
       _checking = false;
     }
   }
 
-  Future<bool> _checkUpdateGate() async {
+  void _startUpdateCheckInBackground() {
+    unawaited(_checkUpdateInBackground());
+  }
+
+  Future<void> _checkUpdateInBackground() async {
     if (!AppUpdateService.isSupported) {
-      return true;
+      return;
     }
 
     final connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult == ConnectivityResult.none) {
-      // 无网络时不在这里拦截，交给原有离线模式逻辑处理。
-      return true;
+      LogUtil.info(
+        '[SplashController] skip startup update check because network is unavailable',
+      );
+      return;
     }
-
-    stage.value = SplashStage.checkingUpdate;
-    message.value = '正在检查应用版本';
 
     try {
       final response = await AppUpdateService.check();
@@ -182,46 +197,62 @@ class SplashController extends GetxController {
         'update.versionCode=${response.update.versionCode}',
       );
 
-      if (!response.legal.allowed) {
-        _setPendingUpdate(response.update);
-        stage.value = SplashStage.updateBlocked;
-        message.value = response.legal.message.trim().isEmpty
-            ? '当前版本已停止支持，请更新后继续使用'
-            : response.legal.message.trim();
-        return false;
+      _handleUpdateCheckResponse(response);
+    } catch (e, s) {
+      LogUtil.errorE('[SplashController] background update check failed', e, s);
+    }
+  }
+
+  void _handleUpdateCheckResponse(CheckUpdateResponse response) {
+    if (!response.legal.allowed) {
+      _updateBlocksStartup = true;
+      _setPendingUpdate(response.update);
+      final text = response.legal.message.trim().isEmpty
+          ? '当前版本已停止支持，请更新后继续使用'
+          : response.legal.message.trim();
+      if (_navigated) {
+        _showUpdatePromptAfterNavigation(response);
+        return;
+      }
+      stage.value = SplashStage.updateBlocked;
+      message.value = text;
+      return;
+    }
+
+    if (response.update.available) {
+      _setPendingUpdate(response.update);
+      if (response.update.isForce) {
+        _updateBlocksStartup = true;
+        if (_navigated) {
+          _showUpdatePromptAfterNavigation(response);
+          return;
+        }
+        stage.value = SplashStage.forceUpdate;
+        message.value = '当前版本需要更新后才能继续使用';
+        return;
       }
 
-      if (response.update.available) {
-        _setPendingUpdate(response.update);
-        if (response.update.isForce) {
-          stage.value = SplashStage.forceUpdate;
-          message.value = '当前版本需要更新后才能继续使用';
-          return false;
-        }
-
-        if (AppUpdateService.startupOptionalUpdatePromptEnabled) {
-          stage.value = SplashStage.updateAvailable;
-          message.value = '发现新版本，建议更新后使用';
-          return false;
-        }
-
+      if (!AppUpdateService.startupOptionalUpdatePromptEnabled) {
         LogUtil.info(
           '[SplashController] optional update prompt disabled, continue startup',
         );
         _clearPendingUpdate();
-        return true;
+        return;
       }
 
-      return true;
-    } catch (e, s) {
-      LogUtil.errorE('[SplashController] update check failed', e, s);
-      if (AppConstants.updateBlockOnCheckFailure) {
-        stage.value = SplashStage.updateBlocked;
-        message.value = '无法完成版本校验，请检查网络后重试';
-        return false;
+      if (_navigated) {
+        _showUpdatePromptAfterNavigation(response);
+        return;
       }
-      return true;
+
+      if (_isStartupBusyStage(stage.value)) {
+        stage.value = SplashStage.updateAvailable;
+        message.value = '发现新版本，建议更新后使用';
+      }
+      return;
     }
+
+    _clearPendingUpdate();
   }
 
   Future<void> _continueStartup() async {
@@ -242,19 +273,20 @@ class SplashController extends GetxController {
       return;
     }
 
-    stage.value = SplashStage.checkingNetwork;
-    message.value = '正在检查网络连接';
+    _setStartupStage(SplashStage.checkingNetwork, '正在检查网络连接');
 
     final connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult == ConnectivityResult.none) {
       LogUtil.warn('[SplashController] offline detected');
-      stage.value = SplashStage.offlineAvailable;
-      message.value = '当前无网络连接，可重试或进入离线模式';
+      _setStartupStage(
+        SplashStage.offlineAvailable,
+        '当前无网络连接，可重试或进入离线模式',
+        force: true,
+      );
       return;
     }
 
-    stage.value = SplashStage.syncingLogin;
-    message.value = '正在同步登录状态';
+    _setStartupStage(SplashStage.syncingLogin, '正在同步登录状态');
 
     try {
       await _userRepo.setup();
@@ -265,16 +297,22 @@ class SplashController extends GetxController {
       }
 
       if (_hasStoredLogin) {
-        stage.value = SplashStage.syncFailed;
-        message.value = '同步登录状态失败，请重试或重新登录';
+        _setStartupStage(
+          SplashStage.syncFailed,
+          '同步登录状态失败，请重试或重新登录',
+          force: true,
+        );
         return;
       }
 
       _navigateToLogin();
     } catch (e, s) {
       LogUtil.errorE('[SplashController] startup sync failed', e, s);
-      stage.value = SplashStage.syncFailed;
-      message.value = '同步登录状态失败，请重试或重新登录';
+      _setStartupStage(
+        SplashStage.syncFailed,
+        '同步登录状态失败，请重试或重新登录',
+        force: true,
+      );
     }
   }
 
@@ -286,8 +324,7 @@ class SplashController extends GetxController {
       return;
     }
 
-    stage.value = SplashStage.syncingLogin;
-    message.value = '正在重新尝试登录';
+    _setStartupStage(SplashStage.syncingLogin, '正在重新尝试登录', force: true);
 
     try {
       final success = await _userRepo.retryLoginSync();
@@ -297,12 +334,18 @@ class SplashController extends GetxController {
         return;
       }
 
-      stage.value = SplashStage.syncFailed;
-      message.value = '重新尝试登录失败，请重试或重新登录';
+      _setStartupStage(
+        SplashStage.syncFailed,
+        '重新尝试登录失败，请重试或重新登录',
+        force: true,
+      );
     } catch (e, s) {
       LogUtil.errorE('[SplashController] retry login failed', e, s);
-      stage.value = SplashStage.syncFailed;
-      message.value = '重新尝试登录失败，请重试或重新登录';
+      _setStartupStage(
+        SplashStage.syncFailed,
+        '重新尝试登录失败，请重试或重新登录',
+        force: true,
+      );
     }
   }
 
@@ -332,10 +375,70 @@ class SplashController extends GetxController {
     downloadProgress.value = 0;
   }
 
+  void _setStartupStage(
+    SplashStage nextStage,
+    String nextMessage, {
+    bool force = false,
+  }) {
+    _activeStartupStage = nextStage;
+    _activeStartupMessage = nextMessage;
+    if (force || !_isUpdateForegroundStage(stage.value)) {
+      stage.value = nextStage;
+      message.value = nextMessage;
+    }
+  }
+
+  void _restoreStartupStage() {
+    stage.value = _activeStartupStage;
+    message.value = _activeStartupMessage;
+  }
+
+  bool _isUpdateForegroundStage(SplashStage value) {
+    return value == SplashStage.updateAvailable ||
+        value == SplashStage.forceUpdate ||
+        value == SplashStage.updateBlocked ||
+        value == SplashStage.downloadingUpdate;
+  }
+
+  bool _isStartupBusyStage(SplashStage value) {
+    return value == SplashStage.checkingUpdate ||
+        value == SplashStage.checkingNetwork ||
+        value == SplashStage.syncingLogin;
+  }
+
+  void _showUpdatePromptAfterNavigation(CheckUpdateResponse response) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = Get.overlayContext ?? Get.context;
+      if (context == null) {
+        return;
+      }
+      unawaited(
+        AppUpdatePrompt.showResponse(
+          context,
+          response,
+          showLatestToast: false,
+          allowOptionalPrompt:
+              AppUpdateService.startupOptionalUpdatePromptEnabled,
+        ),
+      );
+    });
+  }
+
   void _navigateToMain() async {
+    if (_updateBlocksStartup) {
+      LogUtil.warn('[SplashController] navigation blocked by update gate');
+      return;
+    }
     LogUtil.info('[Splash] Init courses repo.');
     await Get.find<TodayCoursesWidgetRepo>().initialize();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_updateBlocksStartup) {
+        LogUtil.warn(
+          '[SplashController] pending main navigation cancelled by update gate',
+        );
+        return;
+      }
+      _navigated = true;
       if (!Get.isOverlaysOpen) {
         Get.offAll(() => const MainPage());
       } else {
@@ -345,7 +448,18 @@ class SplashController extends GetxController {
   }
 
   void _navigateToLogin() {
+    if (_updateBlocksStartup) {
+      LogUtil.warn('[SplashController] login navigation blocked by update gate');
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_updateBlocksStartup) {
+        LogUtil.warn(
+          '[SplashController] pending login navigation cancelled by update gate',
+        );
+        return;
+      }
+      _navigated = true;
       if (!Get.isOverlaysOpen) {
         Get.offAll(() => const LoginPage());
       } else {

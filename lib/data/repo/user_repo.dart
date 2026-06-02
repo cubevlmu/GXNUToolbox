@@ -19,6 +19,7 @@ class UserRepo {
   final AuthStorage storage = AuthStorage();
   final HttpUtils _http = HttpUtils();
   bool _offlineMode = false;
+  String _lastLoginError = '';
 
   Future<void>? _setupTask;
   Future<bool>? _recoverTask;
@@ -27,6 +28,7 @@ class UserRepo {
   UserRepoState get state => _state;
   bool get isLogin => _state == UserRepoState.loggedIn;
   bool get isOfflineMode => _offlineMode;
+  String get lastLoginError => _lastLoginError;
   String get username => storage.username ?? '';
   String get userId => _userContext?.userId ?? storage.userId ?? '';
   String get selectedSemester =>
@@ -131,6 +133,7 @@ class UserRepo {
     bool clearStoredSessionOnFailure = true,
     bool clearBeforeLogin = true,
   }) async {
+    _lastLoginError = '';
     try {
       final loginResult = await Api.login(
         username: username,
@@ -155,13 +158,24 @@ class UserRepo {
       _state = UserRepoState.loggedIn;
       return true;
     } on ApiLoginExpiredException {
+      _lastLoginError = '登录状态已失效，请重新登录';
       if (clearStoredSessionOnFailure) {
         await handleLoginExpired(allowAutoRelogin: false);
       } else {
         await _clearRuntimeSession();
       }
       return false;
+    } on ApiException catch (e, s) {
+      _lastLoginError = _friendlyLoginError(e.message);
+      LogUtil.errorE('[UserRepo] login failed', e, s);
+      if (clearStoredSessionOnFailure) {
+        await _clearLogin(forceNotLogin: true, preserveCredentials: true);
+      } else {
+        await _clearRuntimeSession();
+      }
+      return false;
     } catch (e, s) {
+      _lastLoginError = _friendlyLoginError(e.toString());
       LogUtil.errorE('[UserRepo] login failed', e, s);
       if (clearStoredSessionOnFailure) {
         await _clearLogin(forceNotLogin: true, preserveCredentials: true);
@@ -301,7 +315,7 @@ class UserRepo {
       savedPassword,
       autoRelogin: true,
       clearStoredSessionOnFailure: false,
-      clearBeforeLogin: false,
+      clearBeforeLogin: true,
     );
   }
 
@@ -367,5 +381,26 @@ class UserRepo {
         a.userId == b.userId &&
         a.campusId == b.campusId &&
         a.selectedCampusId == b.selectedCampusId;
+  }
+
+  String _friendlyLoginError(String message) {
+    final trimmed = message.trim();
+    if (trimmed.isEmpty) {
+      return '登录失败，请检查账号、密码或登录状态';
+    }
+    if (trimmed.contains('429') || trimmed.contains('请求过于频繁')) {
+      return '请求过于频繁，请稍后再试';
+    }
+    if (trimmed.contains('captcha') ||
+        trimmed.contains('authcode') ||
+        trimmed.contains('验证码')) {
+      return '学校认证要求验证码，请稍后重试或在浏览器完成验证';
+    }
+    if (trimmed.contains('SocketException') ||
+        trimmed.contains('TimeoutException') ||
+        trimmed.contains('timed out')) {
+      return '网络连接超时，请检查网络后重试';
+    }
+    return trimmed.length > 80 ? '${trimmed.substring(0, 80)}...' : trimmed;
   }
 }

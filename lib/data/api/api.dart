@@ -92,6 +92,7 @@ class Api {
       data: formFields,
       referer: casPage.response.realUri.toString(),
     );
+    _throwIfCasLoginFailed(loginResponse);
 
     final finalCheckRedirectChain = <String>[];
     if (!_isSameUrl(
@@ -102,6 +103,7 @@ class Api {
         ApiConstants.chaoxingFinalCheckUrl,
         referer: ApiConstants.chaoxingFinalCheckUrl,
       );
+      _throwIfCasLoginFailed(finalResponse);
       finalCheckRedirectChain.addAll(finalResponse.redirectChain);
     }
 
@@ -127,22 +129,19 @@ class Api {
   }) async {
     await _http.init();
 
-    final response = await _http.get<List<dynamic>>(
+    final response = await _getSchoolJsonPlain(
       ApiConstants.jwjxWeekMetaUrl,
       queryParameters: {'xnxq': semester, 'week': week.toString()},
-      options: Options(
-        responseType: ResponseType.json,
-        headers: {
-          HttpHeaders.acceptHeader: 'application/json, text/plain, */*',
-          HttpHeaders.refererHeader: ApiConstants.jwjxBaseUrl,
-        },
-        followRedirects: true,
-        validateStatus: (status) =>
-            status != null && status >= 200 && status < 400,
-      ),
+      headers: {
+        HttpHeaders.acceptHeader: 'application/json, text/plain, */*',
+        HttpHeaders.refererHeader: ApiConstants.jwjxBaseUrl,
+      },
     );
 
-    final rawList = response.data ?? const <dynamic>[];
+    final rawList = _decodeJsonListResponse(
+      response,
+      'class week meta',
+    );
     return rawList
         .whereType<Map>()
         .map(
@@ -162,7 +161,7 @@ class Api {
   }) async {
     await _http.init();
 
-    final response = await _http.get<Map<String, dynamic>>(
+    final response = await _getSchoolJsonPlain(
       '${ApiConstants.jwjxBaseUrl}/jw/admin/api/getXskb',
       queryParameters: {
         'xnxq': semester,
@@ -170,19 +169,13 @@ class Api {
         'week': week.toString(),
         'role': role,
       },
-      options: Options(
-        responseType: ResponseType.json,
-        headers: {
-          HttpHeaders.acceptHeader: 'application/json, text/plain, */*',
-          HttpHeaders.refererHeader: ApiConstants.jwjxBaseUrl,
-        },
-        followRedirects: true,
-        validateStatus: (status) =>
-            status != null && status >= 200 && status < 400,
-      ),
+      headers: {
+        HttpHeaders.acceptHeader: 'application/json, text/plain, */*',
+        HttpHeaders.refererHeader: ApiConstants.jwjxBaseUrl,
+      },
     );
 
-    final json = response.data ?? const <String, dynamic>{};
+    final json = _decodeJsonMapResponse(response, 'class table courses');
     final ret = _asInt(json['ret']);
     if (ret == -1) {
       throw const ApiLoginExpiredException();
@@ -207,7 +200,7 @@ class Api {
   }) async {
     await _http.init();
 
-    final response = await _http.get<Map<String, dynamic>>(
+    final response = await _getSchoolJsonPlain(
       ApiConstants.jwjxGradeListUrl,
       queryParameters: {
         'fxbz': '0',
@@ -236,24 +229,18 @@ class Api {
         'query.sfxsgz||': showFollowed,
         'query.kcgs||': courseAttribution,
       },
-      options: Options(
-        responseType: ResponseType.json,
-        headers: {
-          HttpHeaders.acceptHeader:
-              'application/json, text/javascript, */*; q=0.01',
-          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
-          HttpHeaders.refererHeader: ApiConstants.jwjxGradePageUrl,
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        followRedirects: true,
-        validateStatus: (status) =>
-            status != null && status >= 200 && status < 400,
-      ),
+      headers: {
+        HttpHeaders.acceptHeader:
+            'application/json, text/javascript, */*; q=0.01',
+        HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+        HttpHeaders.refererHeader: ApiConstants.jwjxGradePageUrl,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
     );
 
-    final json = response.data ?? const <String, dynamic>{};
+    final json = _decodeJsonMapResponse(response, 'grade list');
     final ret = _asInt(json['ret']);
-    if (ret == -1 || _isCasLoginPage(response.realUri.toString(), '')) {
+    if (ret == -1) {
       throw const ApiLoginExpiredException();
     }
     if (ret != 0) {
@@ -295,27 +282,20 @@ class Api {
   static Future<GradeRankResponse> getGradeRank() async {
     await _http.init();
 
-    final response = await _http.get<Map<String, dynamic>>(
+    final response = await _getSchoolJsonPlain(
       ApiConstants.jwjxGradeRankUrl,
-      options: Options(
-        responseType: ResponseType.json,
-        headers: {
-          HttpHeaders.acceptHeader:
-              'application/json, text/javascript, */*; q=0.01',
-          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
-          HttpHeaders.refererHeader:
-              '${ApiConstants.jwjxGradePageUrl}?fxtype=1',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        followRedirects: true,
-        validateStatus: (status) =>
-            status != null && status >= 200 && status < 400,
-      ),
+      headers: {
+        HttpHeaders.acceptHeader:
+            'application/json, text/javascript, */*; q=0.01',
+        HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+        HttpHeaders.refererHeader: '${ApiConstants.jwjxGradePageUrl}?fxtype=1',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
     );
 
-    final json = response.data ?? const <String, dynamic>{};
+    final json = _decodeJsonMapResponse(response, 'grade rank');
     final ret = _asInt(json['ret']);
-    if (ret == -1 || _isCasLoginPage(response.realUri.toString(), '')) {
+    if (ret == -1) {
       throw const ApiLoginExpiredException();
     }
     if (ret != 0) {
@@ -357,29 +337,19 @@ class Api {
   }) async {
     await _http.init();
 
-    final response = await _http.get<List<dynamic>>(
+    final response = await _getSchoolJsonPlain(
       ApiConstants.jwjxExamBatchUrl,
       queryParameters: {'xnxq': semester},
-      options: Options(
-        responseType: ResponseType.json,
-        headers: {
-          HttpHeaders.acceptHeader:
-              'application/json, text/javascript, */*; q=0.01',
-          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
-          HttpHeaders.refererHeader: ApiConstants.jwjxExamPageUrl,
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        followRedirects: true,
-        validateStatus: (status) =>
-            status != null && status >= 200 && status < 400,
-      ),
+      headers: {
+        HttpHeaders.acceptHeader:
+            'application/json, text/javascript, */*; q=0.01',
+        HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+        HttpHeaders.refererHeader: ApiConstants.jwjxExamPageUrl,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
     );
 
-    if (_isCasLoginPage(response.realUri.toString(), '')) {
-      throw const ApiLoginExpiredException();
-    }
-
-    final jsonList = response.data ?? const <dynamic>[];
+    final jsonList = _decodeJsonListResponse(response, 'exam batches');
     final batchOptions = <ExamBatchOption>[];
     for (final item in jsonList) {
       if (item is Map) {
@@ -412,7 +382,7 @@ class Api {
     const queryFields = 'id,kspcmc,xh,xm,kcmc,kssj,jsmc,ksfs,ksxs,zwh,bkcs,bz,rwbz,ksrq,qssj,sznj,skyx,zydm,bjdm';
     const pageSize = 50;
 
-    final response = await _http.get<Map<String, dynamic>>(
+    final response = await _getSchoolJsonPlain(
       ApiConstants.jwjxExamListUrl,
       queryParameters: {
         'gridtype': 'jqgrid',
@@ -426,24 +396,18 @@ class Api {
         'xnxq': semester,
         'pcid': pcid,
       },
-      options: Options(
-        responseType: ResponseType.json,
-        headers: {
-          HttpHeaders.acceptHeader:
-              'application/json, text/javascript, */*; q=0.01',
-          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
-          HttpHeaders.refererHeader: ApiConstants.jwjxExamPageUrl,
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        followRedirects: true,
-        validateStatus: (status) =>
-            status != null && status >= 200 && status < 400,
-      ),
+      headers: {
+        HttpHeaders.acceptHeader:
+            'application/json, text/javascript, */*; q=0.01',
+        HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+        HttpHeaders.refererHeader: ApiConstants.jwjxExamPageUrl,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
     );
 
-    final json = response.data ?? const <String, dynamic>{};
+    final json = _decodeJsonMapResponse(response, 'exam list');
     final ret = _asInt(json['ret']);
-    if (ret == -1 || _isCasLoginPage(response.realUri.toString(), '')) {
+    if (ret == -1) {
       throw const ApiLoginExpiredException();
     }
     if (ret != 0) {
@@ -485,26 +449,16 @@ class Api {
   }) async {
     await _http.init();
 
-    final response = await _http.get<Map<String, dynamic>>(
+    final response = await _getSchoolJsonPlain(
       '${ApiConstants.jwjxBellScheduleUrl}/$semester',
-      options: Options(
-        responseType: ResponseType.json,
-        headers: {
-          HttpHeaders.acceptHeader: 'application/json, text/plain, */*',
-          HttpHeaders.refererHeader: ApiConstants.jwjxBaseUrl,
-        },
-        followRedirects: true,
-        validateStatus: (status) =>
-            status != null && status >= 200 && status < 400,
-      ),
+      headers: {
+        HttpHeaders.acceptHeader: 'application/json, text/plain, */*',
+        HttpHeaders.refererHeader: ApiConstants.jwjxBaseUrl,
+      },
     );
 
-    if (_isCasLoginPage(response.realUri.toString(), '')) {
-      throw const ApiLoginExpiredException();
-    }
-
     return BellScheduleResponse.fromJson(
-      response.data ?? const <String, dynamic>{},
+      _decodeJsonMapResponse(response, 'bell schedule'),
     );
   }
 
@@ -516,7 +470,7 @@ class Api {
     const queryFields =
         'kcmc,xf,xdxz,sfhdxf,cjxx,kclbmc,xnxq,jd,kcxzmc,kkyxmc,ksxsmc';
 
-    final response = await _http.get<Map<String, dynamic>>(
+    final response = await _getSchoolJsonPlain(
       ApiConstants.jwjxCoursePlanUrl,
       queryParameters: {
         'gridtype': 'jqgrid',
@@ -534,26 +488,17 @@ class Api {
         'xh': '',
         'xm': '',
       },
-      options: Options(
-        responseType: ResponseType.json,
-        headers: {
-          HttpHeaders.acceptHeader:
-              'application/json, text/javascript, */*; q=0.01',
-          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
-          HttpHeaders.refererHeader: '${ApiConstants.jwjxBaseUrl}/jw/admin/xsd/xyjc',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        followRedirects: true,
-        validateStatus: (status) =>
-            status != null && status >= 200 && status < 400,
-      ),
+      headers: {
+        HttpHeaders.acceptHeader:
+            'application/json, text/javascript, */*; q=0.01',
+        HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+        HttpHeaders.refererHeader:
+            '${ApiConstants.jwjxBaseUrl}/jw/admin/xsd/xyjc',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
     );
 
-    if (_isCasLoginPage(response.realUri.toString(), '')) {
-      throw const ApiLoginExpiredException();
-    }
-
-    final json = response.data ?? const <String, dynamic>{};
+    final json = _decodeJsonMapResponse(response, 'course plan');
     final ret = _asInt(json['ret']) ?? 0;
     if (ret == -1) {
       throw const ApiLoginExpiredException();
@@ -575,7 +520,7 @@ class Api {
     const queryFields =
         'wdmc,kcxzname,kclbname,kcgsname,kcsxname,yxxf,yixxf,wxxf,xqhdxf,xdxf,qbyxxf';
 
-    final response = await _http.get<Map<String, dynamic>>(
+    final response = await _getSchoolJsonPlain(
       ApiConstants.jwjxCreditProgressUrl,
       queryParameters: {
         'gridtype': 'jqgrid',
@@ -590,26 +535,17 @@ class Api {
         'xm': '',
         'xhid': '',
       },
-      options: Options(
-        responseType: ResponseType.json,
-        headers: {
-          HttpHeaders.acceptHeader:
-              'application/json, text/javascript, */*; q=0.01',
-          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
-          HttpHeaders.refererHeader: '${ApiConstants.jwjxBaseUrl}/jw/admin/xsd/xyjc',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        followRedirects: true,
-        validateStatus: (status) =>
-            status != null && status >= 200 && status < 400,
-      ),
+      headers: {
+        HttpHeaders.acceptHeader:
+            'application/json, text/javascript, */*; q=0.01',
+        HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+        HttpHeaders.refererHeader:
+            '${ApiConstants.jwjxBaseUrl}/jw/admin/xsd/xyjc',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
     );
 
-    if (_isCasLoginPage(response.realUri.toString(), '')) {
-      throw const ApiLoginExpiredException();
-    }
-
-    final json = response.data ?? const <String, dynamic>{};
+    final json = _decodeJsonMapResponse(response, 'credit progress');
     final ret = _asInt(json['ret']) ?? 0;
     if (ret == -1) {
       throw const ApiLoginExpiredException();
@@ -631,22 +567,16 @@ class Api {
   }) async {
     await _http.init();
 
-    final response = await _http.get<Map<String, dynamic>>(
+    final response = await _getSchoolJsonPlain(
       '${ApiConstants.jwjxBaseUrl}/jw/admin/api/getZclistByXnxq',
       queryParameters: {'xnxq': semester, 'role': role, 'userId': userId},
-      options: Options(
-        responseType: ResponseType.json,
-        headers: {
-          HttpHeaders.acceptHeader: 'application/json, text/plain, */*',
-          HttpHeaders.refererHeader: ApiConstants.jwjxBaseUrl,
-        },
-        followRedirects: true,
-        validateStatus: (status) =>
-            status != null && status >= 200 && status < 400,
-      ),
+      headers: {
+        HttpHeaders.acceptHeader: 'application/json, text/plain, */*',
+        HttpHeaders.refererHeader: ApiConstants.jwjxBaseUrl,
+      },
     );
 
-    final json = response.data ?? const <String, dynamic>{};
+    final json = _decodeJsonMapResponse(response, 'class table meta');
     final ret = _asInt(json['ret']);
     if (ret == -1) {
       throw const ApiLoginExpiredException();
@@ -946,6 +876,85 @@ class Api {
         : delay;
   }
 
+  static Future<Response<String>> _getSchoolJsonPlain(
+    String url, {
+    Map<String, dynamic>? queryParameters,
+    required Map<String, Object> headers,
+  }) {
+    return _http.get<String>(
+      url,
+      queryParameters: queryParameters,
+      options: Options(
+        responseType: ResponseType.plain,
+        headers: headers,
+        followRedirects: true,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
+      ),
+    );
+  }
+
+  static Map<String, dynamic> _decodeJsonMapResponse(
+    Response<String> response,
+    String description,
+  ) {
+    _throwIfSchoolLoginPage(response, description);
+    if ((response.data ?? '').trim().isEmpty) {
+      return const <String, dynamic>{};
+    }
+    final decoded = _decodeSchoolJsonResponse(response, description);
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    if (decoded is Map) {
+      return decoded.map((key, value) => MapEntry(key.toString(), value));
+    }
+    throw ApiInvalidResponseException('Invalid $description response');
+  }
+
+  static List<dynamic> _decodeJsonListResponse(
+    Response<String> response,
+    String description,
+  ) {
+    _throwIfSchoolLoginPage(response, description);
+    if ((response.data ?? '').trim().isEmpty) {
+      return const <dynamic>[];
+    }
+    final decoded = _decodeSchoolJsonResponse(response, description);
+    if (decoded is List) {
+      return decoded;
+    }
+    throw ApiInvalidResponseException('Invalid $description response');
+  }
+
+  static dynamic _decodeSchoolJsonResponse(
+    Response<String> response,
+    String description,
+  ) {
+    final body = response.data ?? '';
+    _throwIfSchoolLoginPage(response, description);
+    try {
+      return jsonDecode(body);
+    } on FormatException catch (e) {
+      throw ApiInvalidResponseException(
+        'Invalid $description JSON from ${response.realUri}: ${e.message}',
+      );
+    }
+  }
+
+  static void _throwIfSchoolLoginPage(
+    Response<String> response,
+    String description,
+  ) {
+    if (_isCasLoginPage(response.realUri.toString(), response.data ?? '')) {
+      LogUtil.warn(
+        '[Api] $description returned login page '
+        'finalUrl=${response.realUri} statusCode=${response.statusCode}',
+      );
+      throw const ApiLoginExpiredException();
+    }
+  }
+
   static Future<Response<Map<String, dynamic>>> _getJson(
     String url, {
     String? referer,
@@ -1038,6 +1047,58 @@ class Api {
     final document = html_parser.parse(html);
     return document.querySelector('form#fm1') != null &&
         document.querySelector('input[name="username"]') != null;
+  }
+
+  static void _throwIfCasLoginFailed(_RedirectedHtmlResponse loginResponse) {
+    final response = loginResponse.response;
+    final html = response.data ?? '';
+    final url = response.realUri.toString();
+    if (response.statusCode == HttpStatus.tooManyRequests) {
+      LogUtil.warn(
+        '[Api] CAS login got 429 finalUrl=$url '
+        'redirects=${loginResponse.redirectChain.length}',
+      );
+      throw const ApiInvalidResponseException('请求过于频繁，请稍后再试');
+    }
+    if (!_isCasLoginPage(url, html)) {
+      return;
+    }
+
+    final reason = _extractCasLoginError(html);
+    LogUtil.warn(
+      '[Api] CAS login stayed on login page '
+      'finalUrl=$url statusCode=${response.statusCode} '
+      'redirects=${loginResponse.redirectChain.length}',
+    );
+    throw ApiInvalidResponseException(
+      reason.isEmpty ? '统一身份认证登录失败，请检查账号密码或验证码状态' : reason,
+    );
+  }
+
+  static String _extractCasLoginError(String html) {
+    final document = html_parser.parse(html);
+    const selectors = [
+      '#msg',
+      '.msg',
+      '.error',
+      '.errors',
+      '.alert',
+      '.alert-danger',
+    ];
+
+    for (final selector in selectors) {
+      final text = document.querySelector(selector)?.text.trim();
+      if (text != null && text.isNotEmpty) {
+        return text.replaceAll(RegExp(r'\s+'), ' ');
+      }
+    }
+
+    if (document.querySelector('input[name="authcode"]') != null ||
+        document.body?.text.contains('验证码') == true) {
+      return '学校认证要求验证码，请稍后重试或在浏览器完成验证';
+    }
+
+    return '';
   }
 
   static bool _isValidClassTableContextHtml(String html) {

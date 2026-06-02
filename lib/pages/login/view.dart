@@ -326,6 +326,7 @@ class _LoginButton extends StatelessWidget {
       () => AppButton(
         label: controller.isLoading.value ? '登录中' : '登录',
         icon: controller.isLoading.value ? null : AppIcons.login,
+        loading: controller.isLoading.value,
         fullWidth: true,
         onPressed: controller.isLoading.value ? null : controller.startLogin,
       ),

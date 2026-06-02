@@ -36,7 +36,7 @@ abstract final class AppIcons {
   static const IconData location = FluentIcons.location_24_regular;
 
   static const IconData exam = FluentIcons.document_ribbon_24_regular;
-  static const IconData grade = FluentIcons.emoji_24_regular;
+  static const IconData grade = FluentIcons.document_percent_24_regular;
   static const IconData credit = FluentIcons.data_pie_24_regular;
   static const IconData progress = FluentIcons.book_open_24_regular;
   static const IconData schedule = FluentIcons.clock_24_regular;

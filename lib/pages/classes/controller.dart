@@ -129,14 +129,6 @@ class ClassesController extends GetxController {
   List<ClassTableCourse> get currentWeekCourses => _currentWeekCourses;
   TodayCourseSnapshot? get homeSnapshot => _homeSnapshot.value;
 
-  @override
-  void onInit() {
-    super.onInit();
-    if (_userRepo.isLogin && !_userRepo.isOfflineMode) {
-      unawaited(syncScheduleOverview(syncExternalOutputs: true));
-    }
-  }
-
   Future<void> syncScheduleOverview({
     bool forceRefresh = false,
     bool syncExternalOutputs = false,
