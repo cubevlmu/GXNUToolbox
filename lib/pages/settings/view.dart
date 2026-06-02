@@ -160,21 +160,21 @@ class SettingsPage extends StatelessWidget {
                       );
                     },
                   ),
-                ],
-                AppTile(
-                  icon: AppIcons.info,
-                  title: '小组件同步诊断',
-                  subtitle: '查看计划任务、同步结果和刷新错误',
-                  minHeight: 60,
-                  onTap: () => SharedDialog.showConfirmDialog(
-                    context,
+                  AppTile(
+                    icon: AppIcons.info,
                     title: '小组件同步诊断',
-                    content: controller.widgetSyncDiagnosticText(),
-                    confirmText: '关闭',
-                    cancelText: '',
-                    variant: SharedDialogVariant.info,
+                    subtitle: '查看计划任务、同步结果和刷新错误',
+                    minHeight: 60,
+                    onTap: () => SharedDialog.showConfirmDialog(
+                      context,
+                      title: '小组件同步诊断',
+                      content: controller.widgetSyncDiagnosticText(),
+                      confirmText: '关闭',
+                      cancelText: '',
+                      variant: SharedDialogVariant.info,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           )
