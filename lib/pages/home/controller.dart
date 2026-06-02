@@ -17,6 +17,11 @@ class HomeController extends GetxController {
   bool get isLoading => _classesController.isLoading;
   bool get hasScheduleData => _classesController.hasScheduleData;
   bool get showSkeleton => isLoading && !_hasResolvedTodaySnapshot.value;
+  bool get initialLoadFailed =>
+      !_hasResolvedTodaySnapshot.value &&
+      !isLoading &&
+      _classesController.scheduleError.isNotEmpty;
+  String get initialLoadError => _classesController.scheduleError;
 
   late final Worker _syncWorker;
 

@@ -19,6 +19,7 @@ class AppButton extends StatelessWidget {
     this.variant = AppButtonVariant.primary,
     this.fullWidth = false,
     this.small = false,
+    this.loading = false,
   });
 
   final String label;
@@ -27,6 +28,7 @@ class AppButton extends StatelessWidget {
   final AppButtonVariant variant;
   final bool fullWidth;
   final bool small;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -61,19 +63,44 @@ class AppButton extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 18),
       backgroundColor: bg,
       foregroundColor: fg,
-      disabledBackgroundColor: colors.border,
-      disabledForegroundColor: colors.textDisabled,
+      disabledBackgroundColor: loading ? bg : colors.border,
+      disabledForegroundColor: loading ? fg : colors.textDisabled,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-        side: borderCol != null ? BorderSide(color: borderCol, width: 1) : BorderSide.none,
+        side: borderCol != null
+            ? BorderSide(color: borderCol, width: 1)
+            : BorderSide.none,
       ),
-      textStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: small ? 13 : 15),
+      textStyle: TextStyle(
+        fontWeight: FontWeight.w600,
+        fontSize: small ? 13 : 15,
+      ),
     );
 
-    final child = icon != null
-        ? Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: iconSize), const SizedBox(width: 6), Text(label)])
+    final leading = loading
+        ? SizedBox(
+            width: iconSize,
+            height: iconSize,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(fg),
+            ),
+          )
+        : icon == null
+        ? null
+        : Icon(icon, size: iconSize);
+
+    final child = leading != null
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [leading, const SizedBox(width: 6), Text(label)],
+          )
         : Text(label);
 
-    return TextButton(onPressed: onPressed, style: style, child: child);
+    return TextButton(
+      onPressed: loading ? null : onPressed,
+      style: style,
+      child: child,
+    );
   }
 }

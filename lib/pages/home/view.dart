@@ -7,6 +7,7 @@ import 'package:class_tool/pages/exams/view.dart';
 import 'package:class_tool/pages/home/controller.dart';
 import 'package:class_tool/pages/main/controller.dart';
 import 'package:class_tool/pages/query/view.dart';
+import 'package:class_tool/ui/app_button.dart';
 import 'package:class_tool/ui/app_colors.dart';
 import 'package:class_tool/ui/app_context.dart';
 import 'package:class_tool/ui/app_icon_button.dart';
@@ -30,6 +31,43 @@ class HomePage extends StatelessWidget {
     return Obx(() {
       if (controller.showSkeleton) {
         return const _HomeSkeletonView();
+      }
+
+      if (controller.initialLoadFailed) {
+        return SafeArea(
+          top: true,
+          bottom: false,
+          child: ListView(
+            padding: AppInsets.page,
+            children: [
+              _HomeHeader(
+                isRefreshing: controller.isLoading,
+                onRefresh: () {
+                  unawaited(
+                    classesController.syncScheduleOverview(
+                      forceRefresh: true,
+                      syncExternalOutputs: true,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: AppTokens.gap14),
+              _InitialLoadFailedPanel(
+                message: controller.initialLoadError,
+                onRetry: () {
+                  unawaited(
+                    classesController.syncScheduleOverview(
+                      forceRefresh: true,
+                      syncExternalOutputs: true,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: AppTokens.gap14),
+              const _QuickActions(),
+            ],
+          ),
+        );
       }
 
       return SafeArea(
@@ -452,6 +490,80 @@ class _EmptyTodayCourse extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _InitialLoadFailedPanel extends StatelessWidget {
+  const _InitialLoadFailedPanel({
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final detail = _compactErrorMessage(message);
+
+    return AppSurface(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(AppIcons.warning, size: 22, color: colors.warning),
+              const SizedBox(width: AppTokens.gap10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '课表加载失败',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: AppTokens.gap6),
+                    Text(
+                      detail.isEmpty ? '请检查网络或登录状态后重试。' : detail,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTokens.gap14),
+          AppButton(
+            label: '重试加载',
+            icon: AppIcons.refresh,
+            variant: AppButtonVariant.secondary,
+            fullWidth: true,
+            onPressed: onRetry,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _compactErrorMessage(String raw) {
+    final normalized = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.isEmpty) {
+      return '';
+    }
+    return normalized.length > 120
+        ? '${normalized.substring(0, 120)}...'
+        : normalized;
   }
 }
 

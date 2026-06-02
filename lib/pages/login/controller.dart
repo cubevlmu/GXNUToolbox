@@ -3,9 +3,6 @@
  * @LastEditors: cubevlmu khfahqp@gmail.com
  * Copyright (c) 2026 by FlybirdGames, All Rights Reserved. 
  */
-import 'dart:async';
-
-import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
 import 'package:class_tool/pages/settings/controller.dart';
 import 'package:class_tool/pages/splash/view.dart';
@@ -15,8 +12,6 @@ import 'package:get/get.dart';
 
 class LoginController extends GetxController {
   final UserRepo _userRepo = Get.find<UserRepo>();
-  final TodayCoursesWidgetRepo _todayCoursesWidgetRepo =
-      Get.find<TodayCoursesWidgetRepo>();
 
   String account = '';
   String password = '';
@@ -81,7 +76,14 @@ class LoginController extends GetxController {
       );
       if (!success) {
         LogUtil.warn('[LoginController] login failed username=$trimmedAccount');
-        AppToast.errorGlobal(message: '登录失败，请检查账号、密码或登录状态');
+        AppToast.showGlobal(
+          title: '登录失败',
+          type: AppToastType.error,
+          duration: const Duration(seconds: 4),
+          message: _userRepo.lastLoginError.isEmpty
+              ? '请检查账号、密码或登录状态'
+              : _userRepo.lastLoginError,
+        );
         return;
       }
 
@@ -89,7 +91,6 @@ class LoginController extends GetxController {
       if (Get.isRegistered<SettingsController>()) {
         Get.find<SettingsController>().refreshUserInfo();
       }
-      unawaited(_todayCoursesWidgetRepo.syncAndUpdate(reason: 'login'));
       Get.offAll(() => const SplashPage());
     } finally {
       isLoading.value = false;

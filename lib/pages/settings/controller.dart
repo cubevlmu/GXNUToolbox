@@ -114,6 +114,40 @@ class SettingsController extends GetxController {
     await _todayCoursesWidgetRepo.debugRunScheduledSync();
   }
 
+  Future<void> scheduleMorningSyncSoonDebug() async {
+    if (!supportsScheduledSync) {
+      return;
+    }
+    await _todayCoursesWidgetRepo.debugScheduleDailyRefreshSoon();
+  }
+
+  String widgetSyncDiagnosticText() {
+    final data = _todayCoursesWidgetRepo.diagnosticSnapshot();
+    String value(String key) {
+      final text = data[key]?.trim() ?? '';
+      return text.isEmpty ? '-' : text;
+    }
+
+    return [
+      '自动同步: ${value('autoSyncEnabled')}',
+      '等待重试: ${value('pendingSync')}',
+      '计划任务: ${value('scheduledDailyWorkName')}',
+      '计划时间: ${value('lastScheduledRunAt')}',
+      '上次安排: ${value('lastScheduledAt')}',
+      '上次开始: ${value('lastSyncStartedAt')}',
+      '上次成功: ${value('lastSyncSuccessAt')}',
+      '上次失败: ${value('lastSyncFailureAt')}',
+      '失败原因: ${value('lastSyncFailureReason')}',
+      '任务回调: ${value('lastTaskCallbackAt')}',
+      '回调名称: ${value('lastTaskCallbackName')}',
+      '登记错误: ${value('lastTaskRegisterFailure')}',
+      '显示状态: ${value('widgetState')}',
+      '状态文案: ${value('widgetStatusText')}',
+      'Provider刷新: ${value('lastProviderUpdateAt')}',
+      'Provider错误: ${value('lastProviderUpdateFailure')}',
+    ].join('\n');
+  }
+
   Future<void> logout() async {
     await _userRepo.logout();
     refreshUserInfo();

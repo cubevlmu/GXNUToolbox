@@ -1,12 +1,15 @@
 import 'dart:async';
 
 import 'package:class_tool/ui/app_button.dart';
+import 'package:class_tool/ui/app_colors.dart';
 import 'package:class_tool/ui/app_context.dart';
 import 'package:class_tool/ui/app_icons.dart';
 import 'package:class_tool/ui/app_tokens.dart';
 import 'package:flutter/material.dart';
 
 // ignore_for_file: use_build_context_synchronously
+
+enum SharedDialogVariant { info, success, warning, danger }
 
 class SharedDialog {
   const SharedDialog._();
@@ -20,6 +23,10 @@ class SharedDialog {
     required String content,
     String cancelText = '取消',
     String confirmText = '确定',
+    SharedDialogVariant variant = SharedDialogVariant.info,
+    IconData? icon,
+    AppButtonVariant? cancelButtonVariant,
+    AppButtonVariant? confirmButtonVariant,
     Function()? cancelAction,
     Function()? confirmAction,
   }) async {
@@ -34,6 +41,8 @@ class SharedDialog {
       barrierDismissible: false,
       builder: (ctx) {
         final colors = ctx.colors;
+        final visuals = _SharedDialogVisuals.resolve(variant, colors);
+        final maxDialogHeight = MediaQuery.sizeOf(ctx).height - 48;
 
         return PopScope(
           canPop: false,
@@ -47,83 +56,94 @@ class SharedDialog {
               borderRadius: BorderRadius.circular(AppTokens.radiusXl),
               side: BorderSide(color: colors.border),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(AppTokens.gap20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: colors.dangerSoft,
-                          borderRadius: BorderRadius.circular(
-                            AppTokens.radiusMd,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxDialogHeight),
+              child: Padding(
+                padding: const EdgeInsets.all(AppTokens.gap20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: visuals.background,
+                            borderRadius: BorderRadius.circular(
+                              AppTokens.radiusMd,
+                            ),
+                          ),
+                          child: Icon(
+                            icon ?? visuals.icon,
+                            size: AppTokens.iconMd,
+                            color: visuals.color,
                           ),
                         ),
-                        child: Icon(
-                          AppIcons.logout,
-                          size: AppTokens.iconMd,
-                          color: colors.danger,
-                        ),
-                      ),
-                      const SizedBox(width: AppTokens.gap12),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(
-                            title,
-                            style: Theme.of(ctx).textTheme.titleMedium
-                                ?.copyWith(
-                                  color: colors.textPrimary,
-                                  fontWeight: FontWeight.w800,
-                                ),
+                        const SizedBox(width: AppTokens.gap12),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              title,
+                              style: Theme.of(ctx).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: colors.textPrimary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppTokens.gap14),
-                  Text(
-                    content,
-                    style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
-                      color: colors.textSecondary,
-                      height: 1.45,
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: AppTokens.gap20),
-                  Row(
-                    children: [
-                      if (!isSingleAction) ...[
+                    const SizedBox(height: AppTokens.gap14),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Text(
+                          content,
+                          style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                            color: colors.textSecondary,
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppTokens.gap20),
+                    Row(
+                      children: [
+                        if (!isSingleAction) ...[
+                          Expanded(
+                            child: AppButton(
+                              label: cancelText,
+                              variant:
+                                  cancelButtonVariant ??
+                                  AppButtonVariant.secondary,
+                              onPressed: () {
+                                if (cancelAction != null) cancelAction();
+                                Navigator.of(ctx).pop(false);
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: AppTokens.gap10),
+                        ],
                         Expanded(
                           child: AppButton(
-                            label: cancelText,
-                            variant: AppButtonVariant.secondary,
+                            label: confirmText,
+                            variant:
+                                confirmButtonVariant ??
+                                _defaultConfirmButtonVariant(variant),
                             onPressed: () {
-                              if (cancelAction != null) cancelAction();
-                              Navigator.of(ctx).pop(false);
+                              if (confirmAction != null) confirmAction();
+                              Navigator.of(ctx).pop(true);
                             },
                           ),
                         ),
-                        const SizedBox(width: AppTokens.gap10),
                       ],
-                      Expanded(
-                        child: AppButton(
-                          label: confirmText,
-                          variant: AppButtonVariant.danger,
-                          onPressed: () {
-                            if (confirmAction != null) confirmAction();
-                            Navigator.of(ctx).pop(true);
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -136,6 +156,17 @@ class SharedDialog {
     }
 
     return result ?? false;
+  }
+
+  static AppButtonVariant _defaultConfirmButtonVariant(
+    SharedDialogVariant variant,
+  ) {
+    return switch (variant) {
+      SharedDialogVariant.danger => AppButtonVariant.danger,
+      SharedDialogVariant.info ||
+      SharedDialogVariant.success ||
+      SharedDialogVariant.warning => AppButtonVariant.primary,
+    };
   }
 
   static Future<bool> showProgressDialog({
@@ -350,6 +381,46 @@ class SharedDialog {
         Navigator.of(prev, rootNavigator: true).pop();
       } catch (_) {}
     }
+  }
+}
+
+class _SharedDialogVisuals {
+  const _SharedDialogVisuals({
+    required this.icon,
+    required this.color,
+    required this.background,
+  });
+
+  final IconData icon;
+  final Color color;
+  final Color background;
+
+  static _SharedDialogVisuals resolve(
+    SharedDialogVariant variant,
+    AppPalette colors,
+  ) {
+    return switch (variant) {
+      SharedDialogVariant.info => _SharedDialogVisuals(
+        icon: AppIcons.info,
+        color: colors.info,
+        background: colors.infoSoft,
+      ),
+      SharedDialogVariant.success => _SharedDialogVisuals(
+        icon: AppIcons.check,
+        color: colors.success,
+        background: colors.successSoft,
+      ),
+      SharedDialogVariant.warning => _SharedDialogVisuals(
+        icon: AppIcons.warning,
+        color: colors.warning,
+        background: colors.warningSoft,
+      ),
+      SharedDialogVariant.danger => _SharedDialogVisuals(
+        icon: AppIcons.error,
+        color: colors.danger,
+        background: colors.dangerSoft,
+      ),
+    };
   }
 }
 
