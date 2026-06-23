@@ -13,6 +13,7 @@ class StudentRepo {
 
   final RepoRequestHelper _helper;
   Future<StudentInfo>? _infoTask;
+  Future<StudentPhoto?>? _photoTask;
 
   Future<StudentInfo> fetchInfo() {
     final activeTask = _infoTask;
@@ -28,6 +29,24 @@ class StudentRepo {
     return task.whenComplete(() {
       if (identical(_infoTask, task)) {
         _infoTask = null;
+      }
+    });
+  }
+
+  Future<StudentPhoto?> fetchAdmissionPhoto() {
+    final activeTask = _photoTask;
+    if (activeTask != null) {
+      return activeTask;
+    }
+
+    final task = _helper.runWithLoginRetry(
+      'fetch student admission photo',
+      Api.getStudentAdmissionPhoto,
+    );
+    _photoTask = task;
+    return task.whenComplete(() {
+      if (identical(_photoTask, task)) {
+        _photoTask = null;
       }
     });
   }

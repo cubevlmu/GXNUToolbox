@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:class_tool/data/api/api_diagnostics.dart';
 import 'package:class_tool/data/api/api_constants.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:class_tool/utils/storage_utils.dart';
@@ -172,7 +173,9 @@ class HttpUtils {
 
   Future<List<Cookie>> getCookies(String url) async {
     final cookies = await loadCookies(url);
-    return cookies.map((cookie) => _cloneCookie(cookie)).toList(growable: false);
+    return cookies
+        .map((cookie) => _cloneCookie(cookie))
+        .toList(growable: false);
   }
 
   Future<Cookie?> getCookie(String url, String name) async {
@@ -187,9 +190,7 @@ class HttpUtils {
 
   Future<Map<String, String>> getCookieMap(String url) async {
     final cookies = await loadCookies(url);
-    return {
-      for (final cookie in cookies) cookie.name: cookie.value,
-    };
+    return {for (final cookie in cookies) cookie.name: cookie.value};
   }
 
   Future<void> setCookie(
@@ -266,10 +267,7 @@ class HttpUtils {
     }
   }
 
-  Future<bool> deleteCookie(
-    String url,
-    String name,
-  ) async {
+  Future<bool> deleteCookie(String url, String name) async {
     await init();
     final uri = resolveUri(url);
     final cookies = await loadCookies(url);
@@ -379,20 +377,97 @@ List<Cookie> _filterCookies(
 }
 
 class _ApiLogInterceptor extends Interceptor {
+  static int _requestSeed = 0;
+
   @override
-  void onRequest(
-    RequestOptions options,
-    RequestInterceptorHandler handler,
-  ) {
-    LogUtil.info('[HTTP] ${options.method} ${options.uri}');
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final requestId = _nextRequestId();
+    options.extra['requestId'] = requestId;
+    options.extra['requestStartedAt'] = DateTime.now();
+    LogUtil.info(
+      '[HTTP] requestId=$requestId start '
+      'method=${options.method} '
+      'uri=${ApiDiagnostics.sanitizeUri(options.uri)} '
+      'queryKeys=${options.queryParameters.keys.join(',')} '
+      'timeout=${_timeoutText(options)}',
+    );
     super.onRequest(options, handler);
   }
 
   @override
+  void onResponse(
+    Response<dynamic> response,
+    ResponseInterceptorHandler handler,
+  ) {
+    final options = response.requestOptions;
+    final requestId = options.extra['requestId']?.toString() ?? '-';
+    final duration = _duration(options);
+    LogUtil.info(
+      '[HTTP] requestId=$requestId success '
+      'method=${options.method} '
+      'uri=${ApiDiagnostics.sanitizeUri(options.uri)} '
+      'status=${response.statusCode} '
+      'durationMs=${duration?.inMilliseconds ?? '-'} '
+      'contentType=${response.headers.value(HttpHeaders.contentTypeHeader) ?? '-'} '
+      'realUri=${ApiDiagnostics.sanitizeUri(response.realUri)} '
+      'redirected=${response.isRedirect == true}',
+    );
+    super.onResponse(response, handler);
+  }
+
+  @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    LogUtil.error('[HTTP] ${err.requestOptions.method} ${err.requestOptions.uri}');
-    LogUtil.error(err.message ?? '未知网络异常');
+    final options = err.requestOptions;
+    final requestId = options.extra['requestId']?.toString() ?? '-';
+    final duration = _duration(options);
+    LogUtil.error(
+      '[HTTP] requestId=$requestId error '
+      'method=${options.method} '
+      'uri=${ApiDiagnostics.sanitizeUri(options.uri)} '
+      'type=${err.type.name} '
+      'status=${err.response?.statusCode ?? '-'} '
+      'durationMs=${duration?.inMilliseconds ?? '-'} '
+      'networkKind=${_networkErrorKind(err)} '
+      'message=${err.message ?? '未知网络异常'}',
+    );
     super.onError(err, handler);
+  }
+
+  static String _nextRequestId() {
+    _requestSeed += 1;
+    return 'req_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}_${_requestSeed.toRadixString(36)}';
+  }
+
+  static Duration? _duration(RequestOptions options) {
+    final startedAt = options.extra['requestStartedAt'];
+    if (startedAt is! DateTime) {
+      return null;
+    }
+    return DateTime.now().difference(startedAt);
+  }
+
+  static String _timeoutText(RequestOptions options) {
+    return [
+      'connect=${options.connectTimeout?.inMilliseconds ?? '-'}ms',
+      'send=${options.sendTimeout?.inMilliseconds ?? '-'}ms',
+      'receive=${options.receiveTimeout?.inMilliseconds ?? '-'}ms',
+    ].join(',');
+  }
+
+  static String _networkErrorKind(DioException err) {
+    if (err.type == DioExceptionType.connectionTimeout ||
+        err.type == DioExceptionType.sendTimeout ||
+        err.type == DioExceptionType.receiveTimeout) {
+      return 'timeout';
+    }
+    final error = err.error;
+    if (error is SocketException) {
+      return 'socket';
+    }
+    if (err.type == DioExceptionType.cancel) {
+      return 'cancelled';
+    }
+    return '-';
   }
 }
 

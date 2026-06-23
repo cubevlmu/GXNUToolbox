@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:class_tool/data/api/api_diagnostics.dart';
 import 'package:class_tool/data/api/api_exception.dart';
 import 'package:class_tool/data/api/api_constants.dart';
 import 'package:class_tool/data/model/bell_schedule.dart';
@@ -13,10 +15,14 @@ import 'package:class_tool/data/model/course_plan.dart';
 import 'package:class_tool/data/model/credit_progress.dart';
 import 'package:class_tool/data/model/exam.dart';
 import 'package:class_tool/data/model/grade.dart';
+import 'package:class_tool/data/model/school_calendar.dart';
+import 'package:class_tool/data/model/school_notification.dart';
+import 'package:class_tool/data/model/selected_course.dart';
 import 'package:class_tool/data/model/student_info.dart';
 import 'package:class_tool/utils/http_utils.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:dio/dio.dart';
+import 'package:html/dom.dart' as html_dom;
 import 'package:html/parser.dart' as html_parser;
 
 export 'package:class_tool/data/api/api_exception.dart';
@@ -31,13 +37,24 @@ class _RedirectedHtmlResponse {
   final List<String> redirectChain;
 }
 
+enum _UnexpectedHtmlPageKind {
+  casLogin,
+  captcha,
+  rateLimited,
+  accessRestricted,
+  securityVerification,
+  waf,
+  blank,
+  unknown,
+}
+
 class Api {
   Api._();
 
   static final HttpUtils _http = HttpUtils();
   static Future<void> _htmlRequestQueue = Future<void>.value();
   static DateTime? _lastHtmlRequestAt;
-  static const Duration _htmlRequestMinInterval = Duration(milliseconds: 100);
+  static const Duration _htmlRequestMinInterval = Duration(milliseconds: 250);
   static const List<Duration> _tooManyRequestsBackoff = [
     Duration(seconds: 1),
     Duration(seconds: 2),
@@ -54,73 +71,125 @@ class Api {
     bool clearBeforeLogin = true,
   }) async {
     await _http.init();
+    final trace = ApiDiagnostics.startLoginTrace();
 
-    if (clearBeforeLogin) {
-      await _http.clearCookies();
-    }
+    try {
+      if (clearBeforeLogin) {
+        await _http.clearCookies();
+      }
 
-    await _getHtml(ApiConstants.chaoxingEntryLoginUrl);
-    final casPage = await _getHtmlWithRedirects(
-      ApiConstants.chaoxingSsoBridgeUrl,
-      referer: ApiConstants.chaoxingReferer,
-    );
-
-    final formFields = _extractFormInputs(casPage.response.data ?? '');
-    final formAction =
-        _extractFormAction(casPage.response.data ?? '') ?? '/cas/login';
-    final postUrl = _resolveUrl(
-      casPage.response.realUri.toString(),
-      formAction,
-    );
-
-    final rsaKey = await _fetchPubKey(casPage.response.realUri.toString());
-    final encryptedPassword = _encryptPasswordJsCompatible(password, rsaKey);
-
-    formFields['username'] = username;
-    formFields['password'] = encryptedPassword;
-    formFields['mobileCode'] = formFields['mobileCode'] ?? '';
-    formFields['authcode'] = authCode;
-    if (rememberMe) {
-      formFields['rememberMe'] = 'true';
-    } else {
-      formFields.remove('rememberMe');
-    }
-    formFields['_eventId'] = formFields['_eventId'] ?? 'submit';
-
-    final loginResponse = await _postFormWithRedirects(
-      postUrl,
-      data: formFields,
-      referer: casPage.response.realUri.toString(),
-    );
-    _throwIfCasLoginFailed(loginResponse);
-
-    final finalCheckRedirectChain = <String>[];
-    if (!_isSameUrl(
-      loginResponse.response.realUri.toString(),
-      ApiConstants.chaoxingFinalCheckUrl,
-    )) {
-      final finalResponse = await _getHtmlWithRedirects(
-        ApiConstants.chaoxingFinalCheckUrl,
-        referer: ApiConstants.chaoxingFinalCheckUrl,
+      trace.logPhase('cas_bridge');
+      var casPage = await _requestCasBridge();
+      trace.logResponse(
+        'cas_bridge',
+        casPage.response,
+        redirectCount: casPage.redirectChain.length,
       );
-      _throwIfCasLoginFailed(finalResponse);
-      finalCheckRedirectChain.addAll(finalResponse.redirectChain);
+
+      trace.logPhase('cas_form_parse');
+      var formFields = _extractFormInputs(casPage.response.data ?? '');
+      var formAction =
+          _extractFormAction(casPage.response.data ?? '') ?? '/cas/login';
+      if (!_hasCasLoginForm(formFields, casPage.response.data ?? '')) {
+        trace.logPhase('chaoxing_entry_login');
+        final entryResponse = await _getHtml(
+          ApiConstants.chaoxingEntryLoginUrl,
+        );
+        trace.logResponse('chaoxing_entry_login', entryResponse);
+
+        trace.logPhase('cas_bridge_retry');
+        casPage = await _requestCasBridge();
+        trace.logResponse(
+          'cas_bridge_retry',
+          casPage.response,
+          redirectCount: casPage.redirectChain.length,
+        );
+
+        trace.logPhase('cas_form_parse');
+        formFields = _extractFormInputs(casPage.response.data ?? '');
+        formAction =
+            _extractFormAction(casPage.response.data ?? '') ?? '/cas/login';
+      }
+      if (!_hasCasLoginForm(formFields, casPage.response.data ?? '')) {
+        throw const ApiUnexpectedHtmlException('未能识别统一身份认证登录表单，学校页面结构可能变化');
+      }
+      final postUrl = _resolveUrl(
+        casPage.response.realUri.toString(),
+        formAction,
+      );
+
+      trace.logPhase('rsa_pubkey_fetch');
+      final rsaKey = await _fetchPubKey(casPage.response.realUri.toString());
+      final encryptedPassword = _encryptPasswordJsCompatible(password, rsaKey);
+
+      formFields['username'] = username;
+      formFields['password'] = encryptedPassword;
+      formFields['mobileCode'] = formFields['mobileCode'] ?? '';
+      formFields['authcode'] = authCode;
+      if (rememberMe) {
+        formFields['rememberMe'] = 'true';
+      } else {
+        formFields.remove('rememberMe');
+      }
+      formFields['_eventId'] = formFields['_eventId'] ?? 'submit';
+
+      trace.logPhase('cas_login_post');
+      final loginResponse = await _postFormWithRedirects(
+        postUrl,
+        data: formFields,
+        referer: casPage.response.realUri.toString(),
+      );
+      trace.logResponse(
+        'cas_login_post',
+        loginResponse.response,
+        redirectCount: loginResponse.redirectChain.length,
+      );
+      _throwIfCasLoginFailed(loginResponse);
+
+      final finalCheckRedirectChain = <String>[];
+      if (!_isSameUrl(
+        loginResponse.response.realUri.toString(),
+        ApiConstants.chaoxingFinalCheckUrl,
+      )) {
+        trace.logPhase('cas_final_check');
+        final finalResponse = await _getHtmlWithRedirects(
+          ApiConstants.chaoxingFinalCheckUrl,
+          referer: ApiConstants.chaoxingFinalCheckUrl,
+        );
+        trace.logResponse(
+          'cas_final_check',
+          finalResponse.response,
+          redirectCount: finalResponse.redirectChain.length,
+        );
+        _throwIfCasLoginFailed(finalResponse);
+        finalCheckRedirectChain.addAll(finalResponse.redirectChain);
+      }
+
+      trace.logPhase('jwjx_bootstrap');
+      final jwjxBootstrapResponse = await _bootstrapJwjxSession();
+      trace.logResponse(
+        'jwjx_bootstrap',
+        jwjxBootstrapResponse.response,
+        redirectCount: jwjxBootstrapResponse.redirectChain.length,
+      );
+
+      trace.logPhase('jwjx_context_parse');
+      return ChaoxingLoginResult(
+        html: jwjxBootstrapResponse.response.data ?? '',
+        finalUrl: jwjxBootstrapResponse.response.realUri.toString(),
+        statusCode: jwjxBootstrapResponse.response.statusCode ?? 0,
+        cookies: await _http.getCookieMap(ApiConstants.jwjxBaseUrl),
+        redirectChain: [
+          ...casPage.redirectChain,
+          ...loginResponse.redirectChain,
+          ...finalCheckRedirectChain,
+          ...jwjxBootstrapResponse.redirectChain,
+        ],
+      );
+    } catch (e) {
+      trace.logError(trace.lastPhase ?? 'login', e);
+      rethrow;
     }
-
-    final jwjxBootstrapResponse = await _bootstrapJwjxSession();
-
-    return ChaoxingLoginResult(
-      html: jwjxBootstrapResponse.response.data ?? '',
-      finalUrl: jwjxBootstrapResponse.response.realUri.toString(),
-      statusCode: jwjxBootstrapResponse.response.statusCode ?? 0,
-      cookies: await _http.getCookieMap(ApiConstants.jwjxBaseUrl),
-      redirectChain: [
-        ...casPage.redirectChain,
-        ...loginResponse.redirectChain,
-        ...finalCheckRedirectChain,
-        ...jwjxBootstrapResponse.redirectChain,
-      ],
-    );
   }
 
   static Future<List<ClassMeta>> getWeekMeta({
@@ -138,10 +207,7 @@ class Api {
       },
     );
 
-    final rawList = _decodeJsonListResponse(
-      response,
-      'class week meta',
-    );
+    final rawList = _decodeJsonListResponse(response, 'class week meta');
     return rawList
         .whereType<Map>()
         .map(
@@ -379,7 +445,8 @@ class Api {
   }) async {
     await _http.init();
 
-    const queryFields = 'id,kspcmc,xh,xm,kcmc,kssj,jsmc,ksfs,ksxs,zwh,bkcs,bz,rwbz,ksrq,qssj,sznj,skyx,zydm,bjdm';
+    const queryFields =
+        'id,kspcmc,xh,xm,kcmc,kssj,jsmc,ksfs,ksxs,zwh,bkcs,bz,rwbz,ksrq,qssj,sznj,skyx,zydm,bjdm';
     const pageSize = 50;
 
     final response = await _getSchoolJsonPlain(
@@ -422,6 +489,68 @@ class Api {
   static Future<StudentInfo> getStudentInfo() async {
     await _http.init();
 
+    final response = await _getStudentCardHtml();
+    return StudentInfo.fromHtml(response.data ?? '');
+  }
+
+  static Future<StudentPhoto?> getStudentAdmissionPhoto() async {
+    await _http.init();
+
+    final response = await _getStudentCardHtml();
+    final html = response.data ?? '';
+    final src = _extractAdmissionPhotoSrc(html);
+    if (src == null || src.isEmpty) {
+      return null;
+    }
+
+    final dataUriMatch = RegExp(
+      r'^data:([^;,]+)?;base64,(.+)$',
+      caseSensitive: false,
+      dotAll: true,
+    ).firstMatch(src.trim());
+    if (dataUriMatch != null) {
+      final bytes = base64Decode(dataUriMatch.group(2)!.replaceAll('\n', ''));
+      return StudentPhoto(
+        bytes: Uint8List.fromList(bytes),
+        mimeType: dataUriMatch.group(1),
+      );
+    }
+
+    final photoUrl = _resolveUrl(response.realUri.toString(), src);
+    final imageResponse = await _http.get<List<int>>(
+      photoUrl,
+      options: Options(
+        responseType: ResponseType.bytes,
+        headers: {
+          HttpHeaders.acceptHeader:
+              'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+          HttpHeaders.refererHeader: response.realUri.toString(),
+        },
+        followRedirects: true,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
+      ),
+    );
+
+    final contentType = imageResponse.headers.value(
+      HttpHeaders.contentTypeHeader,
+    );
+    final data = imageResponse.data;
+    if (data == null || data.isEmpty) {
+      return null;
+    }
+    if (contentType?.contains('html') == true) {
+      final body = utf8.decode(data, allowMalformed: true);
+      if (_isCasLoginPage(imageResponse.realUri.toString(), body)) {
+        throw const ApiLoginExpiredException();
+      }
+      return null;
+    }
+    return StudentPhoto(bytes: Uint8List.fromList(data), mimeType: contentType);
+  }
+
+  static Future<Response<String>> _getStudentCardHtml() async {
     final response = await _http.get<String>(
       ApiConstants.jwjxStudentCardUrl,
       options: Options(
@@ -430,6 +559,8 @@ class Api {
           HttpHeaders.acceptHeader:
               'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+          HttpHeaders.refererHeader:
+              '${ApiConstants.jwjxBaseUrl}/jw/admin?sfjrxk=1',
         },
         followRedirects: true,
         validateStatus: (status) =>
@@ -440,8 +571,55 @@ class Api {
     if (_isCasLoginPage(response.realUri.toString(), response.data ?? '')) {
       throw const ApiLoginExpiredException();
     }
+    return response;
+  }
 
-    return StudentInfo.fromHtml(response.data ?? '');
+  static String? _extractAdmissionPhotoSrc(String html) {
+    final document = html_parser.parse(html);
+    for (final title in document.querySelectorAll('.photo-title')) {
+      if (!title.text.contains('入学后照片')) {
+        continue;
+      }
+      final photoItem = _closestByClass(title, 'photo-item');
+      final img =
+          photoItem?.querySelector('img') ?? title.parent?.querySelector('img');
+      final src = img?.attributes['src']?.trim();
+      if (src != null && src.isNotEmpty && !_isDefaultStudentPhoto(src)) {
+        return src;
+      }
+    }
+
+    for (final img in document.querySelectorAll('.photo-item img, img')) {
+      final src = img.attributes['src']?.trim();
+      if (src == null || src.isEmpty || _isDefaultStudentPhoto(src)) {
+        continue;
+      }
+      final surroundingText = img.parent?.text ?? '';
+      if (surroundingText.contains('入学后照片') ||
+          src.contains('/attachment/showImage/')) {
+        return src;
+      }
+    }
+    return null;
+  }
+
+  static html_dom.Element? _closestByClass(
+    html_dom.Element node,
+    String className,
+  ) {
+    html_dom.Element? current = node;
+    while (current != null) {
+      if (current.classes.contains(className)) {
+        return current;
+      }
+      current = current.parent;
+    }
+    return null;
+  }
+
+  static bool _isDefaultStudentPhoto(String src) {
+    final lower = src.toLowerCase();
+    return lower.contains('default_avatar') || lower.contains('defaultphoto');
   }
 
   static Future<BellScheduleResponse> getBellSchedule({
@@ -460,6 +638,39 @@ class Api {
     return BellScheduleResponse.fromJson(
       _decodeJsonMapResponse(response, 'bell schedule'),
     );
+  }
+
+  static Future<SchoolCalendarResponse> getSchoolCalendar({
+    required String semester,
+  }) async {
+    await _http.init();
+
+    final response = await _getSchoolJsonPlain(
+      '${ApiConstants.jwjxSchoolCalendarDataUrl}/$semester',
+      headers: {
+        HttpHeaders.acceptHeader:
+            'application/json, text/javascript, */*; q=0.01',
+        HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+        HttpHeaders.refererHeader: ApiConstants.jwjxSchoolCalendarPageUrl,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    );
+
+    final decoded = _decodeSchoolJsonResponse(response, 'school calendar');
+    if (decoded is List) {
+      return SchoolCalendarResponse.fromList(decoded, semester: semester);
+    }
+    if (decoded is Map) {
+      final json = decoded.map((key, value) => MapEntry(key.toString(), value));
+      final ret = _asInt(json['ret']);
+      if (ret == -1) {
+        throw const ApiLoginExpiredException();
+      }
+      throw ApiInvalidResponseException(
+        json['msg']?.toString() ?? 'Invalid school calendar response',
+      );
+    }
+    throw const ApiInvalidResponseException('Invalid school calendar response');
   }
 
   static Future<CoursePlanResponse> getCoursePlanList({
@@ -557,6 +768,93 @@ class Api {
     }
 
     return CreditProgressResponse.fromJson(json);
+  }
+
+  static Future<SelectedCourseQueryResponse> getSelectedCourseList({
+    int page = 1,
+    int pageSize = 20,
+    String semester = '',
+  }) async {
+    await _http.init();
+
+    const queryFields =
+        'id,kcid,xnxq,xdxz,xdfs,kcbh,kcmc,kcjj,kcbz,jxbmc,jxbbh,zxs,llxs,syxs,'
+        'shangjxs,shijianxs,qtxs,jxbzc,kclb,kcxz,type,kclx,kcgs,rkjs,jxms,'
+        'sksjdd,xf,skfs,xkfs,xklx,';
+
+    final response = await _getSchoolJsonPlain(
+      ApiConstants.jwjxSelectedCourseListUrl,
+      queryParameters: {
+        'gridtype': 'jqgrid',
+        'async': '1',
+        'queryFields': queryFields,
+        '_search': 'false',
+        'nd': DateTime.now().millisecondsSinceEpoch.toString(),
+        'page.size': pageSize.toString(),
+        'page.pn': page.toString(),
+        'sort': 'id',
+        'order': 'asc',
+        if (semester.isNotEmpty) 'xnxq': semester,
+      },
+      headers: {
+        HttpHeaders.acceptHeader:
+            'application/json, text/javascript, */*; q=0.01',
+        HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+        HttpHeaders.refererHeader: ApiConstants.jwjxSelectedCoursePageUrl,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    );
+
+    final json = _decodeJsonMapResponse(response, 'selected course list');
+    final ret = _asInt(json['ret']);
+    if (ret == -1) {
+      throw const ApiLoginExpiredException();
+    }
+    if (ret != 0) {
+      throw ApiInvalidResponseException(
+        json['msg']?.toString() ?? 'Invalid selected course response',
+      );
+    }
+
+    return SelectedCourseQueryResponse.fromJson(json);
+  }
+
+  static Future<SchoolNotificationQueryResponse> getNotificationList({
+    int page = 1,
+    int pageSize = 50,
+    String title = '',
+    String type = '',
+  }) async {
+    await _http.init();
+
+    final response = await _getSchoolJsonPlain(
+      ApiConstants.jwjxMessageListUrl,
+      queryParameters: {
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+        'title': title,
+        'type': type,
+      },
+      headers: {
+        HttpHeaders.acceptHeader: 'application/json, text/plain, */*',
+        HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+        HttpHeaders.refererHeader:
+            '${ApiConstants.jwjxBaseUrl}/jw/frontend/views/workCenter/message/index.html',
+      },
+    );
+
+    final json = _decodeJsonMapResponse(response, 'notification list');
+    final ret = _asInt(json['ret']);
+    if (ret == -1) {
+      throw const ApiLoginExpiredException();
+    }
+    if (ret != 0) {
+      throw ApiInvalidResponseException(
+        json['msg']?.toString() ?? 'Invalid notification response',
+      );
+    }
+
+    return SchoolNotificationQueryResponse.fromJson(json);
   }
 
   static Future<ClassTableMetaResponse> getClassTableMeta({
@@ -715,6 +1013,13 @@ class Api {
     String? referer,
   }) {
     return _sendHtmlWithRedirects(method: 'GET', url: url, referer: referer);
+  }
+
+  static Future<_RedirectedHtmlResponse> _requestCasBridge() {
+    return _getHtmlWithRedirects(
+      ApiConstants.chaoxingSsoBridgeUrl,
+      referer: ApiConstants.chaoxingReferer,
+    );
   }
 
   static Future<_RedirectedHtmlResponse> _postFormWithRedirects(
@@ -932,7 +1237,7 @@ class Api {
     String description,
   ) {
     final body = response.data ?? '';
-    _throwIfSchoolLoginPage(response, description);
+    _detectUnexpectedHtmlPage(response, description);
     try {
       return jsonDecode(body);
     } on FormatException catch (e) {
@@ -946,12 +1251,47 @@ class Api {
     Response<String> response,
     String description,
   ) {
-    if (_isCasLoginPage(response.realUri.toString(), response.data ?? '')) {
-      LogUtil.warn(
-        '[Api] $description returned login page '
-        'finalUrl=${response.realUri} statusCode=${response.statusCode}',
-      );
-      throw const ApiLoginExpiredException();
+    _detectUnexpectedHtmlPage(response, description);
+  }
+
+  static void _detectUnexpectedHtmlPage(
+    Response<String> response,
+    String description,
+  ) {
+    final html = response.data ?? '';
+    final url = response.realUri.toString();
+    final contentType = response.headers.value(HttpHeaders.contentTypeHeader);
+    final looksHtml = _looksLikeHtml(html, contentType);
+    if (!looksHtml && !_isCasLoginPage(url, html)) {
+      return;
+    }
+
+    final pageKind = _classifyUnexpectedHtmlPage(url, html);
+    final fingerprint = ApiDiagnostics.fingerprintBody(html);
+    LogUtil.warn(
+      '[Api] $description returned unexpected HTML '
+      'kind=$pageKind finalUrl=${ApiDiagnostics.sanitizeUri(response.realUri)} '
+      'statusCode=${response.statusCode} fingerprint="$fingerprint"',
+    );
+
+    switch (pageKind) {
+      case _UnexpectedHtmlPageKind.casLogin:
+        throw const ApiLoginExpiredException();
+      case _UnexpectedHtmlPageKind.captcha:
+      case _UnexpectedHtmlPageKind.securityVerification:
+      case _UnexpectedHtmlPageKind.accessRestricted:
+      case _UnexpectedHtmlPageKind.waf:
+        throw ApiProtectionRequiredException(
+          '学校认证要求验证，请先用浏览器打开教务平台完成一次验证，再回到 App 重试',
+        );
+      case _UnexpectedHtmlPageKind.rateLimited:
+        throw const ApiRateLimitedException('请求过于频繁，请稍后再试');
+      case _UnexpectedHtmlPageKind.blank:
+        throw ApiUnexpectedHtmlException('$description 返回空白 HTML，可能是学校接口临时异常');
+      case _UnexpectedHtmlPageKind.unknown:
+        throw ApiUnexpectedHtmlException(
+          '$description 返回了无法识别的 HTML 页面，学校页面结构可能变化',
+        );
     }
   }
 
@@ -1006,6 +1346,12 @@ class Api {
     return document.querySelector('form#fm1')?.attributes['action'];
   }
 
+  static bool _hasCasLoginForm(Map<String, String> fields, String html) {
+    return fields.containsKey('username') ||
+        fields.containsKey('password') ||
+        _isCasLoginPage('', html);
+  }
+
   static String _resolveUrl(String baseUrl, String path) {
     return Uri.parse(baseUrl).resolve(path).toString();
   }
@@ -1049,6 +1395,55 @@ class Api {
         document.querySelector('input[name="username"]') != null;
   }
 
+  static bool _looksLikeHtml(String body, String? contentType) {
+    final trimmed = body.trimLeft();
+    if (trimmed.isEmpty) {
+      return contentType?.contains('html') == true;
+    }
+    return contentType?.contains('html') == true ||
+        trimmed.startsWith('<!DOCTYPE') ||
+        trimmed.startsWith('<html') ||
+        trimmed.contains('<body') ||
+        trimmed.contains('<form');
+  }
+
+  static _UnexpectedHtmlPageKind _classifyUnexpectedHtmlPage(
+    String url,
+    String html,
+  ) {
+    final text = html_parser.parse(html).body?.text ?? html;
+    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+    final lowerUrl = url.toLowerCase();
+
+    if (html.trim().isEmpty || normalized.trim().isEmpty) {
+      return _UnexpectedHtmlPageKind.blank;
+    }
+    if (_isCasLoginPage(url, html)) {
+      return _UnexpectedHtmlPageKind.casLogin;
+    }
+    if (_containsAny(normalized, const ['验证码', 'captcha', 'authcode'])) {
+      return _UnexpectedHtmlPageKind.captcha;
+    }
+    if (_containsAny(normalized, const ['访问频繁', '请求频繁', 'too many requests']) ||
+        lowerUrl.contains('429')) {
+      return _UnexpectedHtmlPageKind.rateLimited;
+    }
+    if (_containsAny(normalized, const ['访问受限', '禁止访问', 'forbidden'])) {
+      return _UnexpectedHtmlPageKind.accessRestricted;
+    }
+    if (_containsAny(normalized, const ['安全验证', '身份验证', '风险', '风控'])) {
+      return _UnexpectedHtmlPageKind.securityVerification;
+    }
+    if (_containsAny(normalized, const ['waf', 'web application firewall'])) {
+      return _UnexpectedHtmlPageKind.waf;
+    }
+    return _UnexpectedHtmlPageKind.unknown;
+  }
+
+  static bool _containsAny(String text, List<String> keywords) {
+    return keywords.any((keyword) => text.contains(keyword.toLowerCase()));
+  }
+
   static void _throwIfCasLoginFailed(_RedirectedHtmlResponse loginResponse) {
     final response = loginResponse.response;
     final html = response.data ?? '';
@@ -1058,18 +1453,30 @@ class Api {
         '[Api] CAS login got 429 finalUrl=$url '
         'redirects=${loginResponse.redirectChain.length}',
       );
-      throw const ApiInvalidResponseException('请求过于频繁，请稍后再试');
+      throw const ApiRateLimitedException('请求过于频繁，请稍后再试');
     }
     if (!_isCasLoginPage(url, html)) {
       return;
     }
 
     final reason = _extractCasLoginError(html);
+    final pageKind = _classifyUnexpectedHtmlPage(url, html);
     LogUtil.warn(
       '[Api] CAS login stayed on login page '
       'finalUrl=$url statusCode=${response.statusCode} '
-      'redirects=${loginResponse.redirectChain.length}',
+      'redirects=${loginResponse.redirectChain.length} kind=$pageKind',
     );
+    if (reason.contains('验证码') ||
+        reason.contains('验证') ||
+        reason.contains('风控') ||
+        pageKind == _UnexpectedHtmlPageKind.captcha ||
+        pageKind == _UnexpectedHtmlPageKind.securityVerification ||
+        pageKind == _UnexpectedHtmlPageKind.accessRestricted ||
+        pageKind == _UnexpectedHtmlPageKind.waf) {
+      throw ApiProtectionRequiredException(
+        reason.isEmpty ? '学校认证要求验证，请先用浏览器打开教务平台完成一次验证，再回到 App 重试' : reason,
+      );
+    }
     throw ApiInvalidResponseException(
       reason.isEmpty ? '统一身份认证登录失败，请检查账号密码或验证码状态' : reason,
     );

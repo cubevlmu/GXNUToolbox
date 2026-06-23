@@ -85,6 +85,18 @@
         android:textSize="11sp" />
 
     <TextView
+        android:id="@+id/status_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/today_widget_course_background"
+        android:padding="9dp"
+        android:text=""
+        android:textColor="@color/widget_text_secondary"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <TextView
         android:id="@+id/empty_text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

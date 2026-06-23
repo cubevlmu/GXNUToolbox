@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">GXNU Toolbox</string>
+    <string name="today_courses_widget_name">Today Courses</string>
+    <string name="today_courses_large_widget_name">Today Courses List</string>
+</resources>

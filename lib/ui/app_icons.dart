@@ -15,6 +15,8 @@ abstract final class AppIcons {
 
   static const IconData calendar = FluentIcons.calendar_ltr_24_regular;
   static const IconData calendarFilled = FluentIcons.calendar_ltr_24_filled;
+  static const IconData calendarAdd = FluentIcons.calendar_add_24_regular;
+  static const IconData today = FluentIcons.calendar_today_24_regular;
 
   static const IconData apps = FluentIcons.apps_24_regular;
   static const IconData appsFilled = FluentIcons.apps_24_filled;
@@ -26,6 +28,7 @@ abstract final class AppIcons {
   static const IconData search = FluentIcons.search_24_regular;
   static const IconData refresh = FluentIcons.arrow_sync_24_regular;
   static const IconData filter = FluentIcons.filter_24_regular;
+  static const IconData save = FluentIcons.save_24_regular;
 
   static const IconData chevronRight = FluentIcons.chevron_right_24_regular;
   static const IconData chevronDown = FluentIcons.chevron_down_24_regular;
@@ -72,6 +75,7 @@ abstract final class AppIcons {
   static const IconData classroom = FluentIcons.hat_graduation_24_regular;
   static const IconData school = FluentIcons.hat_graduation_24_regular;
   static const IconData close = FluentIcons.dismiss_24_regular;
+  static const IconData copy = FluentIcons.copy_24_regular;
 
   static const IconData empty = FluentIcons.inprivate_account_24_regular;
 }

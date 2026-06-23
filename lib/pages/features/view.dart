@@ -1,9 +1,11 @@
 import 'package:class_tool/pages/credit/view.dart';
 import 'package:class_tool/pages/exams/view.dart';
 import 'package:class_tool/pages/info/view.dart';
-import 'package:class_tool/pages/main/controller.dart';
+import 'package:class_tool/pages/notifications/view.dart';
 import 'package:class_tool/pages/progress/view.dart';
 import 'package:class_tool/pages/query/view.dart';
+import 'package:class_tool/pages/school_calendar/view.dart';
+import 'package:class_tool/pages/selected_courses/view.dart';
 import 'package:class_tool/pages/time/view.dart';
 import 'package:class_tool/ui/app_context.dart';
 import 'package:class_tool/ui/app_icons.dart';
@@ -13,14 +15,13 @@ import 'package:class_tool/ui/app_tile.dart';
 import 'package:class_tool/ui/app_toast.dart';
 import 'package:class_tool/ui/app_tokens.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 class FeaturesPage extends StatelessWidget {
   const FeaturesPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final mainController = Get.find<MainController>();
+    //Get.find<MainController>();
 
     return Scaffold(
       backgroundColor: context.colors.background,
@@ -67,6 +68,19 @@ class FeaturesPage extends StatelessWidget {
                 },
               ),
               AppTile(
+                icon: AppIcons.book,
+                title: '已选课程',
+                subtitle: '查看已选课程、教师和上课时间地点',
+                minHeight: 60,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const SelectedCoursesPage(),
+                    ),
+                  );
+                },
+              ),
+              AppTile(
                 icon: AppIcons.credit,
                 title: '学分进程',
                 subtitle: '查看各模块学分修读进度统计',
@@ -106,6 +120,19 @@ class FeaturesPage extends StatelessWidget {
                 },
               ),
               AppTile(
+                icon: AppIcons.calendar,
+                title: '校历',
+                subtitle: '查看学期周次和校历安排',
+                minHeight: 60,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const SchoolCalendarPage(),
+                    ),
+                  );
+                },
+              ),
+              AppTile(
                 icon: AppIcons.classroom,
                 title: '教室查询',
                 subtitle: '查看各校区教室信息和使用情况',
@@ -120,7 +147,11 @@ class FeaturesPage extends StatelessWidget {
                 subtitle: '查看校园通知和公告信息',
                 minHeight: 60,
                 onTap: () {
-                  AppToast.info(context, message: '功能开发中');
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const NotificationsPage(),
+                    ),
+                  );
                 },
               ),
             ],

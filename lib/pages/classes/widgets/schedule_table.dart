@@ -9,12 +9,14 @@ class ScheduleTableContent extends StatelessWidget {
     super.key,
     required this.controller,
     required this.physics,
+    this.repaintBoundaryKey,
   });
 
   static const double _defaultSectionHeight = 84;
 
   final ClassesController controller;
   final ScrollPhysics physics;
+  final GlobalKey? repaintBoundaryKey;
 
   @override
   Widget build(BuildContext context) {
@@ -42,13 +44,12 @@ class ScheduleTableContent extends StatelessWidget {
             .clamp(metrics.leftColumnMinWidth, metrics.leftColumnMaxWidth)
             .floorToDouble();
         final remainingWidth = tableWidth - leftColumnWidth;
-        final dayColumnWidth =
-            (remainingWidth / dayCount).clamp(metrics.dayColumnMinWidth, 180.0);
-        final sectionHeight =
-            (dayColumnWidth * metrics.sectionHeightFactor).clamp(
-              metrics.minSectionHeight,
-              _defaultSectionHeight,
-            );
+        final dayColumnWidth = (remainingWidth / dayCount).clamp(
+          metrics.dayColumnMinWidth,
+          180.0,
+        );
+        final sectionHeight = (dayColumnWidth * metrics.sectionHeightFactor)
+            .clamp(metrics.minSectionHeight, _defaultSectionHeight);
         final contentWidth = leftColumnWidth + dayCount * dayColumnWidth;
         final contentHeight =
             metrics.headerHeight + controller.sectionCount * sectionHeight;
@@ -67,6 +68,7 @@ class ScheduleTableContent extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             physics: const ClampingScrollPhysics(),
             child: RepaintBoundary(
+              key: repaintBoundaryKey,
               child: Container(
                 width: contentWidth,
                 decoration: BoxDecoration(
@@ -106,8 +108,7 @@ class ScheduleTableContent extends StatelessWidget {
                                           sectionHeight +
                                       metrics.courseInset,
                                   width:
-                                      dayColumnWidth -
-                                      metrics.courseInset * 2,
+                                      dayColumnWidth - metrics.courseInset * 2,
                                   height:
                                       course.sectionSpan * sectionHeight -
                                       metrics.courseInset * 2,
@@ -117,9 +118,9 @@ class ScheduleTableContent extends StatelessWidget {
                                     onTap: () => showCourseDetailSheet(
                                       context: context,
                                       course: course,
-                                      weekdayLabel:
-                                          controller.days[course.dayIndex]
-                                              .weekdayText,
+                                      weekdayLabel: controller
+                                          .days[course.dayIndex]
+                                          .weekdayText,
                                     ),
                                   ),
                                 ),
@@ -190,10 +191,11 @@ class _ScheduleGridBackground extends StatelessWidget {
                         fit: BoxFit.scaleDown,
                         child: Text(
                           controller.monthLabel,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            fontSize: metrics.headerMetaFontSize,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                fontSize: metrics.headerMetaFontSize,
+                              ),
                         ),
                       ),
                     ),
@@ -202,9 +204,8 @@ class _ScheduleGridBackground extends StatelessWidget {
                         fit: BoxFit.scaleDown,
                         child: Text(
                           '节次',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            fontSize: metrics.headerMetaFontSize,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(fontSize: metrics.headerMetaFontSize),
                         ),
                       ),
                     ),
@@ -304,8 +305,10 @@ class _CourseBlockCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-    final foregroundColor = _foregroundColorFor(course.color);
-        final secondaryForegroundColor = foregroundColor.withValues(alpha: 0.84);
+        final foregroundColor = _foregroundColorFor(course.color);
+        final secondaryForegroundColor = foregroundColor.withValues(
+          alpha: 0.84,
+        );
         final titleFontSize = _adaptiveFontSize(
           width: constraints.maxWidth,
           height: constraints.maxHeight,

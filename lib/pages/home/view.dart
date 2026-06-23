@@ -6,7 +6,9 @@ import 'package:class_tool/pages/credit/view.dart';
 import 'package:class_tool/pages/exams/view.dart';
 import 'package:class_tool/pages/home/controller.dart';
 import 'package:class_tool/pages/main/controller.dart';
+import 'package:class_tool/pages/notifications/view.dart';
 import 'package:class_tool/pages/query/view.dart';
+import 'package:class_tool/pages/selected_courses/view.dart';
 import 'package:class_tool/ui/app_button.dart';
 import 'package:class_tool/ui/app_colors.dart';
 import 'package:class_tool/ui/app_context.dart';
@@ -14,7 +16,6 @@ import 'package:class_tool/ui/app_icon_button.dart';
 import 'package:class_tool/ui/app_icons.dart';
 import 'package:class_tool/ui/app_surface.dart';
 import 'package:class_tool/ui/app_tag.dart';
-import 'package:class_tool/ui/app_toast.dart';
 import 'package:class_tool/ui/app_tokens.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
 import 'package:flutter/material.dart';
@@ -138,7 +139,7 @@ class _HomeHeader extends StatelessWidget {
                   text: 'GXNU ',
                   style: TextStyle(color: colors.primary),
                 ),
-                const TextSpan(text: 'Class Tool'),
+                const TextSpan(text: 'Toolbox'),
               ],
             ),
           ),
@@ -153,11 +154,12 @@ class _HomeHeader extends StatelessWidget {
           icon: AppIcons.notification,
           tooltip: '通知',
           variant: AppIconButtonVariant.ghost,
-          onPressed: () => {
-            AppToast.info(
-              context,
-              message: '功能开发中',
-            )
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const NotificationsPage(),
+              ),
+            );
           },
         ),
       ],
@@ -369,7 +371,10 @@ class _OverviewDivider extends StatelessWidget {
 }
 
 class _NextCourseSection extends StatelessWidget {
-  const _NextCourseSection({required this.nextCourse, required this.totalCount});
+  const _NextCourseSection({
+    required this.nextCourse,
+    required this.totalCount,
+  });
 
   final TodayCourseItemSnapshot? nextCourse;
   final int totalCount;
@@ -494,10 +499,7 @@ class _EmptyTodayCourse extends StatelessWidget {
 }
 
 class _InitialLoadFailedPanel extends StatelessWidget {
-  const _InitialLoadFailedPanel({
-    required this.message,
-    required this.onRetry,
-  });
+  const _InitialLoadFailedPanel({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
@@ -598,10 +600,14 @@ class _QuickActions extends StatelessWidget {
         },
       ),
       _QuickAction(
-        icon: AppIcons.classroom,
-        label: '教室信息',
+        icon: AppIcons.book,
+        label: '已选课程',
         onTap: () {
-          AppToast.info(context, message: '功能开发中');
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const SelectedCoursesPage(),
+            ),
+          );
         },
       ),
       _QuickAction(

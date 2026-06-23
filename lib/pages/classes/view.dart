@@ -54,53 +54,81 @@ class _ClassesPageState extends State<ClassesPage> {
             ),
           ),
           Expanded(
-            child: SimpleEasyRefresher(
-              easyRefreshController: controller.easyRefreshController,
-              autoRefreshOnStart: false,
-              refreshEnabled: false,
-              loadEnabled: false,
-              childBuilder: (context, physics) => ScrollConfiguration(
-                behavior: const MaterialScrollBehavior().copyWith(
-                  scrollbars: false,
-                  dragDevices: {
-                    PointerDeviceKind.touch,
-                    PointerDeviceKind.mouse,
-                    PointerDeviceKind.trackpad,
-                    PointerDeviceKind.stylus,
-                    PointerDeviceKind.unknown,
-                  },
-                ),
-                child: GetBuilder<ClassesController>(
-                  id: 'schedule-table',
-                  builder: (controller) {
-                    if (controller.scheduleError.isNotEmpty &&
-                        !controller.hasScheduleData) {
-                      return _ClassesFeedbackState(
-                        title: '课表加载失败',
-                        subtitle: controller.scheduleError,
-                      );
-                    }
-
-                    if (controller.isLoading && !controller.hasScheduleData) {
-                      return Center(
-                        child: CircularProgressIndicator(
-                          color: context.colors.primary,
-                          strokeWidth: 2.4,
-                        ),
-                      );
-                    }
-
-                    return _AgendaScheduleView(
-                      controller: controller,
-                      physics: physics,
-                      selectedWeekday: _selectedWeekday,
-                      onWeekdaySelected: (value) {
-                        setState(() => _selectedWeekday = value);
+            child: Stack(
+              children: [
+                SimpleEasyRefresher(
+                  easyRefreshController: controller.easyRefreshController,
+                  autoRefreshOnStart: false,
+                  refreshEnabled: false,
+                  loadEnabled: false,
+                  childBuilder: (context, physics) => ScrollConfiguration(
+                    behavior: const MaterialScrollBehavior().copyWith(
+                      scrollbars: false,
+                      dragDevices: {
+                        PointerDeviceKind.touch,
+                        PointerDeviceKind.mouse,
+                        PointerDeviceKind.trackpad,
+                        PointerDeviceKind.stylus,
+                        PointerDeviceKind.unknown,
                       },
-                    );
-                  },
+                    ),
+                    child: GetBuilder<ClassesController>(
+                      id: 'schedule-table',
+                      builder: (controller) {
+                        if (controller.scheduleError.isNotEmpty &&
+                            !controller.hasScheduleData) {
+                          return _ClassesFeedbackState(
+                            title: '课表加载失败',
+                            subtitle: controller.scheduleError,
+                          );
+                        }
+
+                        if (controller.isLoading &&
+                            !controller.hasScheduleData) {
+                          return Center(
+                            child: CircularProgressIndicator(
+                              color: context.colors.primary,
+                              strokeWidth: 2.4,
+                            ),
+                          );
+                        }
+
+                        return _AgendaScheduleView(
+                          controller: controller,
+                          physics: physics,
+                          selectedWeekday: _selectedWeekday,
+                          onWeekdaySelected: (value) {
+                            setState(() => _selectedWeekday = value);
+                          },
+                        );
+                      },
+                    ),
+                  ),
                 ),
-              ),
+                Positioned(
+                  right: 16,
+                  bottom: 18,
+                  child: GetBuilder<ClassesController>(
+                    id: 'schedule-table',
+                    builder: (controller) {
+                      if (!controller.shouldShowReturnToday(_selectedWeekday)) {
+                        return const SizedBox.shrink();
+                      }
+                      return _ReturnTodayFloatingButton(
+                        onPressed: () {
+                          controller.returnToToday(
+                            onWeekdayResolved: (value) {
+                              if (mounted) {
+                                setState(() => _selectedWeekday = value);
+                              }
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -191,18 +219,18 @@ class _ClassesHeader extends StatelessWidget {
               Text(
                 '课表',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               const SizedBox(height: AppTokens.gap4),
               Text(
                 subtitle.isEmpty ? '查看本周课程安排' : subtitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
               ),
             ],
           ),
@@ -231,6 +259,28 @@ class _ClassesHeader extends StatelessWidget {
   }
 }
 
+class _ReturnTodayFloatingButton extends StatelessWidget {
+  const _ReturnTodayFloatingButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Tooltip(
+      message: '回到今天',
+      child: FloatingActionButton(
+        heroTag: 'classes_return_today',
+        elevation: 4,
+        backgroundColor: colors.primary,
+        foregroundColor: colors.textInverse,
+        onPressed: onPressed,
+        child: const Icon(AppIcons.today, size: 28),
+      ),
+    );
+  }
+}
+
 class _AgendaScheduleView extends StatelessWidget {
   const _AgendaScheduleView({
     required this.controller,
@@ -248,10 +298,11 @@ class _AgendaScheduleView extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final selectedDayIndex = (selectedWeekday - 1).clamp(0, 6);
-    final selectedCourses = controller.visibleCourseBlocks
-        .where((course) => course.dayIndex == selectedDayIndex)
-        .toList(growable: false)
-      ..sort((a, b) => a.startSection.compareTo(b.startSection));
+    final selectedCourses =
+        controller.visibleCourseBlocks
+            .where((course) => course.dayIndex == selectedDayIndex)
+            .toList(growable: false)
+          ..sort((a, b) => a.startSection.compareTo(b.startSection));
 
     return ListView(
       physics: AlwaysScrollableScrollPhysics(parent: physics),
@@ -268,17 +319,17 @@ class _AgendaScheduleView extends StatelessWidget {
             Expanded(
               child: Text(
                 '${_weekdayLabel(selectedWeekday)}课程',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
             Text(
               '${selectedCourses.length} 节',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: colors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -323,11 +374,12 @@ class _WeekDateStrip extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  day?.weekdayText ?? _weekdayLabel(weekday).replaceFirst('周', ''),
+                  day?.weekdayText ??
+                      _weekdayLabel(weekday).replaceFirst('周', ''),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textTertiary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    color: colors.textTertiary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: AppTokens.gap6),
                 Container(
@@ -341,9 +393,9 @@ class _WeekDateStrip extends StatelessWidget {
                   child: Text(
                     _dayNumberText(day?.dateText, weekday),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: selected ? colors.textInverse : colors.textPrimary,
-                          fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                        ),
+                      color: selected ? colors.textInverse : colors.textPrimary,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    ),
                   ),
                 ),
                 const SizedBox(height: AppTokens.gap4),
@@ -397,9 +449,9 @@ class _SelectedDaySchedule extends StatelessWidget {
                   Text(
                     '当天暂无课程',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textSecondary,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      color: colors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
@@ -455,16 +507,16 @@ class _CompactCourseRow extends StatelessWidget {
                   Text(
                     _startTimeText(course),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: colors.primary,
-                          fontWeight: FontWeight.w800,
-                        ),
+                      color: colors.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: AppTokens.gap4),
                   Text(
                     _endTimeText(course),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textTertiary,
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: colors.textTertiary),
                   ),
                 ],
               ),
@@ -491,16 +543,18 @@ class _CompactCourseRow extends StatelessWidget {
                           course.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w800),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: AppTokens.gap6),
                   if (course.classroom.isNotEmpty)
-                    _CourseMetaRow(icon: AppIcons.location, text: course.classroom),
+                    _CourseMetaRow(
+                      icon: AppIcons.location,
+                      text: course.classroom,
+                    ),
                   if (course.teacher.isNotEmpty)
                     _CourseMetaRow(icon: AppIcons.person, text: course.teacher),
                   if (course.weeks.isNotEmpty)
@@ -509,7 +563,10 @@ class _CompactCourseRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppTokens.gap8),
-            AppTag(label: _sectionRangeText(course), variant: AppTagVariant.primary),
+            AppTag(
+              label: _sectionRangeText(course),
+              variant: AppTagVariant.primary,
+            ),
           ],
         ),
       ),
@@ -571,9 +628,9 @@ class _CourseMetaRow extends StatelessWidget {
             text.isEmpty ? '待定' : text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textSecondary,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
           ),
         ),
       ],
@@ -669,11 +726,7 @@ class _SelectorRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 1),
-              Icon(
-                AppIcons.chevronDown,
-                color: foregroundColor,
-                size: 18,
-              ),
+              Icon(AppIcons.chevronDown, color: foregroundColor, size: 18),
             ],
           ),
         ),

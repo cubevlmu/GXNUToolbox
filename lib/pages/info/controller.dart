@@ -18,10 +18,12 @@ class InfoController extends GetxController {
   final RxBool _isLoading = false.obs;
   final RxString _error = ''.obs;
   final Rx<StudentInfo?> _info = Rx<StudentInfo?>(null);
+  final Rx<StudentPhoto?> _admissionPhoto = Rx<StudentPhoto?>(null);
 
   bool get isLoading => _isLoading.value;
   String get error => _error.value;
   StudentInfo? get info => _info.value;
+  StudentPhoto? get admissionPhoto => _admissionPhoto.value;
 
   @override
   void onInit() {
@@ -38,7 +40,10 @@ class InfoController extends GetxController {
     update(<Object>['info-content']);
 
     try {
-      _info.value = await _fetchInfo();
+      final infoTask = _fetchInfo();
+      final photoTask = _fetchAdmissionPhotoSafely();
+      _info.value = await infoTask;
+      _admissionPhoto.value = await photoTask;
       LogUtil.info('[InfoController] refresh success');
     } catch (e, s) {
       _error.value = e.toString();
@@ -51,5 +56,15 @@ class InfoController extends GetxController {
 
   Future<StudentInfo> _fetchInfo() async {
     return _studentRepo.fetchInfo();
+  }
+
+  Future<StudentPhoto?> _fetchAdmissionPhotoSafely() async {
+    try {
+      return await _studentRepo.fetchAdmissionPhoto();
+    } catch (e, s) {
+      LogUtil.warn('[InfoController] student admission photo unavailable: $e');
+      LogUtil.debug('[InfoController] student admission photo stack: $s');
+      return null;
+    }
   }
 }

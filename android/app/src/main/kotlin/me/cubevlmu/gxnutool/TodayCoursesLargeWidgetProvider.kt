@@ -34,6 +34,7 @@ class TodayCoursesLargeWidgetProvider : HomeWidgetProvider() {
         )
 
         val state = widgetData.getString("state", "idle") ?: "idle"
+        val statusText = widgetData.getString("statusText", "") ?: ""
         val headlineText = widgetData.getString("headlineText", "今日课程") ?: "今日课程"
         val weekText = widgetData.getString("weekText", "--") ?: "--"
         val updatedAtText = widgetData.getString("updatedAtText", "") ?: ""
@@ -49,6 +50,13 @@ class TodayCoursesLargeWidgetProvider : HomeWidgetProvider() {
         setViewVisibility(R.id.refresh_button, if (isLoading) View.GONE else View.VISIBLE)
         setViewVisibility(R.id.refresh_progress, if (isLoading) View.VISIBLE else View.GONE)
 
+        val showStatus = statusText.isNotBlank() && when (state) {
+          "loading", "error", "readyStale", "loggedOut" -> true
+          else -> false
+        }
+        setViewVisibility(R.id.status_text, if (showStatus) View.VISIBLE else View.GONE)
+        setTextViewText(R.id.status_text, statusText)
+
         val showEmpty = !hasCourses
         setViewVisibility(R.id.empty_text, if (showEmpty) View.VISIBLE else View.GONE)
         setViewVisibility(R.id.course_list, if (showEmpty) View.GONE else View.VISIBLE)
@@ -57,6 +65,7 @@ class TodayCoursesLargeWidgetProvider : HomeWidgetProvider() {
             "loggedOut" -> "登录后可查看今日课程"
             "error" -> "刷新失败，请点击右上角重试"
             "loading" -> "正在同步今日课程"
+            "readyStale" -> statusText.ifBlank { "数据过期，请打开 App 手动同步" }
             else -> "今天没有课程安排"
           }
           setTextViewText(R.id.empty_text, emptyText)

@@ -21,6 +21,27 @@ class ApiInvalidResponseException extends ApiException {
   String toString() => 'ApiInvalidResponseException: $message';
 }
 
+class ApiProtectionRequiredException extends ApiException {
+  const ApiProtectionRequiredException(super.message);
+
+  @override
+  String toString() => 'ApiProtectionRequiredException: $message';
+}
+
+class ApiRateLimitedException extends ApiException {
+  const ApiRateLimitedException(super.message);
+
+  @override
+  String toString() => 'ApiRateLimitedException: $message';
+}
+
+class ApiUnexpectedHtmlException extends ApiInvalidResponseException {
+  const ApiUnexpectedHtmlException(super.message);
+
+  @override
+  String toString() => 'ApiUnexpectedHtmlException: $message';
+}
+
 class ApiRedirectException extends ApiException {
   const ApiRedirectException(super.message);
 

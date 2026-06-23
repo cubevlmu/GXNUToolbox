@@ -7,7 +7,6 @@
 import 'package:class_tool/data/model/exam.dart';
 import 'package:class_tool/data/repo/exam_repo.dart';
 import 'package:class_tool/utils/log_util.dart';
-import 'package:easy_refresh/easy_refresh.dart';
 import 'package:get/get.dart';
 
 class ExamsController extends GetxController {
@@ -15,10 +14,7 @@ class ExamsController extends GetxController {
     : _examRepo = examRepo ?? Get.find<ExamRepo>();
 
   final ExamRepo _examRepo;
-  final EasyRefreshController easyRefreshController = EasyRefreshController(
-    controlFinishRefresh: true,
-    controlFinishLoad: true,
-  );
+  final Object? easyRefreshController = null;
 
   final RxBool _isLoading = false.obs;
   final RxBool _isLoadingMore = false.obs;
@@ -144,20 +140,16 @@ class ExamsController extends GetxController {
       LogUtil.errorE('[ExamsController] refresh exams failed', e, s);
     } finally {
       if (!_isActiveRequest(version)) {
+        // ignore: control_flow_in_finally
         return;
       }
       _isLoading.value = false;
-      easyRefreshController.finishRefresh();
-      easyRefreshController.resetFooter();
       update(<Object>['exam-content']);
     }
   }
 
   Future<void> loadMoreExams() async {
     if (_isLoading.value || _isLoadingMore.value || !hasMore) {
-      easyRefreshController.finishLoad(
-        hasMore ? IndicatorResult.none : IndicatorResult.noMore,
-      );
       return;
     }
 
@@ -176,18 +168,15 @@ class ExamsController extends GetxController {
       _totalPages.value =
           response.totalPages <= 0 ? totalPages : response.totalPages;
       _total.value = response.total;
-      easyRefreshController.finishLoad(
-        hasMore ? IndicatorResult.success : IndicatorResult.noMore,
-      );
     } catch (e, s) {
       if (!_isActiveRequest(version)) {
         return;
       }
       _error.value = e.toString();
-      easyRefreshController.finishLoad(IndicatorResult.fail);
       LogUtil.errorE('[ExamsController] load more exams failed', e, s);
     } finally {
       if (!_isActiveRequest(version)) {
+        // ignore: control_flow_in_finally
         return;
       }
       _isLoadingMore.value = false;
@@ -221,9 +210,4 @@ class ExamsController extends GetxController {
         semester == _selectedSemester.value;
   }
 
-  @override
-  void onClose() {
-    easyRefreshController.dispose();
-    super.onClose();
-  }
 }

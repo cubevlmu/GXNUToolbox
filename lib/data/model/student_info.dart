@@ -8,6 +8,16 @@ import 'package:flutter/foundation.dart';
 import 'package:html/parser.dart' as html_parser;
 
 @immutable
+class StudentPhoto {
+  const StudentPhoto({required this.bytes, this.mimeType});
+
+  final Uint8List bytes;
+  final String? mimeType;
+
+  bool get isNotEmpty => bytes.isNotEmpty;
+}
+
+@immutable
 class StudentInfo {
   const StudentInfo({
     required this.basic,
@@ -40,8 +50,7 @@ class StudentInfo {
 
     final sections = document.querySelectorAll('.sub-info-wrap');
     for (final section in sections) {
-      final title =
-          section.querySelector('.box-title')?.text.trim() ?? '';
+      final title = section.querySelector('.box-title')?.text.trim() ?? '';
       if (title == '基本信息') {
         basic = _parseBasicInfo(section);
       } else if (title == '学籍信息') {
@@ -70,10 +79,7 @@ class StudentInfo {
     );
   }
 
-  static String? _extractValue(
-    dynamic section,
-    String labelPrefix,
-  ) {
+  static String? _extractValue(dynamic section, String labelPrefix) {
     final items = section.querySelectorAll('.form-item');
     for (final item in items) {
       if (item.classes.contains('photo-item')) continue;
@@ -198,9 +204,7 @@ class StudentInfo {
   }
 
   static OtherInfo _parseOtherInfo(dynamic section) {
-    return OtherInfo(
-      gaokaoLanguage: _extractValue(section, '高考外语语种:'),
-    );
+    return OtherInfo(gaokaoLanguage: _extractValue(section, '高考外语语种:'));
   }
 }
 

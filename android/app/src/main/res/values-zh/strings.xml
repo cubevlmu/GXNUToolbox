@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">师大工具箱</string>
+    <string name="today_courses_widget_name">今日课程</string>
+    <string name="today_courses_large_widget_name">今日课程列表</string>
+</resources>

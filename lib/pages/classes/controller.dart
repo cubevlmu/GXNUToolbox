@@ -11,7 +11,6 @@ import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
 import 'package:class_tool/data/services/today_snapshot_cache.dart';
 import 'package:class_tool/utils/log_util.dart';
-import 'package:easy_refresh/easy_refresh.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -75,9 +74,7 @@ class ClassesController extends GetxController {
   final UserRepo _userRepo;
   final TodayCoursesWidgetRepo _todayCoursesWidgetRepo;
   final BellScheduleRepo _bellScheduleRepo;
-  final EasyRefreshController easyRefreshController = EasyRefreshController(
-    controlFinishRefresh: true,
-  );
+  final Object? easyRefreshController = null;
 
   final RxBool _isLoading = false.obs;
   final RxString _scheduleError = ''.obs;
@@ -97,6 +94,7 @@ class ClassesController extends GetxController {
   final RxInt homeSyncTick = 0.obs;
   final Rx<TodayCourseSnapshot?> _homeSnapshot = Rx<TodayCourseSnapshot?>(null);
   int _requestVersion = 0;
+  String _todaySemester = '';
 
   List<ScheduleOption> get semesters => _semesters;
   List<ScheduleOption> get weeks => _weeks;
@@ -125,9 +123,47 @@ class ClassesController extends GetxController {
     }
     return classTableMeta?.periodSettings ?? const [];
   }
+
   List<ClassMeta> get currentWeekMeta => _currentWeekMeta;
   List<ClassTableCourse> get currentWeekCourses => _currentWeekCourses;
   TodayCourseSnapshot? get homeSnapshot => _homeSnapshot.value;
+  int get currentMetaWeek => classTableMeta?.currentWeek ?? 0;
+  int? get todayWeekNumber => _resolveTodayWeekNumber();
+  bool get canReturnToday {
+    if (_isViewingDifferentSemesterFromToday()) {
+      return true;
+    }
+    final targetWeek = _resolveTodayWeekNumber(allowCurrentWeekFallback: false);
+    return targetWeek != null && _selectedWeek.value != targetWeek;
+  }
+
+  int? get todayWeekday {
+    for (final item in currentWeekMeta) {
+      final date = _parseMetaDate(item.dateTimeText);
+      if (date != null && _isSameDate(date, DateTime.now())) {
+        return date.weekday;
+      }
+    }
+    return null;
+  }
+
+  bool shouldShowReturnToday(int selectedWeekday) {
+    if (isLoading) {
+      return false;
+    }
+    if (_isViewingDifferentSemesterFromToday()) {
+      return true;
+    }
+    final targetWeek = _resolveTodayWeekNumber(allowCurrentWeekFallback: false);
+    if (targetWeek == null) {
+      return false;
+    }
+    if (_selectedWeek.value != targetWeek) {
+      return true;
+    }
+    final today = todayWeekday;
+    return selectedWeekday != (today ?? DateTime.now().weekday);
+  }
 
   Future<void> syncScheduleOverview({
     bool forceRefresh = false,
@@ -197,6 +233,7 @@ class ClassesController extends GetxController {
       _isLoading.value = false;
 
       _syncDerivedState(context.semesters);
+      _rememberTodaySemesterIfApplicable(effectiveSemester);
       if (syncExternalOutputs) {
         final snapshot = buildTodayCourseSnapshot(
           semester: effectiveSemester,
@@ -318,42 +355,67 @@ class ClassesController extends GetxController {
     }
   }
 
-  Future<void> refreshSchedule() async {
-    try {
-      await syncScheduleOverview(
-        forceRefresh: true,
-        syncExternalOutputs: false,
-      );
-    } finally {
-      easyRefreshController.finishRefresh();
+  Future<void> returnToToday({ValueChanged<int>? onWeekdayResolved}) async {
+    final todaySemester = _resolveTodaySemesterValue();
+    if (todaySemester.isNotEmpty && selectedSemester != todaySemester) {
+      await changeSemester(todaySemester);
     }
+
+    final targetWeek = _resolveTodayWeekNumber(allowCurrentWeekFallback: false);
+    if (targetWeek == null || targetWeek <= 0) {
+      final today = DateTime.now().weekday;
+      onWeekdayResolved?.call(today);
+      update(<Object>['classes-header', 'schedule-table']);
+      return;
+    }
+
+    if (_selectedWeek.value != targetWeek) {
+      await changeWeek('第$targetWeek周');
+    }
+
+    onWeekdayResolved?.call(todayWeekday ?? DateTime.now().weekday);
+    update(<Object>['classes-header', 'schedule-table']);
+  }
+
+  Future<void> refreshSchedule() async {
+    await syncScheduleOverview(forceRefresh: true, syncExternalOutputs: true);
   }
 
   List<ScheduleDay> _buildScheduleDays(List<ClassMeta> items) {
-    final sorted = List<ClassMeta>.from(items)
-      ..sort(
-        (a, b) => _weekdayOrder(
-          a.weekdayIndex,
-        ).compareTo(_weekdayOrder(b.weekdayIndex)),
-      );
+    final fallback = List<ScheduleDay>.generate(
+      DateTime.daysPerWeek,
+      (index) =>
+          ScheduleDay(dateText: '', weekdayText: _weekdayShortLabel(index + 1)),
+    );
+    final days = List<ScheduleDay>.from(fallback);
 
-    return sorted
-        .map(
-          (item) => ScheduleDay(
-            dateText: item.dayText,
-            weekdayText: _weekdayShortName(item.weekdayName),
-            isToday: _isToday(item.dateTimeText),
-          ),
-        )
-        .toList(growable: false);
+    for (final item in items) {
+      final weekday = _weekdayOrderForMeta(item);
+      final index = weekday - 1;
+      if (index < 0 || index >= days.length) {
+        continue;
+      }
+      days[index] = ScheduleDay(
+        dateText: item.dayText,
+        weekdayText: _weekdayShortLabel(weekday),
+        isToday: _isToday(item.dateTimeText),
+      );
+    }
+
+    return days;
   }
 
   String _resolveMonthLabel(List<ClassMeta> items) {
     if (items.isEmpty) {
       return '月';
     }
-    final raw = items.first.dateTimeText;
-    final date = DateTime.tryParse(raw.replaceFirst(' ', 'T'));
+    final dates =
+        items
+            .map((item) => _parseMetaDate(item.dateTimeText))
+            .whereType<DateTime>()
+            .toList(growable: false)
+          ..sort();
+    final date = dates.isEmpty ? null : dates.first;
     if (date == null) {
       return '月';
     }
@@ -363,7 +425,9 @@ class ClassesController extends GetxController {
   List<CourseBlock> _buildCourseBlocks(List<ClassTableCourse> courses) {
     final sorted = List<ClassTableCourse>.from(courses)
       ..sort((a, b) {
-        final dayCompare = a.weekday.compareTo(b.weekday);
+        final dayCompare = uiWeekdayFromSchoolWeekday(
+          a.weekday,
+        ).compareTo(uiWeekdayFromSchoolWeekday(b.weekday));
         if (dayCompare != 0) {
           return dayCompare;
         }
@@ -409,7 +473,7 @@ class ClassesController extends GetxController {
 
       merged.add(
         CourseBlock(
-          dayIndex: (course.weekday - 1).clamp(0, 6),
+          dayIndex: uiWeekdayFromSchoolWeekday(course.weekday) - 1,
           startSection: course.section,
           sectionSpan: 1,
           title: course.courseName,
@@ -426,7 +490,7 @@ class ClassesController extends GetxController {
   }
 
   bool _canMerge(CourseBlock previous, ClassTableCourse next) {
-    final nextDayIndex = (next.weekday - 1).clamp(0, 6);
+    final nextDayIndex = uiWeekdayFromSchoolWeekday(next.weekday) - 1;
     return previous.dayIndex == nextDayIndex &&
         previous.startSection + previous.sectionSpan == next.section &&
         previous.title == next.courseName &&
@@ -446,42 +510,299 @@ class ClassesController extends GetxController {
   }
 
   int _weekdayOrder(int value) {
-    switch (value) {
-      case 2:
-        return 1;
-      case 3:
-        return 2;
-      case 4:
-        return 3;
-      case 5:
-        return 4;
-      case 6:
-        return 5;
-      case 7:
-        return 6;
-      case 1:
-        return 7;
-      default:
-        return value;
-    }
+    return uiWeekdayFromSchoolWeekday(value);
   }
 
-  String _weekdayShortName(String raw) {
-    if (raw.startsWith('星期') && raw.length >= 3) {
-      return raw.substring(2);
+  int _weekdayOrderForMeta(ClassMeta meta) {
+    final date = _parseMetaDate(meta.dateTimeText);
+    if (date != null) {
+      return date.weekday;
     }
-    return raw;
+    return _weekdayFromName(meta.weekdayName) ??
+        _weekdayOrder(meta.weekdayIndex);
+  }
+
+  static int uiWeekdayFromSchoolWeekday(int value) {
+    return value >= DateTime.monday && value <= DateTime.sunday
+        ? value
+        : DateTime.monday;
+  }
+
+  int? _weekdayFromName(String raw) {
+    if (raw.contains('一')) return DateTime.monday;
+    if (raw.contains('二')) return DateTime.tuesday;
+    if (raw.contains('三')) return DateTime.wednesday;
+    if (raw.contains('四')) return DateTime.thursday;
+    if (raw.contains('五')) return DateTime.friday;
+    if (raw.contains('六')) return DateTime.saturday;
+    if (raw.contains('日') || raw.contains('天')) return DateTime.sunday;
+    return null;
+  }
+
+  String _weekdayShortLabel(int weekday) {
+    const labels = ['一', '二', '三', '四', '五', '六', '日'];
+    return labels[(weekday - 1).clamp(0, labels.length - 1)];
   }
 
   bool _isToday(String raw) {
-    final date = DateTime.tryParse(raw.replaceFirst(' ', 'T'));
+    final date = _parseMetaDate(raw);
     if (date == null) {
       return false;
     }
+    return _isSameDate(date, DateTime.now());
+  }
+
+  bool _isViewingDifferentSemesterFromToday() {
+    final todaySemester = _resolveTodaySemesterValue();
+    return todaySemester.isNotEmpty &&
+        selectedSemester.isNotEmpty &&
+        selectedSemester != todaySemester;
+  }
+
+  String _resolveTodaySemesterValue() {
+    if (_todaySemester.isNotEmpty) {
+      return _todaySemester;
+    }
+
     final now = DateTime.now();
-    return now.year == date.year &&
-        now.month == date.month &&
-        now.day == date.day;
+    for (final item in _rawSemesters) {
+      if (_semesterLikelyContainsDate(item.value, now) ||
+          _semesterLikelyContainsDate(item.label, now)) {
+        return item.value;
+      }
+    }
+    return '';
+  }
+
+  void _rememberTodaySemesterIfApplicable(String semester) {
+    if (semester.isEmpty) {
+      return;
+    }
+    if (_currentWeekMetaContainsToday() || _weekRangesContainToday()) {
+      _todaySemester = semester;
+    }
+  }
+
+  bool _currentWeekMetaContainsToday() {
+    final now = DateTime.now();
+    for (final item in currentWeekMeta) {
+      final date = _parseMetaDate(item.dateTimeText);
+      if (date != null && _isSameDate(date, now)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _weekRangesContainToday() {
+    final ranges = classTableMeta?.weekRanges ?? const <ClassWeekRange>[];
+    final now = DateTime.now();
+    for (final item in ranges) {
+      if (_dateRangeContains(item.dateRangeText, now)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  int? _resolveTodayWeekNumber({bool allowCurrentWeekFallback = true}) {
+    final now = DateTime.now();
+    for (final item in currentWeekMeta) {
+      final date = _parseMetaDate(item.dateTimeText);
+      if (date != null && _isSameDate(date, now)) {
+        return item.week > 0 ? item.week : _selectedWeek.value;
+      }
+    }
+
+    final meta = classTableMeta;
+    if (meta != null) {
+      for (final item in meta.weekRanges) {
+        if (item.week > 0 && _dateRangeContains(item.dateRangeText, now)) {
+          return item.week;
+        }
+      }
+    }
+
+    if (allowCurrentWeekFallback && currentMetaWeek > 0) {
+      return currentMetaWeek;
+    }
+    return null;
+  }
+
+  bool _dateRangeContains(String raw, DateTime date) {
+    final range = _parseDateRange(raw);
+    if (range != null) {
+      return _isDateInRange(date, range.$1, range.$2);
+    }
+
+    final monthDays = _parseMonthDays(raw);
+    if (monthDays.length < 2) {
+      return false;
+    }
+
+    final startMonth = monthDays[0].$1;
+    final startDay = monthDays[0].$2;
+    final endMonth = monthDays[1].$1;
+    final endDay = monthDays[1].$2;
+    for (final year in _candidateYears()) {
+      final start = _tryDate(year, startMonth, startDay);
+      var end = _tryDate(year, endMonth, endDay);
+      if (start == null || end == null) {
+        continue;
+      }
+      if (end.isBefore(start)) {
+        end = _tryDate(year + 1, endMonth, endDay);
+      }
+      if (end != null && _isDateInRange(date, start, end)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  (DateTime start, DateTime end)? _parseDateRange(String raw) {
+    final fullDates = _parseFullDates(raw);
+    if (fullDates.length >= 2) {
+      return (fullDates.first, fullDates[1]);
+    }
+    if (fullDates.length != 1) {
+      return null;
+    }
+
+    final start = fullDates.first;
+    final tail = raw.substring(raw.indexOf(RegExp(r'20\d{2}')) + 4);
+    final monthDays = _parseMonthDays(tail);
+    if (monthDays.isEmpty) {
+      return null;
+    }
+
+    final endMonth = monthDays.last.$1;
+    final endDay = monthDays.last.$2;
+    var end = _tryDate(start.year, endMonth, endDay);
+    if (end == null) {
+      return null;
+    }
+    if (end.isBefore(start)) {
+      end = _tryDate(start.year + 1, endMonth, endDay);
+    }
+    return end == null ? null : (start, end);
+  }
+
+  bool _isDateInRange(DateTime date, DateTime start, DateTime end) {
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    final normalizedStart = DateTime(start.year, start.month, start.day);
+    final normalizedEnd = DateTime(end.year, end.month, end.day);
+    return !normalizedDate.isBefore(normalizedStart) &&
+        !normalizedDate.isAfter(normalizedEnd);
+  }
+
+  List<DateTime> _parseFullDates(String raw) {
+    final matches = RegExp(
+      r'(20\d{2})\D+(\d{1,2})\D+(\d{1,2})',
+    ).allMatches(raw);
+    return matches
+        .map(
+          (match) => _tryDate(
+            int.parse(match.group(1)!),
+            int.parse(match.group(2)!),
+            int.parse(match.group(3)!),
+          ),
+        )
+        .whereType<DateTime>()
+        .toList(growable: false);
+  }
+
+  List<(int month, int day)> _parseMonthDays(String raw) {
+    final matches = RegExp(r'(\d{1,2})[./月-](\d{1,2})').allMatches(raw);
+    return matches
+        .map((match) {
+          final month = int.parse(match.group(1)!);
+          final day = int.parse(match.group(2)!);
+          if (month < 1 || month > 12 || day < 1 || day > 31) {
+            return null;
+          }
+          return (month, day);
+        })
+        .whereType<(int, int)>()
+        .toList(growable: false);
+  }
+
+  List<int> _candidateYears() {
+    final years = RegExp(r'20\d{2}')
+        .allMatches(selectedSemester)
+        .map((match) => int.tryParse(match.group(0)!))
+        .whereType<int>()
+        .toList(growable: false);
+    if (years.length < 2) {
+      return years;
+    }
+
+    final term = _parseSemesterTerm(selectedSemester);
+    if (term == 1) {
+      return <int>[years.first, years[1]];
+    }
+    if (term == 2) {
+      return <int>[years[1]];
+    }
+    return years;
+  }
+
+  bool _semesterLikelyContainsDate(String raw, DateTime date) {
+    if (raw.isEmpty) {
+      return false;
+    }
+
+    final yearMatches = RegExp(r'20\d{2}').allMatches(raw).toList();
+    if (yearMatches.length < 2) {
+      return false;
+    }
+
+    final startYear = int.tryParse(yearMatches[0].group(0)!);
+    final endYear = int.tryParse(yearMatches[1].group(0)!);
+    final term = _parseSemesterTerm(raw);
+    if (startYear == null || endYear == null || term == null) {
+      return false;
+    }
+
+    if (term == 1) {
+      return (date.year == startYear && date.month >= 8) ||
+          (date.year == endYear && date.month <= 1);
+    }
+    if (term == 2) {
+      return date.year == endYear && date.month >= 2 && date.month <= 8;
+    }
+    return false;
+  }
+
+  int? _parseSemesterTerm(String raw) {
+    final explicit = RegExp(r'第?\s*([12])\s*学期').firstMatch(raw);
+    if (explicit != null) {
+      return int.parse(explicit.group(1)!);
+    }
+
+    final trailing = RegExp(r'[-_ ]([12])(?:\D*)$').firstMatch(raw);
+    if (trailing != null) {
+      return int.parse(trailing.group(1)!);
+    }
+    return null;
+  }
+
+  DateTime? _tryDate(int year, int month, int day) {
+    final date = DateTime(year, month, day);
+    if (date.year != year || date.month != month || date.day != day) {
+      return null;
+    }
+    return date;
+  }
+
+  DateTime? _parseMetaDate(String raw) {
+    return DateTime.tryParse(raw.replaceFirst(' ', 'T'));
+  }
+
+  bool _isSameDate(DateTime left, DateTime right) {
+    return left.year == right.year &&
+        left.month == right.month &&
+        left.day == right.day;
   }
 
   bool _isActiveRequest(int version) {
@@ -496,9 +817,4 @@ class ClassesController extends GetxController {
     }
   }
 
-  @override
-  void onClose() {
-    easyRefreshController.dispose();
-    super.onClose();
-  }
 }

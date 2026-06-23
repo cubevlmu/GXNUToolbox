@@ -8,6 +8,7 @@ import 'package:class_tool/pages/settings/controller.dart';
 import 'package:class_tool/pages/splash/view.dart';
 import 'package:class_tool/ui/app_toast.dart';
 import 'package:class_tool/utils/log_util.dart';
+import 'package:class_tool/utils/shared_dialog.dart';
 import 'package:get/get.dart';
 
 class LoginController extends GetxController {
@@ -25,7 +26,7 @@ class LoginController extends GetxController {
   void onInit() {
     super.onInit();
     account = _userRepo.username;
-    rememberLogin.value = _userRepo.storage.autoRelogin;
+    // rememberLogin.value = _userRepo.storage.autoRelogin;
   }
 
   void togglePasswordVisible() {
@@ -65,7 +66,7 @@ class LoginController extends GetxController {
     }
 
     LogUtil.info(
-      '[LoginController] login start username=$trimmedAccount autoRelogin=${rememberLogin.value}',
+      '[LoginController] login start hasUsername=${trimmedAccount.isNotEmpty} autoRelogin=${rememberLogin.value}',
     );
     isLoading.value = true;
     try {
@@ -75,19 +76,12 @@ class LoginController extends GetxController {
         autoRelogin: rememberLogin.value,
       );
       if (!success) {
-        LogUtil.warn('[LoginController] login failed username=$trimmedAccount');
-        AppToast.showGlobal(
-          title: '登录失败',
-          type: AppToastType.error,
-          duration: const Duration(seconds: 4),
-          message: _userRepo.lastLoginError.isEmpty
-              ? '请检查账号、密码或登录状态'
-              : _userRepo.lastLoginError,
-        );
+        LogUtil.warn('[LoginController] login failed');
+        await _showLoginErrorDialog();
         return;
       }
 
-      LogUtil.info('[LoginController] login success username=$trimmedAccount');
+      LogUtil.info('[LoginController] login success');
       if (Get.isRegistered<SettingsController>()) {
         Get.find<SettingsController>().refreshUserInfo();
       }
@@ -95,5 +89,30 @@ class LoginController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  Future<void> _showLoginErrorDialog() async {
+    final message = _userRepo.lastLoginError.isEmpty
+        ? '请检查账号、密码或登录状态'
+        : _userRepo.lastLoginError;
+    final context = Get.context;
+    if (context == null) {
+      AppToast.showGlobal(
+        title: '登录失败',
+        type: AppToastType.error,
+        duration: const Duration(seconds: 4),
+        message: message,
+      );
+      return;
+    }
+
+    await SharedDialog.showConfirmDialog(
+      context,
+      title: '登录失败',
+      content: message,
+      confirmText: '知道了',
+      cancelText: '',
+      variant: SharedDialogVariant.danger,
+    );
   }
 }

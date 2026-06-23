@@ -4,10 +4,12 @@
  * Copyright (c) 2026 by FlybirdGames, All Rights Reserved.
  */
 
+import 'dart:async';
+
 import 'package:class_tool/data/model/grade.dart';
 import 'package:class_tool/data/repo/grade_repo.dart';
+import 'package:class_tool/data/services/local_semester_service.dart';
 import 'package:class_tool/utils/log_util.dart';
-import 'package:easy_refresh/easy_refresh.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
@@ -57,10 +59,7 @@ class QueryController extends GetxController {
     : _gradeRepo = gradeRepo ?? Get.find<GradeRepo>();
 
   final GradeRepo _gradeRepo;
-  final EasyRefreshController easyRefreshController = EasyRefreshController(
-    controlFinishRefresh: true,
-    controlFinishLoad: true,
-  );
+  final Object? easyRefreshController = null;
 
   final RxBool _isLoading = false.obs;
   final RxBool _isLoadingMore = false.obs;
@@ -90,6 +89,12 @@ class QueryController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    final currentSemester = LocalSemesterService.currentSemester();
+    _filter.value = GradeFilter(
+      startSemester: currentSemester,
+      endSemester: currentSemester,
+    );
+    _filterOptions.value = _withLocalSemesterOptions(GradeFilterOptions.empty);
     Future<void>.microtask(refreshGrades);
   }
 
@@ -114,15 +119,11 @@ class QueryController extends GetxController {
     update(<Object>['query-content']);
 
     try {
-      final filterOptions = await _fetchFilterOptionsIfNeeded();
-      if (!_isActiveRequest(version)) {
-        return;
-      }
-      if (filterOptions != null) {
-        _filterOptions.value = filterOptions;
-      }
-      final response = await _fetchPage(1);
-      final rank = await _fetchGradeRank();
+      unawaited(_refreshFilterOptions(version));
+      final responseTask = _fetchPage(1);
+      final rankTask = _fetchGradeRank();
+      final response = await responseTask;
+      final rank = await rankTask;
       if (!_isActiveRequest(version)) {
         return;
       }
@@ -140,21 +141,15 @@ class QueryController extends GetxController {
       _error.value = e.toString();
       LogUtil.errorE('[QueryController] refresh grades failed', e, s);
     } finally {
-      if (!_isActiveRequest(version)) {
-        return;
+      if (_isActiveRequest(version)) {
+        _isLoading.value = false;
+        update(<Object>['query-content']);
       }
-      _isLoading.value = false;
-      easyRefreshController.finishRefresh();
-      easyRefreshController.resetFooter();
-      update(<Object>['query-content']);
     }
   }
 
   Future<void> loadMoreGrades() async {
     if (_isLoading.value || _isLoadingMore.value || !hasMore) {
-      easyRefreshController.finishLoad(
-        hasMore ? IndicatorResult.none : IndicatorResult.noMore,
-      );
       return;
     }
 
@@ -174,22 +169,17 @@ class QueryController extends GetxController {
           ? totalPages
           : response.totalPages;
       _total.value = response.total;
-      easyRefreshController.finishLoad(
-        hasMore ? IndicatorResult.success : IndicatorResult.noMore,
-      );
     } catch (e, s) {
       if (!_isActiveRequest(version)) {
         return;
       }
       _error.value = e.toString();
-      easyRefreshController.finishLoad(IndicatorResult.fail);
       LogUtil.errorE('[QueryController] load more grades failed', e, s);
     } finally {
-      if (!_isActiveRequest(version)) {
-        return;
+      if (_isActiveRequest(version)) {
+        _isLoadingMore.value = false;
+        update(<Object>['query-content']);
       }
-      _isLoadingMore.value = false;
-      update(<Object>['query-content']);
     }
   }
 
@@ -197,13 +187,35 @@ class QueryController extends GetxController {
     return _requestGrades(targetPage);
   }
 
-  Future<GradeFilterOptions?> _fetchFilterOptionsIfNeeded() async {
-    if (_filterOptions.value.startSemesters.isNotEmpty ||
-        _filterOptions.value.endSemesters.isNotEmpty) {
-      return null;
+  Future<void> _refreshFilterOptions(int version) async {
+    try {
+      final options = await _requestFilterOptions();
+      if (!_isActiveRequest(version)) {
+        return;
+      }
+      _filterOptions.value = _withLocalSemesterOptions(options);
+      update(<Object>['query-content']);
+    } catch (e, s) {
+      LogUtil.warnE('[QueryController] fetch filter options failed', e, s);
     }
+  }
 
-    return _requestFilterOptions();
+  GradeFilterOptions _withLocalSemesterOptions(GradeFilterOptions options) {
+    final semesterOptions = [
+      const GradeFilterOption(value: '001', label: '全部'),
+      ...LocalSemesterService.recentSemesters().map(
+        (semester) => GradeFilterOption(value: semester, label: semester),
+      ),
+    ];
+    return GradeFilterOptions(
+      startSemesters: semesterOptions,
+      endSemesters: semesterOptions,
+      passStatuses: options.passStatuses,
+      courseNatures: options.courseNatures,
+      makeupTypes: options.makeupTypes,
+      sealOptions: options.sealOptions,
+      courseAttributions: options.courseAttributions,
+    );
   }
 
   Future<String> _fetchGradeRank() async {
@@ -239,11 +251,5 @@ class QueryController extends GetxController {
 
   bool _isActiveRequest(int version) {
     return !isClosed && version == _requestVersion;
-  }
-
-  @override
-  void onClose() {
-    easyRefreshController.dispose();
-    super.onClose();
   }
 }

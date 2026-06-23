@@ -219,12 +219,65 @@ class SettingsPage extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppTokens.gap16),
+        Obx(
+          () => controller.showDiagnosticLogs
+              ? Column(
+                  children: [
+                    AppSection(
+                      title: '诊断日志',
+                      children: [
+                        AppTile(
+                          icon: AppIcons.bug,
+                          title: '日志文件路径',
+                          subtitle: controller.diagnosticLogPath(),
+                          showChevron: false,
+                          minHeight: 60,
+                        ),
+                        AppTile(
+                          icon: AppIcons.copy,
+                          title: '复制诊断摘要',
+                          subtitle: '包含版本、平台、最近登录/同步 trace 和小组件诊断字段',
+                          minHeight: 60,
+                          onTap: () async {
+                            try {
+                              await controller.copyDiagnosticSummary();
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              await SharedDialog.showConfirmDialog(
+                                context,
+                                title: '复制失败',
+                                content: e.toString().split('\n').first,
+                                confirmText: '关闭',
+                                cancelText: '',
+                                variant: SharedDialogVariant.danger,
+                              );
+                              return;
+                            }
+                            if (!context.mounted) return;
+                            await SharedDialog.showConfirmDialog(
+                              context,
+                              title: '已复制诊断摘要',
+                              content:
+                                  '诊断摘要已复制到剪贴板。摘要不包含密码、Cookie value 或完整课程信息。',
+                              confirmText: '知道了',
+                              cancelText: '',
+                              variant: SharedDialogVariant.success,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppTokens.gap16),
+                  ],
+                )
+              : const SizedBox.shrink(),
+        ),
         AppSection(
           title: '关于',
           children: [
             AppTile(
               icon: AppIcons.info,
-              title: '关于 GXNU Class Tool',
+              title: '关于 GXNU Toolbox',
               subtitle: '版本、隐私与平台说明',
               minHeight: 60,
               onTap: () {
