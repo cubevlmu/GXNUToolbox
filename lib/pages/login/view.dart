@@ -90,12 +90,16 @@ class _BrandHeader extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(AppTokens.radiusXl),
-            child: Image.asset('assets/images/icon.png'),
+            child: Image.asset(
+              'assets/images/icon.png',
+              cacheWidth: 64,
+              cacheHeight: 64,
+            ),
           ),
         ),
         const SizedBox(height: AppTokens.gap16),
         Text(
-          'GXNU Class Tool',
+          'GXNU Toolbox',
           style: Theme.of(
             context,
           ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
@@ -347,22 +351,28 @@ class _HelpPanel extends StatelessWidget {
           _InfoSection(
             title: '登录说明',
             lines: [
-              'App 需要自动完成登录，以提供基于账户的课程表相关功能。',
-              '不同功能可能依赖不同系统。为正常使用 App，请关闭统一身份认证中的“单处登录”功能。',
-              '当账户登录失败次数过多、触发异地登录校验或系统要求验证码时，可能需要重新人工登录。',
+              'App 会在本地模拟网页登录流程，用于获取课程表、考试安排等与账号相关的数据。',
+              '登录过程可能受到学校系统策略影响。如果连续登录失败、触发异地登录校验、验证码或安全保护，可能需要先通过浏览器完成一次人工登录。',
+              '如学校系统页面结构或接口规则发生变化，可能导致登录失败、同步失败或部分功能暂时不可用。',
             ],
           ),
           SizedBox(height: AppTokens.gap20),
           _InfoSection(
             title: '隐私说明',
-            lines: ['账号密码仅用于本地登录流程，不会上传到开发者服务器保存。', '退出登录会清除本地保存的登录状态与相关会话信息。'],
+            lines: [
+              '账号密码仅用于本机直接登录学校系统，不会上传到开发者服务器保存。',
+              'App 获取课程表等数据时，请求均由你的设备直接发送到学校服务器，开发者服务器不会转发、记录或保存这些请求与数据。',
+              '开发者服务器仅用于版本检测、更新信息获取和安装包下载等更新服务。',
+              '退出登录后，App 会清除本地保存的账号状态、会话信息和相关缓存。',
+            ],
           ),
           SizedBox(height: AppTokens.gap20),
           _InfoSection(
             title: '风险说明',
             lines: [
-              '本 App 通过模拟真实请求访问相关系统，第三方工具登录仍然存在账户风控风险。',
-              '如学校系统策略变更、触发验证码或异常登录判定，可能导致登录失败或会话失效。',
+              '本 App 通过模拟正常网页请求访问学校系统，不是学校官方客户端。',
+              '如果学校系统策略调整，或账号触发验证码、风控、异地登录校验，可能导致登录失败或同步中断。',
+              '继续登录即表示你已了解上述情况，并同意自行承担使用第三方工具登录学校系统可能带来的风险。',
             ],
           ),
         ],

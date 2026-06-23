@@ -4,6 +4,9 @@ import 'package:class_tool/data/repo/course_plan_repo.dart';
 import 'package:class_tool/data/repo/credit_repo.dart';
 import 'package:class_tool/data/repo/exam_repo.dart';
 import 'package:class_tool/data/repo/grade_repo.dart';
+import 'package:class_tool/data/repo/notification_repo.dart';
+import 'package:class_tool/data/repo/school_calendar_repo.dart';
+import 'package:class_tool/data/repo/selected_course_repo.dart';
 import 'package:class_tool/data/repo/student_repo.dart';
 import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
@@ -21,6 +24,18 @@ class Injector {
       Get.put<ClassRepo>(classRepo, permanent: true);
       Get.put<GradeRepo>(GradeRepo(userRepo: userRepo), permanent: true);
       Get.put<ExamRepo>(ExamRepo(userRepo: userRepo), permanent: true);
+      Get.put<NotificationRepo>(
+        NotificationRepo(userRepo: userRepo),
+        permanent: true,
+      );
+      Get.put<SchoolCalendarRepo>(
+        SchoolCalendarRepo(userRepo: userRepo),
+        permanent: true,
+      );
+      Get.put<SelectedCourseRepo>(
+        SelectedCourseRepo(userRepo: userRepo),
+        permanent: true,
+      );
       Get.put<CreditRepo>(CreditRepo(userRepo: userRepo), permanent: true);
       Get.put<CoursePlanRepo>(
         CoursePlanRepo(userRepo: userRepo),
@@ -63,6 +78,27 @@ class Injector {
     if (!Get.isRegistered<CreditRepo>()) {
       Get.put<CreditRepo>(
         CreditRepo(userRepo: Get.find<UserRepo>()),
+        permanent: true,
+      );
+    }
+
+    if (!Get.isRegistered<NotificationRepo>()) {
+      Get.put<NotificationRepo>(
+        NotificationRepo(userRepo: Get.find<UserRepo>()),
+        permanent: true,
+      );
+    }
+
+    if (!Get.isRegistered<SchoolCalendarRepo>()) {
+      Get.put<SchoolCalendarRepo>(
+        SchoolCalendarRepo(userRepo: Get.find<UserRepo>()),
+        permanent: true,
+      );
+    }
+
+    if (!Get.isRegistered<SelectedCourseRepo>()) {
+      Get.put<SelectedCourseRepo>(
+        SelectedCourseRepo(userRepo: Get.find<UserRepo>()),
         permanent: true,
       );
     }

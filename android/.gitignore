@@ -24,3 +24,5 @@ gradle/**
 *.keystore
 key.properties
 app/keystore.properties
+.kotlin
+keystore

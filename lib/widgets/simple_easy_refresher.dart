@@ -1,98 +1,84 @@
-/*
- * @Author: cubevlmu khfahqp@gmail.com
- * @LastEditors: cubevlmu khfahqp@gmail.com
- * Copyright (c) 2026 by FlybirdGames, All Rights Reserved. 
- */
-
 import 'dart:async';
 
+import 'package:class_tool/ui/app_context.dart';
+import 'package:class_tool/ui/app_icons.dart';
+import 'package:class_tool/ui/app_tokens.dart';
 import 'package:easy_refresh/easy_refresh.dart';
 import 'package:flutter/material.dart';
 
-class SimpleEasyRefresher extends StatefulWidget {
+typedef SimpleRefreshChildBuilder =
+    Widget Function(BuildContext context, ScrollPhysics physics);
+
+class SimpleEasyRefresher extends StatelessWidget {
   const SimpleEasyRefresher({
     super.key,
-    required this.easyRefreshController,
+    this.easyRefreshController,
     this.onLoad,
     this.onRefresh,
     required this.childBuilder,
-    this.indicatorPosition = IndicatorPosition.above,
     this.autoRefreshOnStart = true,
     this.refreshEnabled = true,
     this.loadEnabled = true,
   });
-  final EasyRefreshController? easyRefreshController;
+
+  final Object? easyRefreshController;
   final FutureOr<dynamic> Function()? onLoad;
   final FutureOr<dynamic> Function()? onRefresh;
-  final Widget Function(BuildContext context, ScrollPhysics physics)?
-  childBuilder;
+  final SimpleRefreshChildBuilder childBuilder;
   final bool autoRefreshOnStart;
-  final IndicatorPosition indicatorPosition;
   final bool refreshEnabled;
   final bool loadEnabled;
 
   @override
-  State<SimpleEasyRefresher> createState() => _SimpleEasyRefresherState();
-}
-
-class _SimpleEasyRefresherState extends State<SimpleEasyRefresher> {
-  static const _pullToRefreshText = '下拉刷新';
-  static const _releaseToRefreshText = '松开刷新';
-  static const _refreshingText = '正在刷新...';
-  static const _refreshSuccessText = '刷新成功';
-  static const _refreshFailedText = '刷新失败';
-  static const _pullToLoadText = '上拉加载更多';
-  static const _releaseToLoadText = '松开加载更多';
-  static const _loadingText = '正在加载...';
-  static const _loadSuccessText = '加载成功';
-  static const _loadFailedText = '加载失败';
-  static const _noMoreText = '没有更多了';
-
-  @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final textStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: colors.textSecondary,
+      fontWeight: FontWeight.w700,
+    );
+
     return EasyRefresh.builder(
-      refreshOnStart: widget.autoRefreshOnStart,
-      resetAfterRefresh: true,
-      onLoad: widget.loadEnabled
-          ? () async {
-              await widget.onLoad?.call();
-            }
+      controller: easyRefreshController is EasyRefreshController
+          ? easyRefreshController as EasyRefreshController
           : null,
-      onRefresh: widget.refreshEnabled
-          ? () async {
-              await widget.onRefresh?.call();
-            }
-          : null,
-      header: ClassicHeader(
-        hitOver: true,
-        safeArea: true,
-        processedDuration: Duration.zero,
-        showMessage: false,
-        showText: true,
-        position: widget.indicatorPosition,
-        processingText: _refreshingText,
-        readyText: _refreshingText,
-        armedText: _releaseToRefreshText,
-        dragText: _pullToRefreshText,
-        processedText: _refreshSuccessText,
-        failedText: _refreshFailedText,
-      ),
-      footer: ClassicFooter(
-        processedDuration: Duration.zero,
-        safeArea: true,
-        showMessage: false,
-        showText: true,
-        position: widget.indicatorPosition,
-        processingText: _loadingText,
-        processedText: _loadSuccessText,
-        readyText: _loadingText,
-        armedText: _releaseToLoadText,
-        dragText: _pullToLoadText,
-        failedText: _loadFailedText,
-        noMoreText: _noMoreText,
-      ),
-      controller: widget.easyRefreshController,
-      childBuilder: widget.childBuilder,
+      header: null,
+      onRefresh: null,
+      refreshOnStart: false,
+      footer: _buildFooter(context, textStyle),
+      onLoad: loadEnabled ? onLoad : null,
+      childBuilder: childBuilder,
+    );
+  }
+
+  ClassicFooter _buildFooter(BuildContext context, TextStyle? textStyle) {
+    final colors = context.colors;
+    return ClassicFooter(
+      triggerOffset: 70,
+      mainAxisAlignment: MainAxisAlignment.center,
+      dragText: '上拉加载',
+      armedText: '松开加载',
+      readyText: '正在加载',
+      processingText: '正在加载',
+      processedText: '加载完成',
+      noMoreText: '没有更多了',
+      failedText: '加载失败',
+      messageText: ' ',
+      showMessage: false,
+      spacing: AppTokens.gap8,
+      iconDimension: AppTokens.iconMd,
+      textStyle: textStyle,
+      iconTheme: IconThemeData(size: AppTokens.iconSm, color: colors.primary),
+      pullIconBuilder: (context, state, animation) {
+        return Transform.rotate(
+          angle: animation * 3.1415926,
+          child: Icon(AppIcons.chevronDown, color: colors.primary),
+        );
+      },
+      succeededIcon: Icon(AppIcons.check, color: colors.primary),
+      failedIcon: Icon(AppIcons.warning, color: colors.danger),
+      noMoreIcon: Icon(AppIcons.checkmark, color: colors.textTertiary),
+      progressIndicatorSize: AppTokens.iconSm,
+      progressIndicatorStrokeWidth: 2,
     );
   }
 }

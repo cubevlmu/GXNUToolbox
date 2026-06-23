@@ -4,10 +4,9 @@ import 'package:class_tool/utils/log_util.dart';
 
 class RepoRequestHelper {
   const RepoRequestHelper({
-    required UserRepo userRepo,
-    required String logTag,
-  }) : _userRepo = userRepo,
-       _logTag = logTag;
+    required this._userRepo,
+    required this._logTag,
+  });
 
   final UserRepo _userRepo;
   final String _logTag;

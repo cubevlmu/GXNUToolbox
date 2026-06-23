@@ -6,6 +6,7 @@
 
 import 'package:class_tool/data/model/credit_progress.dart';
 import 'package:class_tool/data/repo/credit_repo.dart';
+import 'package:class_tool/data/services/local_semester_service.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:get/get.dart';
 
@@ -17,7 +18,9 @@ class CreditController extends GetxController {
 
   final RxBool isLoading = false.obs;
   final RxString error = ''.obs;
-  final Rx<CreditProgressResponse?> response = Rx<CreditProgressResponse?>(null);
+  final Rx<CreditProgressResponse?> response = Rx<CreditProgressResponse?>(
+    null,
+  );
   final RxString selectedSemester = ''.obs;
   final RxList<String> semesterOptions = <String>[].obs;
 
@@ -25,19 +28,12 @@ class CreditController extends GetxController {
   void onInit() {
     super.onInit();
     _buildSemesterOptions();
-    selectedSemester.value = '';
+    selectedSemester.value = LocalSemesterService.currentSemester();
     Future<void>.microtask(loadData);
   }
 
   void _buildSemesterOptions() {
-    final now = DateTime.now();
-    final currentYear = now.year;
-    final semesters = <String>[];
-    for (int y = currentYear - 5; y <= currentYear + 5; y++) {
-      semesters.add('$y-${y + 1}-1');
-      semesters.add('$y-${y + 1}-2');
-    }
-    semesterOptions.assignAll(semesters.reversed);
+    semesterOptions.assignAll(LocalSemesterService.recentSemesters());
   }
 
   Future<void> changeSemester(String semester) async {

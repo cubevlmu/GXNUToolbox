@@ -7,7 +7,11 @@ import 'package:class_tool/ui/app_surface.dart';
 import 'package:class_tool/ui/app_tile.dart';
 import 'package:class_tool/ui/app_tokens.dart';
 import 'package:class_tool/utils/app_info_util.dart';
+import 'package:class_tool/utils/shared_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'controller.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
@@ -30,11 +34,13 @@ class AboutPage extends StatelessWidget {
                   'assets/images/icon.png',
                   width: 72,
                   height: 72,
+                  cacheWidth: 72,
+                  cacheHeight: 72,
                   fit: BoxFit.cover,
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'GXNU Class Tool',
+                  'GXNU Toolbox',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: colors.textPrimary,
                     fontWeight: FontWeight.w800,
@@ -68,7 +74,7 @@ class AboutPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          const AppSection(
+          AppSection(
             title: '联系方式',
             children: [
               AppTile(
@@ -76,6 +82,7 @@ class AboutPage extends StatelessWidget {
                 title: '联系作者',
                 subtitle: '邮箱: khfahqp@gmail.com',
                 showChevron: false,
+                onTap: () => _handleContactAuthorTap(context),
               ),
             ],
           ),
@@ -86,13 +93,13 @@ class AboutPage extends StatelessWidget {
               _AboutInfoTile(
                 icon: AppIcons.classroom,
                 title: '服务内容',
-                subtitle: '查看课程表、周次、每日安排与基础账户信息，以及常用教务系统功能。',
+                subtitle: '提供课程表、教学周次、每日安排、基础账户信息与常用教务系统功能查询。',
               ),
               _AboutInfoTile(
                 icon: AppIcons.info,
                 title: '登录注意事项',
                 subtitle:
-                    '不同功能可能依赖不同系统，请关闭"单处登录"；若触发验证码、异地登录或登录失败次数过多，可能需要重新人工登录。',
+                    'App 会在本地模拟网页登录学校系统。若触发验证码、异地登录校验、安全保护或登录失败次数过多，可能需要先通过浏览器完成一次人工登录。',
               ),
               _AboutInfoTile(
                 icon: AppIcons.building,
@@ -103,12 +110,46 @@ class AboutPage extends StatelessWidget {
                 icon: AppIcons.privacy,
                 title: '隐私与安全提示',
                 subtitle:
-                    '账号密码仅用于本地登录流程，不会上传保存；但第三方工具访问校园系统仍存在一定账户风控与登录失效风险，请确认后使用。',
+                    '账号密码仅用于本机直接登录学校系统；课程表等数据请求均由你的设备直接发送到学校服务器。开发者服务器不会转发、记录或保存学校系统请求和数据，仅提供版本检测与更新服务。',
               ),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _handleContactAuthorTap(BuildContext context) async {
+    final controller = Get.isRegistered<SettingsController>()
+        ? Get.find<SettingsController>()
+        : null;
+    if (controller == null || !controller.registerDeveloperModeTap()) {
+      return;
+    }
+
+    final confirmed = await SharedDialog.showConfirmDialog(
+      context,
+      title: '开启开发者模式',
+      content: '开启后，设置页会显示诊断日志板块。诊断摘要用于排查问题，请勿公开分享包含个人环境信息的内容。',
+      cancelText: '取消',
+      confirmText: '开启',
+      variant: SharedDialogVariant.warning,
+      icon: AppIcons.bug,
+    );
+    if (!confirmed) {
+      return;
+    }
+    await controller.enableDeveloperMode();
+    if (!context.mounted) {
+      return;
+    }
+    await SharedDialog.showConfirmDialog(
+      context,
+      title: '开发者模式已开启',
+      content: '返回设置页后将显示诊断日志板块。',
+      cancelText: '',
+      confirmText: '知道了',
+      variant: SharedDialogVariant.success,
     );
   }
 }

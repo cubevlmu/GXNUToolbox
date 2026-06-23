@@ -72,8 +72,7 @@ class ClassRepo {
     }
 
     final activeTask = _syncBaseContextTask;
-    if (activeTask != null &&
-        _syncBaseContextTaskSemester == targetSemester) {
+    if (activeTask != null && _syncBaseContextTaskSemester == targetSemester) {
       LogUtil.debug(
         '[ClassRepo] syncBaseContext join in-flight request semester=$targetSemester',
       );
@@ -250,6 +249,10 @@ class ClassRepo {
 
     final userContext = context.userContext;
     if (userContext.userId.isEmpty || userContext.selectedSemester.isEmpty) {
+      return null;
+    }
+
+    if (context.semesters.isEmpty) {
       return null;
     }
 

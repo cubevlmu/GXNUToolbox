@@ -6,6 +6,7 @@
 
 import 'package:class_tool/data/model/course_plan.dart';
 import 'package:class_tool/data/repo/course_plan_repo.dart';
+import 'package:class_tool/data/services/local_semester_service.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:get/get.dart';
 
@@ -29,19 +30,12 @@ class ProgressController extends GetxController {
   void onInit() {
     super.onInit();
     _buildSemesterOptions();
-    selectedSemester.value = '';
+    selectedSemester.value = LocalSemesterService.currentSemester();
     Future<void>.microtask(loadData);
   }
 
   void _buildSemesterOptions() {
-    final now = DateTime.now();
-    final currentYear = now.year;
-    final semesters = <String>[];
-    for (int y = currentYear - 5; y <= currentYear; y++) {
-      semesters.add('$y-${y + 1}-1');
-      semesters.add('$y-${y + 1}-2');
-    }
-    semesterOptions.assignAll(semesters.reversed);
+    semesterOptions.assignAll(LocalSemesterService.recentSemesters());
   }
 
   Future<void> changeSemester(String semester) async {

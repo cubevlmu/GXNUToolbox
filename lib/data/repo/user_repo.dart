@@ -9,6 +9,7 @@ import 'package:class_tool/data/auth/auth_storage.dart';
 import 'package:class_tool/data/model/class_table_context.dart';
 import 'package:class_tool/utils/http_utils.dart';
 import 'package:class_tool/utils/log_util.dart';
+import 'package:dio/dio.dart';
 
 enum UserRepoState { unknown, notLogin, checkingLogin, loggedIn, expired }
 
@@ -70,6 +71,12 @@ class UserRepo {
 
     _state = UserRepoState.checkingLogin;
     _offlineMode = false;
+    if (storage.userId?.isNotEmpty == true &&
+        storage.selectedSemester?.isNotEmpty == true) {
+      await restoreStoredSession();
+      return;
+    }
+
     try {
       await _http.init();
       final context = await Api.getClassTableContext(
@@ -121,9 +128,7 @@ class UserRepo {
         : error is StateError
         ? error.message.toString()
         : error.toString();
-    return message.startsWith(
-      'Invalid class table context response',
-    );
+    return message.startsWith('Invalid class table context response');
   }
 
   Future<bool> login(
@@ -223,9 +228,7 @@ class UserRepo {
     }
   }
 
-  Future<void> handleLoginExpired({
-    bool allowAutoRelogin = true,
-  }) async {
+  Future<void> handleLoginExpired({bool allowAutoRelogin = true}) async {
     _state = UserRepoState.expired;
 
     if (allowAutoRelogin && storage.autoRelogin) {
@@ -236,6 +239,8 @@ class UserRepo {
         return;
       }
       LogUtil.warn('[UserRepo] auto relogin failed');
+      await _clearRuntimeSession();
+      return;
     }
 
     await _clearRuntimeSession();
@@ -262,6 +267,10 @@ class UserRepo {
   }
 
   Future<void> restoreOfflineSession() async {
+    await restoreStoredSession(offlineMode: true);
+  }
+
+  Future<void> restoreStoredSession({bool offlineMode = false}) async {
     final storedUserId = storage.userId ?? '';
     final storedSemester = storage.selectedSemester ?? '';
     if (storedUserId.isEmpty || storedSemester.isEmpty) {
@@ -279,10 +288,10 @@ class UserRepo {
       userContext: _userContext!,
       semesters: const <ClassTableSemester>[],
     );
-    _offlineMode = true;
+    _offlineMode = offlineMode;
     _state = UserRepoState.loggedIn;
     LogUtil.info(
-      '[UserRepo] restoreOfflineSession semester=${_userContext?.selectedSemester} userId=${_userContext?.userId}',
+      '[UserRepo] restoreStoredSession offline=$offlineMode semester=${_userContext?.selectedSemester}',
     );
   }
 
@@ -309,7 +318,7 @@ class UserRepo {
       return false;
     }
 
-    LogUtil.info('[UserRepo] auto relogin start username=$savedUsername');
+    LogUtil.info('[UserRepo] auto relogin start hasSavedUsername=true');
     return login(
       savedUsername,
       savedPassword,
@@ -388,18 +397,38 @@ class UserRepo {
     if (trimmed.isEmpty) {
       return '登录失败，请检查账号、密码或登录状态';
     }
+    if (trimmed.contains('账号密码') ||
+        trimmed.contains('账号') && trimmed.contains('密码') ||
+        trimmed.contains('用户名') ||
+        trimmed.contains('password')) {
+      return '账号或密码错误，请检查后重试';
+    }
     if (trimmed.contains('429') || trimmed.contains('请求过于频繁')) {
       return '请求过于频繁，请稍后再试';
     }
     if (trimmed.contains('captcha') ||
         trimmed.contains('authcode') ||
-        trimmed.contains('验证码')) {
-      return '学校认证要求验证码，请稍后重试或在浏览器完成验证';
+        trimmed.contains('验证码') ||
+        trimmed.contains('风控') ||
+        trimmed.contains('安全验证') ||
+        trimmed.contains('访问受限') ||
+        trimmed.contains('学校认证要求验证')) {
+      return '学校认证要求验证，请先用浏览器打开教务平台完成一次验证，再回到 App 重试';
     }
     if (trimmed.contains('SocketException') ||
         trimmed.contains('TimeoutException') ||
-        trimmed.contains('timed out')) {
+        trimmed.contains('timed out') ||
+        trimmed.contains(DioExceptionType.connectionTimeout.name) ||
+        trimmed.contains(DioExceptionType.receiveTimeout.name) ||
+        trimmed.contains(DioExceptionType.sendTimeout.name)) {
       return '网络连接超时，请检查网络后重试';
+    }
+    if (trimmed.contains('学校页面结构可能变化') ||
+        trimmed.contains('Invalid') ||
+        trimmed.contains('FormatException') ||
+        trimmed.contains('无法识别的 HTML') ||
+        trimmed.contains('解析')) {
+      return '学校页面结构可能变化，请导出诊断日志后反馈';
     }
     return trimmed.length > 80 ? '${trimmed.substring(0, 80)}...' : trimmed;
   }

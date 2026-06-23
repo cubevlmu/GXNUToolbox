@@ -12,19 +12,26 @@ class SheetUtil {
     required Widget widget,
     BuildContext? context,
     bool isScrollControlled = true,
+    bool showDragHandle = true,
   }) {
     final currentContext = context ?? Get.context;
     if (currentContext == null) {
       return Future<T?>.value();
     }
+    final colors = Theme.of(currentContext).colorScheme;
     return showModalBottomSheet<T>(
       context: currentContext,
       useRootNavigator: true,
       isScrollControlled: isScrollControlled,
       isDismissible: true,
       enableDrag: true,
-      backgroundColor: Colors.transparent,
-      elevation: 0,
+      showDragHandle: showDragHandle,
+      backgroundColor: colors.surface,
+      elevation: 8,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      clipBehavior: Clip.antiAlias,
       sheetAnimationStyle: const AnimationStyle(
         duration: Duration(milliseconds: 180),
         reverseDuration: Duration(milliseconds: 130),
@@ -39,15 +46,12 @@ class SheetUtil {
             padding: EdgeInsets.only(bottom: bottomInset),
             child: SafeArea(
               top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: maxHeight),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [Flexible(fit: FlexFit.loose, child: widget)],
-                  ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxHeight),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [Flexible(fit: FlexFit.loose, child: widget)],
                 ),
               ),
             ),

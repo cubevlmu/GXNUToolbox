@@ -1,3 +1,8 @@
+import 'dart:async';
+
+import 'package:add_2_calendar/add_2_calendar.dart';
+import 'package:class_tool/data/services/calendar_export_service.dart';
+import 'package:class_tool/data/services/schedule_export_service.dart';
 import 'package:class_tool/pages/classes/controller.dart';
 import 'package:class_tool/pages/classes/widgets/schedule_picker_sheet.dart';
 import 'package:class_tool/pages/classes/widgets/schedule_table.dart';
@@ -5,11 +10,106 @@ import 'package:class_tool/ui/app_context.dart';
 import 'package:class_tool/ui/app_icon_button.dart';
 import 'package:class_tool/ui/app_icons.dart';
 import 'package:class_tool/ui/app_tokens.dart';
+import 'package:class_tool/ui/app_toast.dart';
+import 'package:class_tool/utils/shared_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-class TableSchedulePage extends StatelessWidget {
+class TableSchedulePage extends StatefulWidget {
   const TableSchedulePage({super.key});
+
+  @override
+  State<TableSchedulePage> createState() => _TableSchedulePageState();
+}
+
+class _TableSchedulePageState extends State<TableSchedulePage> {
+  final GlobalKey _tableBoundaryKey = GlobalKey();
+  bool _isSaving = false;
+  bool _isImportingCalendar = false;
+
+  Future<void> _saveImage() async {
+    if (_isSaving) {
+      return;
+    }
+    final controller = Get.find<ClassesController>();
+    setState(() => _isSaving = true);
+    try {
+      final result = await ScheduleExportService.saveScheduleTableImage(
+        repaintBoundaryKey: _tableBoundaryKey,
+        semester: controller.selectedSemester,
+        weekText: controller.selectedWeek,
+      );
+      if (!mounted) return;
+      await SharedDialog.showConfirmDialog(
+        context,
+        title: '课表图片已保存',
+        content: result.savedToGallery ? '已保存到系统图库' : result.displayPath,
+        confirmText: '知道了',
+        cancelText: '',
+        variant: SharedDialogVariant.success,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      AppToast.error(context, message: e.toString().split('\n').first);
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  Future<void> _importCalendarEvents() async {
+    if (_isImportingCalendar) {
+      return;
+    }
+
+    final controller = Get.find<ClassesController>();
+    late final List<Event> events;
+    try {
+      events = CalendarExportService.buildEventsFromWeekSchedule(
+        semester: controller.selectedSemester,
+        selectedWeek: controller.selectedWeekNumber,
+        weekMeta: controller.currentWeekMeta,
+        courseBlocks: controller.visibleCourseBlocks,
+        periodSettings: controller.effectivePeriodSettings,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      AppToast.error(context, message: e.toString().split('\n').first);
+      return;
+    }
+
+    if (events.isEmpty) {
+      AppToast.info(context, message: '本周没有可导入的课程');
+      return;
+    }
+
+    final confirmed = await SharedDialog.showConfirmDialog(
+      context,
+      title: '导入日历',
+      content: '将本周 ${events.length} 门课一次性写入系统日历。重复导入可能产生重复日程。',
+      confirmText: '开始导入',
+      cancelText: '取消',
+      variant: SharedDialogVariant.info,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    setState(() => _isImportingCalendar = true);
+    try {
+      final added = await CalendarExportService.addEventsOneByOne(events);
+      if (!mounted) return;
+      AppToast.success(context, message: '已导入 $added/${events.length} 个日程');
+    } catch (e) {
+      if (!mounted) return;
+      AppToast.error(context, message: e.toString().split('\n').first);
+    } finally {
+      if (mounted) {
+        setState(() => _isImportingCalendar = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +120,12 @@ class TableSchedulePage extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            const _TableScheduleHeader(),
+            _TableScheduleHeader(
+              isSaving: _isSaving,
+              isImportingCalendar: _isImportingCalendar,
+              onSaveImage: _saveImage,
+              onImportCalendar: _importCalendarEvents,
+            ),
             Expanded(
               child: GetBuilder<ClassesController>(
                 id: 'schedule-table',
@@ -28,6 +133,7 @@ class TableSchedulePage extends StatelessWidget {
                   return ScheduleTableContent(
                     controller: controller,
                     physics: const AlwaysScrollableScrollPhysics(),
+                    repaintBoundaryKey: _tableBoundaryKey,
                   );
                 },
               ),
@@ -40,11 +146,24 @@ class TableSchedulePage extends StatelessWidget {
 }
 
 class _TableScheduleHeader extends StatelessWidget {
-  const _TableScheduleHeader();
+  const _TableScheduleHeader({
+    required this.isSaving,
+    required this.isImportingCalendar,
+    required this.onSaveImage,
+    required this.onImportCalendar,
+  });
+
+  final bool isSaving;
+  final bool isImportingCalendar;
+  final Future<void> Function() onSaveImage;
+  final Future<void> Function() onImportCalendar;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final supportsCalendarImport =
+        Theme.of(context).platform == TargetPlatform.android ||
+        Theme.of(context).platform == TargetPlatform.iOS;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -71,7 +190,8 @@ class _TableScheduleHeader extends StatelessWidget {
                     children: [
                       Text(
                         '表格课表',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
                               color: colors.textPrimary,
                               fontWeight: FontWeight.w800,
                             ),
@@ -82,8 +202,8 @@ class _TableScheduleHeader extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: colors.textSecondary,
-                            ),
+                          color: colors.textSecondary,
+                        ),
                       ),
                     ],
                   );
@@ -93,25 +213,50 @@ class _TableScheduleHeader extends StatelessWidget {
             GetBuilder<ClassesController>(
               id: 'classes-header',
               builder: (controller) {
-                return AppIconButton(
-                  icon: AppIcons.calendar,
-                  tooltip: '选择周次',
-                  variant: AppIconButtonVariant.ghost,
-                  onPressed: controller.isLoading
-                      ? null
-                      : () => showScheduleSelectionSheet(
-                            context: context,
-                            selectedValue: controller.selectedWeek,
-                            items: controller.weeks
-                                .map(
-                                  (item) => SelectionSheetItem(
-                                    label: item.label,
-                                    subtitle: item.extra,
-                                  ),
-                                )
-                                .toList(growable: false),
-                            onSelected: controller.changeWeek,
-                          ),
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (supportsCalendarImport) ...[
+                      AppIconButton(
+                        icon: AppIcons.calendarAdd,
+                        tooltip: isImportingCalendar ? '正在导入' : '导入日历',
+                        variant: AppIconButtonVariant.ghost,
+                        onPressed: controller.isLoading || isImportingCalendar
+                            ? null
+                            : () => unawaited(onImportCalendar()),
+                      ),
+                      const SizedBox(width: AppTokens.gap4),
+                    ],
+                    AppIconButton(
+                      icon: AppIcons.save,
+                      tooltip: isSaving ? '正在保存' : '保存为图片',
+                      variant: AppIconButtonVariant.ghost,
+                      onPressed: controller.isLoading || isSaving
+                          ? null
+                          : () => unawaited(onSaveImage()),
+                    ),
+                    const SizedBox(width: AppTokens.gap4),
+                    AppIconButton(
+                      icon: AppIcons.calendar,
+                      tooltip: '选择周次',
+                      variant: AppIconButtonVariant.ghost,
+                      onPressed: controller.isLoading
+                          ? null
+                          : () => showScheduleSelectionSheet(
+                              context: context,
+                              selectedValue: controller.selectedWeek,
+                              items: controller.weeks
+                                  .map(
+                                    (item) => SelectionSheetItem(
+                                      label: item.label,
+                                      subtitle: item.extra,
+                                    ),
+                                  )
+                                  .toList(growable: false),
+                              onSelected: controller.changeWeek,
+                            ),
+                    ),
+                  ],
                 );
               },
             ),

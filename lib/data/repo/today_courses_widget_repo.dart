@@ -25,11 +25,12 @@ import 'package:workmanager/workmanager.dart';
 
 const String _legacyDailyRefreshUniqueName =
     'today_courses_widget_daily_refresh';
-const String _dailyRefreshUniquePrefix =
-    'today_courses_widget_daily_refresh_';
+const String _dailyRefreshUniquePrefix = 'today_courses_widget_daily_refresh_';
 const String _debugDailyRefreshUniqueName =
     'today_courses_widget_daily_refresh_debug';
+const String _pendingRetryUniqueName = 'today_courses_widget_pending_retry';
 const String _dailyRefreshTaskName = 'todayCoursesWidgetDailyRefresh';
+const String _pendingRetryTaskName = 'todayCoursesWidgetPendingRetry';
 const String _autoSyncEnabledKey = 'today_courses_widget_auto_sync_enabled';
 const String _pendingSyncKey = 'today_courses_widget_pending_sync';
 const String _scheduledDailyWorkNameKey =
@@ -51,6 +52,10 @@ const String _lastTaskCallbackNameKey =
     'today_courses_widget_last_task_callback_name';
 const String _lastTaskRegisterFailureKey =
     'today_courses_widget_last_task_register_failure';
+const String _lastRetryScheduledAtKey =
+    'today_courses_widget_last_retry_scheduled_at';
+const String _lastRetryScheduledRunAtKey =
+    'today_courses_widget_last_retry_scheduled_run_at';
 const String _lastProviderUpdateAtKey =
     'today_courses_widget_last_provider_update_at';
 const String _lastProviderUpdateFailureKey =
@@ -60,24 +65,32 @@ const String _diagnosticStatusTextKey =
     'today_courses_widget_diagnostic_status_text';
 const String _androidPackageName = 'me.cubevlmu.gxnutool';
 const Duration _debugDailyRefreshDelay = Duration(seconds: 25);
+const Duration _pendingRetryDelay = Duration(minutes: 30);
 
-enum TodayCoursesWidgetState { idle, loading, ready, error, loggedOut }
+enum TodayCoursesWidgetState {
+  idle,
+  loading,
+  ready,
+  readyStale,
+  error,
+  loggedOut,
+}
 
 class TodayCoursesWidgetRepo {
   TodayCoursesWidgetRepo({
     UserRepo? userRepo,
     ClassRepo? classRepo,
     BellScheduleRepo? bellScheduleRepo,
-  })
-    : _userRepo = userRepo ?? Get.find<UserRepo>(),
-      _classRepo = classRepo ?? Get.find<ClassRepo>(),
-      _bellScheduleRepo = bellScheduleRepo ?? Get.find<BellScheduleRepo>();
+  }) : _userRepo = userRepo ?? Get.find<UserRepo>(),
+       _classRepo = classRepo ?? Get.find<ClassRepo>(),
+       _bellScheduleRepo = bellScheduleRepo ?? Get.find<BellScheduleRepo>();
 
   final UserRepo _userRepo;
   final ClassRepo _classRepo;
   final BellScheduleRepo _bellScheduleRepo;
 
   bool _initialized = false;
+  Future<void>? _initializeTask;
   Future<bool>? _syncTask;
   StreamSubscription<ConnectivityResult>? _connectivitySub;
 
@@ -85,6 +98,24 @@ class TodayCoursesWidgetRepo {
       StorageUtils.settings.get(_autoSyncEnabledKey) == true;
 
   Future<void> initialize() async {
+    if (!Platform.isAndroid || _initialized) {
+      return;
+    }
+    final activeTask = _initializeTask;
+    if (activeTask != null) {
+      return activeTask;
+    }
+
+    final task = _doInitialize();
+    _initializeTask = task;
+    return task.whenComplete(() {
+      if (identical(_initializeTask, task)) {
+        _initializeTask = null;
+      }
+    });
+  }
+
+  Future<void> _doInitialize() async {
     if (!Platform.isAndroid || _initialized) {
       return;
     }
@@ -100,27 +131,59 @@ class TodayCoursesWidgetRepo {
       await scheduleNextDailyRefresh();
     }
 
-    _connectivitySub = Connectivity().onConnectivityChanged.listen((
-      result,
-    ) {
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((result) {
       if (result != ConnectivityResult.none) {
         _retryPendingSyncIfNeeded();
       }
     });
 
     _initialized = true;
+    if (isAutoSyncEnabled) {
+      unawaited(_retryPendingSyncIfNeeded());
+    }
   }
 
   Future<void> _retryPendingSyncIfNeeded() async {
     if (!isAutoSyncEnabled) return;
+    if (_syncTask != null) return;
     final pending =
         StorageUtils.settings.get(_pendingSyncKey) as bool? ?? false;
     if (!pending) return;
     if (!await _hasNetworkConnection()) return;
 
     LogUtil.info('[TodayCoursesWidget] retrying pending sync');
-    await StorageUtils.settings.put(_pendingSyncKey, false);
     await syncAndUpdate(showLoading: true, reason: 'pending_retry');
+  }
+
+  Future<void> _schedulePendingRetry() async {
+    if (!Platform.isAndroid || !isAutoSyncEnabled) {
+      return;
+    }
+
+    final nextRun = DateTime.now().add(_pendingRetryDelay);
+    await StorageUtils.settings.put(_lastRetryScheduledAtKey, _nowIso());
+    await StorageUtils.settings.put(
+      _lastRetryScheduledRunAtKey,
+      nextRun.toIso8601String(),
+    );
+    try {
+      await Workmanager().registerOneOffTask(
+        _pendingRetryUniqueName,
+        _pendingRetryTaskName,
+        initialDelay: _pendingRetryDelay,
+        existingWorkPolicy: ExistingWorkPolicy.replace,
+      );
+      await StorageUtils.settings.delete(_lastTaskRegisterFailureKey);
+      LogUtil.info(
+        '[TodayCoursesWidget] schedule pending retry nextRun=$nextRun',
+      );
+    } catch (e) {
+      await StorageUtils.settings.put(
+        _lastTaskRegisterFailureKey,
+        _compactReason(e.toString()),
+      );
+      LogUtil.warn('[TodayCoursesWidget] schedule pending retry failed: $e');
+    }
   }
 
   Future<void> setAutoSyncEnabled(bool enabled) async {
@@ -139,9 +202,7 @@ class TodayCoursesWidgetRepo {
     await cancelAutoSync();
   }
 
-  Future<void> scheduleNextDailyRefresh({
-    bool cancelPrevious = true,
-  }) async {
+  Future<void> scheduleNextDailyRefresh({bool cancelPrevious = true}) async {
     if (!Platform.isAndroid) {
       return;
     }
@@ -160,8 +221,9 @@ class TodayCoursesWidgetRepo {
     final workName = _dailyWorkNameFor(nextRun);
     final delay = nextRun.difference(now);
 
-    final previousWorkName =
-        StorageUtils.settings.get(_scheduledDailyWorkNameKey)?.toString();
+    final previousWorkName = StorageUtils.settings
+        .get(_scheduledDailyWorkNameKey)
+        ?.toString();
 
     if (cancelPrevious &&
         previousWorkName != null &&
@@ -192,7 +254,7 @@ class TodayCoursesWidgetRepo {
         workName,
         _dailyRefreshTaskName,
         initialDelay: delay,
-        existingWorkPolicy: ExistingWorkPolicy.keep,
+        existingWorkPolicy: ExistingWorkPolicy.replace,
       );
       await StorageUtils.settings.delete(_lastTaskRegisterFailureKey);
     } catch (e) {
@@ -209,8 +271,9 @@ class TodayCoursesWidgetRepo {
       return;
     }
 
-    final previousWorkName =
-        StorageUtils.settings.get(_scheduledDailyWorkNameKey)?.toString();
+    final previousWorkName = StorageUtils.settings
+        .get(_scheduledDailyWorkNameKey)
+        ?.toString();
 
     if (previousWorkName != null && previousWorkName.isNotEmpty) {
       await Workmanager().cancelByUniqueName(previousWorkName);
@@ -268,8 +331,9 @@ class TodayCoursesWidgetRepo {
       return;
     }
 
-    final previousWorkName =
-        StorageUtils.settings.get(_scheduledDailyWorkNameKey)?.toString();
+    final previousWorkName = StorageUtils.settings
+        .get(_scheduledDailyWorkNameKey)
+        ?.toString();
 
     if (previousWorkName != null && previousWorkName.isNotEmpty) {
       await Workmanager().cancelByUniqueName(previousWorkName);
@@ -277,9 +341,12 @@ class TodayCoursesWidgetRepo {
 
     await Workmanager().cancelByUniqueName(_legacyDailyRefreshUniqueName);
     await Workmanager().cancelByUniqueName(_debugDailyRefreshUniqueName);
+    await Workmanager().cancelByUniqueName(_pendingRetryUniqueName);
     await StorageUtils.settings.delete(_scheduledDailyWorkNameKey);
     await StorageUtils.settings.delete(_lastScheduledAtKey);
     await StorageUtils.settings.delete(_lastScheduledRunAtKey);
+    await StorageUtils.settings.delete(_lastRetryScheduledAtKey);
+    await StorageUtils.settings.delete(_lastRetryScheduledRunAtKey);
     LogUtil.info('[TodayCoursesWidget] cancel daily sync');
   }
 
@@ -336,9 +403,10 @@ class TodayCoursesWidgetRepo {
         );
         if (_shouldMarkPendingSync(reason)) {
           await StorageUtils.settings.put(_pendingSyncKey, true);
+          await _schedulePendingRetry();
         }
         await _showCachedOrError(
-          cachedStatusText: '当前无网络，已显示上次结果',
+          cachedStatusText: '数据过期，当前无网络，已显示上次结果，请打开 App 手动同步',
           emptyStatusText: '当前无网络，暂无课程缓存',
           fallbackState: TodayCoursesWidgetState.error,
         );
@@ -355,7 +423,11 @@ class TodayCoursesWidgetRepo {
           LogUtil.warn(
             '[TodayCoursesWidget] sync aborted because user is not logged in',
           );
-          await clearAndUpdate(statusText: '登录后可查看今日课程');
+          await _showCachedOrError(
+            cachedStatusText: '登录后可查看今日课程',
+            emptyStatusText: '登录后可查看今日课程',
+            fallbackState: TodayCoursesWidgetState.loggedOut,
+          );
           await _recordSyncFailure('not logged in');
         } else {
           LogUtil.warn(
@@ -367,7 +439,9 @@ class TodayCoursesWidgetRepo {
             emptyStatusText: '登录状态失效，请打开 App 重新登录',
             fallbackState: TodayCoursesWidgetState.error,
           );
-          await _recordSyncFailure('stored login exists but session is invalid');
+          await _recordSyncFailure(
+            'stored login exists but session is invalid',
+          );
         }
         return false;
       }
@@ -375,6 +449,7 @@ class TodayCoursesWidgetRepo {
       final snapshot = await _syncTodaySnapshot();
       await updateFromSnapshot(snapshot);
       await StorageUtils.settings.put(_pendingSyncKey, false);
+      await Workmanager().cancelByUniqueName(_pendingRetryUniqueName);
       await _recordSyncSuccess();
       if (reason == _dailyRefreshTaskName) {
         await MorningBriefingService.show(snapshot);
@@ -387,10 +462,14 @@ class TodayCoursesWidgetRepo {
     } catch (e, s) {
       LogUtil.errorE('[TodayCoursesWidget] sync failed', e, s);
       final hasNetwork = await _hasNetworkConnection();
+      if (!hasNetwork && _shouldMarkPendingSync(reason)) {
+        await StorageUtils.settings.put(_pendingSyncKey, true);
+        await _schedulePendingRetry();
+      }
       await _showCachedOrError(
         cachedStatusText: hasNetwork
-            ? '刷新失败，已显示上次结果'
-            : '当前无网络，已显示上次结果',
+            ? '数据过期，刷新失败，已显示上次结果，请打开 App 手动同步'
+            : '数据过期，当前无网络，已显示上次结果，请打开 App 手动同步',
         emptyStatusText: hasNetwork ? '刷新失败，请稍后重试' : '当前无网络，暂无课程缓存',
         fallbackState: TodayCoursesWidgetState.error,
       );
@@ -478,11 +557,16 @@ class TodayCoursesWidgetRepo {
       return;
     }
     await _saveCoreData(entry.snapshot, updatedAt: entry.savedAt);
+    final state = entry.isFromToday
+        ? TodayCoursesWidgetState.ready
+        : TodayCoursesWidgetState.readyStale;
     await _writeState(
-      state: TodayCoursesWidgetState.ready,
-      statusText: entry.snapshot.items.isEmpty
-          ? '今天没有课程安排'
-          : entry.snapshot.headlineText,
+      state: state,
+      statusText: entry.isFromToday
+          ? (entry.snapshot.items.isEmpty
+                ? '今天没有课程安排'
+                : entry.snapshot.headlineText)
+          : '数据过期，显示上次缓存，请打开 App 手动同步',
     );
     await _updateWidget();
   }
@@ -493,6 +577,7 @@ class TodayCoursesWidgetRepo {
 
   Map<String, String> diagnosticSnapshot() {
     String read(String key) => StorageUtils.settings.get(key)?.toString() ?? '';
+    final entry = loadCachedTodaySnapshotEntry();
     return {
       'autoSyncEnabled': isAutoSyncEnabled.toString(),
       'pendingSync': (StorageUtils.settings.get(_pendingSyncKey) == true)
@@ -500,13 +585,21 @@ class TodayCoursesWidgetRepo {
       'scheduledDailyWorkName': read(_scheduledDailyWorkNameKey),
       'lastScheduledAt': read(_lastScheduledAtKey),
       'lastScheduledRunAt': read(_lastScheduledRunAtKey),
+      'lastRetryScheduledAt': read(_lastRetryScheduledAtKey),
+      'lastRetryScheduledRunAt': read(_lastRetryScheduledRunAtKey),
       'lastSyncStartedAt': read(_lastSyncStartedAtKey),
       'lastSyncSuccessAt': read(_lastSyncSuccessAtKey),
       'lastSyncFailureAt': read(_lastSyncFailureAtKey),
       'lastSyncFailureReason': read(_lastSyncFailureReasonKey),
+      'taskCallbackExecuted': read(
+        _lastTaskCallbackAtKey,
+      ).isNotEmpty.toString(),
       'lastTaskCallbackAt': read(_lastTaskCallbackAtKey),
       'lastTaskCallbackName': read(_lastTaskCallbackNameKey),
       'lastTaskRegisterFailure': read(_lastTaskRegisterFailureKey),
+      'cacheDate': _formatCacheDate(entry?.cacheDate),
+      'cacheSavedAt': entry?.savedAt.toIso8601String() ?? '',
+      'cacheStale': entry == null ? '' : (!entry.isFromToday).toString(),
       'widgetState': read(_diagnosticStateKey),
       'widgetStatusText': read(_diagnosticStatusTextKey),
       'lastProviderUpdateAt': read(_lastProviderUpdateAtKey),
@@ -597,7 +690,7 @@ class TodayCoursesWidgetRepo {
     if (entry != null) {
       await _saveCoreData(entry.snapshot, updatedAt: entry.savedAt);
       await _writeState(
-        state: TodayCoursesWidgetState.ready,
+        state: TodayCoursesWidgetState.readyStale,
         statusText: cachedStatusText,
       );
       await _updateWidget();
@@ -687,7 +780,9 @@ class TodayCoursesWidgetRepo {
           name: name,
           qualifiedAndroidName: '$_androidPackageName.$name',
         );
-        LogUtil.info('[TodayCoursesWidget] updateWidget success provider=$name');
+        LogUtil.info(
+          '[TodayCoursesWidget] updateWidget success provider=$name',
+        );
       } catch (e, s) {
         hasFailure = true;
         final reason = 'provider=$name error=${e.toString()}';
@@ -709,15 +804,29 @@ class TodayCoursesWidgetRepo {
   }
 
   String _buildUpdateTimeText(DateTime dateTime) {
+    final year = dateTime.year.toString().padLeft(4, '0');
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final day = dateTime.day.toString().padLeft(2, '0');
     final hour = dateTime.hour.toString().padLeft(2, '0');
     final minute = dateTime.minute.toString().padLeft(2, '0');
-    return '更新于 $hour:$minute';
+    return '更新于 $year-$month-$day $hour:$minute';
+  }
+
+  String _formatCacheDate(DateTime? dateTime) {
+    if (dateTime == null) {
+      return '';
+    }
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final day = dateTime.day.toString().padLeft(2, '0');
+    return '${dateTime.year}-$month-$day';
   }
 
   bool _shouldMarkPendingSync(String reason) {
     return reason == _dailyRefreshTaskName ||
+        reason == _pendingRetryTaskName ||
         reason == 'auto_sync_enabled' ||
-        reason == 'pending_retry';
+        reason == 'pending_retry' ||
+        reason == 'widget_button';
   }
 
   Future<void> _recordSyncStarted(String reason) async {
@@ -769,7 +878,7 @@ void todayCoursesWidgetCallbackDispatcher() {
       );
 
       final success = await Get.find<TodayCoursesWidgetRepo>().syncAndUpdate(
-        reason: taskName,
+        reason: taskName == _pendingRetryTaskName ? 'pending_retry' : taskName,
       );
 
       LogUtil.info(

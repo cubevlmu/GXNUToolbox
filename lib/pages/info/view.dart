@@ -5,6 +5,7 @@
  */
 
 import 'package:class_tool/pages/info/controller.dart';
+import 'package:class_tool/data/model/student_info.dart';
 import 'package:class_tool/ui/app_context.dart';
 import 'package:class_tool/ui/app_empty_state.dart';
 import 'package:class_tool/ui/app_icon_button.dart';
@@ -86,6 +87,7 @@ class _InfoPageState extends State<InfoPage> {
                   studentId: info.basic.studentId ?? '',
                   subtitle:
                       '${info.basic.gender ?? ''} · ${info.basic.birthDate ?? ''}',
+                  admissionPhoto: controller.admissionPhoto,
                 ),
                 const SizedBox(height: AppTokens.gap16),
                 _InfoSection(
@@ -170,18 +172,18 @@ class _InfoHeader extends StatelessWidget {
             children: [
               Text(
                 '学生信息',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: AppTokens.gap4),
               Text(
                 '查看学籍、基本信息与联系方式',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
               ),
             ],
           ),
@@ -202,60 +204,97 @@ class _ProfileSummary extends StatelessWidget {
     required this.name,
     required this.studentId,
     required this.subtitle,
+    required this.admissionPhoto,
   });
 
   final String name;
   final String studentId;
   final String subtitle;
+  final StudentPhoto? admissionPhoto;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
     return AppSurface(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       backgroundColor: colors.primarySoft,
       borderColor: colors.primary.withValues(alpha: 0.2),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: colors.primary,
-              borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-            ),
-            child: Icon(AppIcons.person, color: colors.textInverse),
-          ),
+          _StudentPhotoFrame(photo: admissionPhoto),
           const SizedBox(width: AppTokens.gap12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name.isEmpty ? '学生' : name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name.isEmpty ? '学生' : name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: AppTokens.gap6),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  if (studentId.isNotEmpty) ...[
+                    const SizedBox(height: AppTokens.gap8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: AppTag(
+                        label: studentId,
+                        variant: AppTagVariant.primary,
                       ),
-                ),
-                const SizedBox(height: AppTokens.gap4),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                ),
-              ],
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
-          if (studentId.isNotEmpty)
-            AppTag(label: studentId, variant: AppTagVariant.primary),
         ],
       ),
+    );
+  }
+}
+
+class _StudentPhotoFrame extends StatelessWidget {
+  const _StudentPhotoFrame({required this.photo});
+
+  final StudentPhoto? photo;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final image = photo;
+    return Container(
+      width: 72,
+      height: 92,
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        border: Border.all(color: colors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: image != null && image.isNotEmpty
+          ? Image.memory(image.bytes, fit: BoxFit.cover, gaplessPlayback: true)
+          : Center(
+              child: Icon(
+                AppIcons.person,
+                color: colors.textSecondary,
+                size: AppTokens.iconLg,
+              ),
+            ),
     );
   }
 }
@@ -292,8 +331,8 @@ class _InfoSection extends StatelessWidget {
                 child: Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
@@ -337,18 +376,18 @@ class _InfoRow extends StatelessWidget {
           child: Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: highlighted ? colors.primary : colors.textSecondary,
-                  fontWeight: highlighted ? FontWeight.w700 : FontWeight.w500,
-                ),
+              color: highlighted ? colors.primary : colors.textSecondary,
+              fontWeight: highlighted ? FontWeight.w700 : FontWeight.w500,
+            ),
           ),
         ),
         const SizedBox(width: AppTokens.gap10),
         Expanded(
           child: Text(
             value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
         ),
       ],

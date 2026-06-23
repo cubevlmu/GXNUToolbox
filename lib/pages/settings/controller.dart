@@ -1,11 +1,16 @@
 import 'dart:io';
 
+import 'package:class_tool/data/api/api_diagnostics.dart';
 import 'package:class_tool/data/services/morning_briefing_service.dart';
 import 'package:class_tool/data/services/app_update_service.dart';
 import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
+import 'package:class_tool/utils/app_info_util.dart';
+import 'package:class_tool/utils/log_util.dart';
 import 'package:class_tool/utils/storage_utils.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 const Map<String, String> _campusNameMap = <String, String>{
@@ -20,6 +25,8 @@ class SettingsController extends GetxController {
       _todayCoursesWidgetRepo = Get.find<TodayCoursesWidgetRepo>();
 
   static const String _themeModeKey = 'theme_mode';
+  static const String _developerModeKey = 'developer_mode_enabled';
+  static const int _developerModeTapThreshold = 7;
 
   final UserRepo _userRepo;
   final TodayCoursesWidgetRepo _todayCoursesWidgetRepo;
@@ -33,9 +40,12 @@ class SettingsController extends GetxController {
   final RxBool morningBriefingEnabled = MorningBriefingService.isEnabled.obs;
   final RxBool startupUpdatePromptEnabled =
       AppUpdateService.startupOptionalUpdatePromptEnabled.obs;
+  final RxBool developerModeEnabled = _loadDeveloperModeEnabled().obs;
+  int _developerModeTapCount = 0;
 
   bool get supportsScheduledSync => Platform.isAndroid;
   bool get supportsMorningBriefing => Platform.isAndroid;
+  bool get showDiagnosticLogs => kDebugMode || developerModeEnabled.value;
 
   @override
   void onInit() {
@@ -107,6 +117,26 @@ class SettingsController extends GetxController {
     await AppUpdateService.setStartupOptionalUpdatePromptEnabled(enabled);
   }
 
+  bool registerDeveloperModeTap() {
+    if (showDiagnosticLogs) {
+      return false;
+    }
+    _developerModeTapCount += 1;
+    if (_developerModeTapCount < _developerModeTapThreshold) {
+      return false;
+    }
+    _developerModeTapCount = 0;
+    return true;
+  }
+
+  Future<void> enableDeveloperMode() async {
+    if (developerModeEnabled.value) {
+      return;
+    }
+    developerModeEnabled.value = true;
+    await StorageUtils.settings.put(_developerModeKey, true);
+  }
+
   Future<void> runMorningSyncDebug() async {
     if (!supportsScheduledSync) {
       return;
@@ -134,18 +164,45 @@ class SettingsController extends GetxController {
       '计划任务: ${value('scheduledDailyWorkName')}',
       '计划时间: ${value('lastScheduledRunAt')}',
       '上次安排: ${value('lastScheduledAt')}',
+      '重试安排: ${value('lastRetryScheduledRunAt')}',
+      '上次重试安排: ${value('lastRetryScheduledAt')}',
       '上次开始: ${value('lastSyncStartedAt')}',
       '上次成功: ${value('lastSyncSuccessAt')}',
       '上次失败: ${value('lastSyncFailureAt')}',
       '失败原因: ${value('lastSyncFailureReason')}',
+      '回调执行: ${value('taskCallbackExecuted')}',
       '任务回调: ${value('lastTaskCallbackAt')}',
       '回调名称: ${value('lastTaskCallbackName')}',
       '登记错误: ${value('lastTaskRegisterFailure')}',
+      '缓存日期: ${value('cacheDate')}',
+      '缓存保存: ${value('cacheSavedAt')}',
+      '缓存过期: ${value('cacheStale')}',
       '显示状态: ${value('widgetState')}',
       '状态文案: ${value('widgetStatusText')}',
       'Provider刷新: ${value('lastProviderUpdateAt')}',
       'Provider错误: ${value('lastProviderUpdateFailure')}',
     ].join('\n');
+  }
+
+  String diagnosticLogPath() {
+    return LogUtil.logFile.path;
+  }
+
+  Future<String> buildDiagnosticSummary() async {
+    final version = await AppInfoUtil.getVersionLabel();
+    return [
+      'App version: $version',
+      'Platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
+      'Log file: ${diagnosticLogPath()}',
+      ApiDiagnostics.diagnosticSummary(),
+      'Widget diagnostics:',
+      widgetSyncDiagnosticText(),
+    ].join('\n');
+  }
+
+  Future<void> copyDiagnosticSummary() async {
+    final text = await buildDiagnosticSummary();
+    await Clipboard.setData(ClipboardData(text: text));
   }
 
   Future<void> logout() async {
@@ -166,6 +223,10 @@ class SettingsController extends GetxController {
       default:
         return ThemeMode.system;
     }
+  }
+
+  static bool _loadDeveloperModeEnabled() {
+    return kDebugMode || StorageUtils.settings.get(_developerModeKey) == true;
   }
 
   Future<void> _normalizePlatformSpecificSettings() async {

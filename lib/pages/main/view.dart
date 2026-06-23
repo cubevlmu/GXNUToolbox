@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:class_tool/data/repo/bell_schedule_repo.dart';
-import 'package:class_tool/data/repo/user_repo.dart';
 import 'package:class_tool/pages/classes/controller.dart';
 import 'package:class_tool/pages/classes/view.dart';
 import 'package:class_tool/pages/features/view.dart';
@@ -31,10 +29,6 @@ class _MainPageState extends State<MainPage> {
     controller = Get.put(MainController());
     final classesController = Get.put(ClassesController());
     Get.put(HomeController());
-    final userRepo = Get.find<UserRepo>();
-    if (userRepo.isLogin && !userRepo.isOfflineMode) {
-      unawaited(Get.find<BellScheduleRepo>().ensureLoaded());
-    }
     if (!classesController.isLoading && !classesController.hasScheduleData) {
       unawaited(
         classesController.syncScheduleOverview(syncExternalOutputs: true),
