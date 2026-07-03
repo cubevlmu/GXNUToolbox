@@ -1,7 +1,7 @@
 import 'package:class_tool/pages/classes/controller.dart';
 import 'package:class_tool/pages/classes/widgets/course_detail_sheet.dart';
-import 'package:fui/app_colors.dart';
-import 'package:fui/app_context.dart';
+import 'package:fin_ui/app_colors.dart';
+import 'package:fin_ui/app_context.dart';
 import 'package:flutter/material.dart';
 
 class ScheduleTableContent extends StatelessWidget {

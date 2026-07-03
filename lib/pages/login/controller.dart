@@ -6,7 +6,7 @@
 import 'package:class_tool/data/repo/user_repo.dart';
 import 'package:class_tool/pages/settings/controller.dart';
 import 'package:class_tool/pages/splash/view.dart';
-import 'package:fui/app_toast.dart';
+import 'package:fin_ui/app_toast.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:class_tool/utils/shared_dialog.dart';
 import 'package:get/get.dart';

@@ -6,16 +6,16 @@
 
 import 'package:class_tool/data/model/bell_schedule.dart';
 import 'package:class_tool/pages/time/controller.dart';
-import 'package:fui/app_context.dart';
-import 'package:fui/app_empty_state.dart';
-import 'package:fui/app_icon_button.dart';
-import 'package:fui/app_icons.dart';
-import 'package:fui/app_page.dart';
-import 'package:fui/app_segmented_control.dart';
-import 'package:fui/app_surface.dart';
-import 'package:fui/app_tag.dart';
-import 'package:fui/app_tokens.dart';
-import 'package:fui/fui_page_head.dart';
+import 'package:fin_ui/app_context.dart';
+import 'package:fin_ui/app_empty_state.dart';
+import 'package:fin_ui/app_icon_button.dart';
+import 'package:fin_ui/app_icons.dart';
+import 'package:fin_ui/app_page.dart';
+import 'package:fin_ui/app_segmented_control.dart';
+import 'package:fin_ui/app_surface.dart';
+import 'package:fin_ui/app_tag.dart';
+import 'package:fin_ui/app_tokens.dart';
+import 'package:fin_ui/fui_page_head.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';

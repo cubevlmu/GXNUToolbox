@@ -1,4 +1,4 @@
-import 'package:fui/app_context.dart';
+import 'package:fin_ui/app_context.dart';
 import 'package:flutter/material.dart';
 
 class SkeletonShimmer extends StatefulWidget {

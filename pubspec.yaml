@@ -14,8 +14,7 @@ dependencies:
     
   gx_update_client:
     path: packages/gx_update_client
-  fui:
-    path: ../../fui
+  fin_ui: ^0.1.0
 
   get: ^4.7.3
   dio: ^5.3.2

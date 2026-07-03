@@ -7,7 +7,7 @@
 import 'package:class_tool/pages/splash/view.dart';
 import 'package:class_tool/pages/settings/controller.dart';
 import 'package:flutter/material.dart';
-import 'package:fui/fui.dart';
+import 'package:fin_ui/fui.dart';
 import 'package:get/get.dart';
 
 @immutable

@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:class_tool/data/services/app_update_service.dart';
-import 'package:fui/app_button.dart';
-import 'package:fui/app_toast.dart';
+import 'package:fin_ui/app_button.dart';
+import 'package:fin_ui/app_toast.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:class_tool/utils/shared_dialog.dart';
 import 'package:flutter/material.dart';

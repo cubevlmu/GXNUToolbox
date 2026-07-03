@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:fui/app_context.dart';
-import 'package:fui/app_icons.dart';
-import 'package:fui/app_tokens.dart';
+import 'package:fin_ui/app_context.dart';
+import 'package:fin_ui/app_icons.dart';
+import 'package:fin_ui/app_tokens.dart';
 import 'package:easy_refresh/easy_refresh.dart';
 import 'package:flutter/material.dart';
 

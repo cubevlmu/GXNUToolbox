@@ -329,6 +329,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.0.1"
+  fin_ui:
+    dependency: "direct main"
+    description:
+      name: fin_ui
+      sha256: "687c17f0237aecfc006ad3c5536009ea774d02aeca2a40fddbee01993a90d920"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.0"
   fixnum:
     dependency: transitive
     description:
@@ -456,13 +464,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  fui:
-    dependency: "direct main"
-    description:
-      path: "../../fui"
-      relative: true
-    source: path
-    version: "0.0.1"
   get:
     dependency: "direct main"
     description:
