@@ -41,10 +41,7 @@ class PeriodItem {
 
 @immutable
 class CampusSchedule {
-  const CampusSchedule({
-    required this.campusName,
-    required this.periods,
-  });
+  const CampusSchedule({required this.campusName, required this.periods});
 
   final String campusName;
   final List<PeriodItem> periods;
@@ -78,10 +75,12 @@ class BellScheduleResponse {
 
   Map<String, dynamic> toJson() => {
     'xqList': campuses
-        .map((c) => {
-          'xqsj': {'xqmc': c.campusName},
-          'list': c.periods.map((p) => p.toJson()).toList(),
-        })
+        .map(
+          (c) => {
+            'xqsj': {'xqmc': c.campusName},
+            'list': c.periods.map((p) => p.toJson()).toList(),
+          },
+        )
         .toList(),
   };
 }

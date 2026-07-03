@@ -6,7 +6,7 @@
 import 'package:class_tool/data/repo/user_repo.dart';
 import 'package:class_tool/pages/settings/controller.dart';
 import 'package:class_tool/pages/splash/view.dart';
-import 'package:class_tool/ui/app_toast.dart';
+import 'package:fui/app_toast.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:class_tool/utils/shared_dialog.dart';
 import 'package:get/get.dart';
@@ -56,12 +56,12 @@ class LoginController extends GetxController {
     final trimmedAccount = account.trim();
     if (trimmedAccount.isEmpty) {
       LogUtil.warn('[LoginController] login blocked: empty username');
-      AppToast.warningGlobal(message: '请输入学号或工号');
+      FUIToast.warningGlobal(message: '请输入学号或工号');
       return;
     }
     if (password.isEmpty) {
       LogUtil.warn('[LoginController] login blocked: empty password');
-      AppToast.warningGlobal(message: '请输入密码');
+      FUIToast.warningGlobal(message: '请输入密码');
       return;
     }
 
@@ -97,9 +97,9 @@ class LoginController extends GetxController {
         : _userRepo.lastLoginError;
     final context = Get.context;
     if (context == null) {
-      AppToast.showGlobal(
+      FUIToast.showGlobal(
         title: '登录失败',
-        type: AppToastType.error,
+        type: FUIToastType.error,
         duration: const Duration(seconds: 4),
         message: message,
       );

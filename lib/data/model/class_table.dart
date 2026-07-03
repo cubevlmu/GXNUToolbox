@@ -27,11 +27,7 @@ class ClassTableMetaResponse {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'ret': ret,
-      'msg': msg,
-      'data': data.toJson(),
-    };
+    return {'ret': ret, 'msg': msg, 'data': data.toJson()};
   }
 }
 
@@ -112,10 +108,7 @@ class ClassPeriodSetting {
 
 @immutable
 class ClassWeekRange {
-  const ClassWeekRange({
-    required this.weekText,
-    required this.dateRangeText,
-  });
+  const ClassWeekRange({required this.weekText, required this.dateRangeText});
 
   final String weekText;
   final String dateRangeText;
@@ -131,10 +124,7 @@ class ClassWeekRange {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'zc': weekText,
-      'rqfw': dateRangeText,
-    };
+    return {'zc': weekText, 'rqfw': dateRangeText};
   }
 }
 

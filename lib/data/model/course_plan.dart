@@ -69,10 +69,7 @@ class CoursePlanItem {
 
 @immutable
 class CoursePlanGroup {
-  const CoursePlanGroup({
-    required this.name,
-    required this.items,
-  });
+  const CoursePlanGroup({required this.name, required this.items});
 
   final String name;
   final List<CoursePlanItem> items;
@@ -90,9 +87,7 @@ class CoursePlanGroup {
 
 @immutable
 class CoursePlanSection {
-  const CoursePlanSection({
-    required this.groups,
-  });
+  const CoursePlanSection({required this.groups});
 
   final List<CoursePlanGroup> groups;
 

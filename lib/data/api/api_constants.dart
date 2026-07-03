@@ -51,6 +51,10 @@ class ApiConstants {
       '$jwjxBaseUrl/jw/admin/xsd/yxkccx/listYxkc';
   static const String jwjxMessageListUrl =
       '$jwjxBaseUrl/jw/admin/workcenter/message/getList';
+  static const String jwjxMessageUpdateStateUrl =
+      '$jwjxBaseUrl/jw/admin/workcenter/message/updateState';
+  static const String jwjxMessageDeleteUrl =
+      '$jwjxBaseUrl/jw/admin/workcenter/message/deleteNoticeToRecycleBin';
   static const String userAgent =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36';
 }

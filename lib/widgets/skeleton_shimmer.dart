@@ -1,4 +1,4 @@
-import 'package:class_tool/ui/app_context.dart';
+import 'package:fui/app_context.dart';
 import 'package:flutter/material.dart';
 
 class SkeletonShimmer extends StatefulWidget {
@@ -37,12 +37,16 @@ class _SkeletonShimmerState extends State<SkeletonShimmer>
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final baseTone = colors.surfaceAlt;
-    final highlightTone = Color.lerp(
-      colors.surfaceAlt,
-      colors.surfacePressed,
-      0.72,
-    )!;
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final baseTone = isLight
+        ? Color.lerp(colors.surfaceAlt, colors.border, 0.58)!
+        : Color.lerp(colors.surfaceAlt, colors.surfacePressed, 0.28)!;
+    final highlightTone = isLight
+        ? Color.lerp(colors.surface, colors.surfaceAlt, 0.16)!
+        : Color.lerp(colors.surfacePressed, colors.borderStrong, 0.34)!;
+    final borderTone = isLight
+        ? colors.border.withValues(alpha: 0.54)
+        : colors.border.withValues(alpha: 0.34);
 
     return AnimatedBuilder(
       animation: _controller,
@@ -54,6 +58,7 @@ class _SkeletonShimmerState extends State<SkeletonShimmer>
               progress: _controller.value,
               baseColor: baseTone,
               highlightColor: highlightTone,
+              borderColor: borderTone,
               highlightStrength: widget.highlightStrength,
             ),
           ),
@@ -68,12 +73,14 @@ class SkeletonPalette {
     required this.progress,
     required this.baseColor,
     required this.highlightColor,
+    required this.borderColor,
     required this.highlightStrength,
   });
 
   final double progress;
   final Color baseColor;
   final Color highlightColor;
+  final Color borderColor;
   final double highlightStrength;
 
   BoxDecoration line({double radius = 999}) =>
@@ -105,6 +112,7 @@ class SkeletonPalette {
     return BoxDecoration(
       shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
       borderRadius: isCircle ? null : BorderRadius.circular(radius),
+      border: Border.all(color: borderColor, width: 0.7),
       gradient: LinearGradient(
         begin: Alignment(startX, 0),
         end: Alignment(endX, 0),

@@ -857,6 +857,92 @@ class Api {
     return SchoolNotificationQueryResponse.fromJson(json);
   }
 
+  static Future<void> markNotificationsRead({required List<String> ids}) async {
+    final normalizedIds = ids
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    if (normalizedIds.isEmpty) {
+      return;
+    }
+
+    await _http.init();
+
+    final response = await _http.post<String>(
+      ApiConstants.jwjxMessageUpdateStateUrl,
+      data: {'ids': normalizedIds.join(',')},
+      options: Options(
+        responseType: ResponseType.plain,
+        contentType: Headers.formUrlEncodedContentType,
+        headers: {
+          HttpHeaders.acceptHeader: 'application/json, text/plain, */*',
+          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+          HttpHeaders.refererHeader:
+              '${ApiConstants.jwjxBaseUrl}/jw/frontend/views/workCenter/message/index.html',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        followRedirects: true,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
+      ),
+    );
+
+    final json = _decodeJsonMapResponse(response, 'notification read state');
+    final ret = _asInt(json['ret']);
+    if (ret == -1) {
+      throw const ApiLoginExpiredException();
+    }
+    if (ret != 0) {
+      throw ApiInvalidResponseException(
+        json['msg']?.toString() ?? 'Invalid notification read response',
+      );
+    }
+  }
+
+  static Future<void> deleteNotifications({required List<String> ids}) async {
+    final normalizedIds = ids
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    if (normalizedIds.isEmpty) {
+      return;
+    }
+
+    await _http.init();
+
+    final response = await _http.post<String>(
+      ApiConstants.jwjxMessageDeleteUrl,
+      data: {'ids': normalizedIds.join(',')},
+      options: Options(
+        responseType: ResponseType.plain,
+        contentType: Headers.formUrlEncodedContentType,
+        headers: {
+          HttpHeaders.acceptHeader: 'application/json, text/plain, */*',
+          HttpHeaders.acceptLanguageHeader: 'zh-CN,zh;q=0.9',
+          HttpHeaders.refererHeader:
+              '${ApiConstants.jwjxBaseUrl}/jw/frontend/views/workCenter/message/index.html',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        followRedirects: true,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
+      ),
+    );
+
+    final json = _decodeJsonMapResponse(response, 'notification delete');
+    final ret = _asInt(json['ret']);
+    if (ret == -1) {
+      throw const ApiLoginExpiredException();
+    }
+    if (ret != 0) {
+      throw ApiInvalidResponseException(
+        json['msg']?.toString() ?? 'Invalid notification delete response',
+      );
+    }
+  }
+
   static Future<ClassTableMetaResponse> getClassTableMeta({
     required String semester,
     required String userId,

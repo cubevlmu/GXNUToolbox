@@ -29,13 +29,15 @@ class ExamRepo {
       return activeTask;
     }
 
-    final task = _helper.runWithLoginRetry(
-      'fetch exam filter options',
-      Api.getExamFilterOptions,
-    ).then((options) {
-      _filterOptions = options;
-      return options;
-    });
+    final task = _helper
+        .runWithLoginRetry(
+          'fetch exam filter options',
+          Api.getExamFilterOptions,
+        )
+        .then((options) {
+          _filterOptions = options;
+          return options;
+        });
     _filterOptionsTask = task;
     return task.whenComplete(() {
       if (identical(_filterOptionsTask, task)) {
@@ -56,13 +58,15 @@ class ExamRepo {
     }
 
     return _helper.dedupe(_batchTasks, semester, () {
-      return _helper.runWithLoginRetry(
-        'fetch exam batches',
-        () => Api.getExamBatches(semester: semester),
-      ).then((batches) {
-        _batchCache[semester] = batches;
-        return batches;
-      });
+      return _helper
+          .runWithLoginRetry(
+            'fetch exam batches',
+            () => Api.getExamBatches(semester: semester),
+          )
+          .then((batches) {
+            _batchCache[semester] = batches;
+            return batches;
+          });
     });
   }
 

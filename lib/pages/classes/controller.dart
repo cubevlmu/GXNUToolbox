@@ -355,6 +355,32 @@ class ClassesController extends GetxController {
     }
   }
 
+  Future<void> changeWeekByOffset(int offset) async {
+    if (offset == 0 || isLoading) {
+      return;
+    }
+    final weekOptions = weeks;
+    if (weekOptions.isNotEmpty) {
+      final currentIndex = weekOptions.indexWhere(
+        (item) => _parseWeekLabel(item.label) == _selectedWeek.value,
+      );
+      if (currentIndex >= 0) {
+        final nextIndex = currentIndex + offset;
+        if (nextIndex < 0 || nextIndex >= weekOptions.length) {
+          return;
+        }
+        await changeWeek(weekOptions[nextIndex].label);
+        return;
+      }
+    }
+
+    final nextWeek = _selectedWeek.value + offset;
+    if (nextWeek <= 0) {
+      return;
+    }
+    await changeWeek('第$nextWeek周');
+  }
+
   Future<void> returnToToday({ValueChanged<int>? onWeekdayResolved}) async {
     final todaySemester = _resolveTodaySemesterValue();
     if (todaySemester.isNotEmpty && selectedSemester != todaySemester) {
@@ -379,6 +405,10 @@ class ClassesController extends GetxController {
 
   Future<void> refreshSchedule() async {
     await syncScheduleOverview(forceRefresh: true, syncExternalOutputs: true);
+  }
+
+  int? _parseWeekLabel(String raw) {
+    return int.tryParse(raw.replaceAll('第', '').replaceAll('周', '').trim());
   }
 
   List<ScheduleDay> _buildScheduleDays(List<ClassMeta> items) {
@@ -816,5 +846,4 @@ class ClassesController extends GetxController {
       LogUtil.warnE('[ClassesController] bell schedule preload failed', e, s);
     }
   }
-
 }

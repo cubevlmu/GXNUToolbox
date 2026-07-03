@@ -1,11 +1,11 @@
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_icon_button.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_page.dart';
-import 'package:class_tool/ui/app_section.dart';
-import 'package:class_tool/ui/app_surface.dart';
-import 'package:class_tool/ui/app_tile.dart';
-import 'package:class_tool/ui/app_tokens.dart';
+import 'package:fui/app_context.dart';
+import 'package:fui/app_icons.dart';
+import 'package:fui/app_page.dart';
+import 'package:fui/app_section.dart';
+import 'package:fui/app_surface.dart';
+import 'package:fui/app_tile.dart';
+import 'package:fui/app_tokens.dart';
+import 'package:fui/fui_page_head.dart';
 import 'package:class_tool/utils/app_info_util.dart';
 import 'package:class_tool/utils/shared_dialog.dart';
 import 'package:flutter/material.dart';
@@ -22,11 +22,11 @@ class AboutPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colors.background,
-      body: AppPage(
+      body: FUIPage(
         children: [
           const _AboutHeader(),
-          const SizedBox(height: AppTokens.gap16),
-          AppSurface(
+          const SizedBox(height: FUITokens.gap16),
+          FUISurface(
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
@@ -74,11 +74,11 @@ class AboutPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          AppSection(
+          FUISection(
             title: '联系方式',
             children: [
-              AppTile(
-                icon: AppIcons.info,
+              FUITile(
+                icon: FUIIcons.info,
                 title: '联系作者',
                 subtitle: '邮箱: khfahqp@gmail.com',
                 showChevron: false,
@@ -87,27 +87,27 @@ class AboutPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          AppSection(
+          FUISection(
             title: '项目信息',
             children: const [
               _AboutInfoTile(
-                icon: AppIcons.classroom,
+                icon: FUIIcons.classroom,
                 title: '服务内容',
                 subtitle: '提供课程表、教学周次、每日安排、基础账户信息与常用教务系统功能查询。',
               ),
               _AboutInfoTile(
-                icon: AppIcons.info,
+                icon: FUIIcons.info,
                 title: '登录注意事项',
                 subtitle:
                     'App 会在本地模拟网页登录学校系统。若触发验证码、异地登录校验、安全保护或登录失败次数过多，可能需要先通过浏览器完成一次人工登录。',
               ),
               _AboutInfoTile(
-                icon: AppIcons.building,
+                icon: FUIIcons.building,
                 title: '平台支持说明',
                 subtitle: '自动同步、早安提醒、小组件与相关后台任务目前仅支持 Android 端；桌面端不提供这些功能入口。',
               ),
               _AboutInfoTile(
-                icon: AppIcons.privacy,
+                icon: FUIIcons.privacy,
                 title: '隐私与安全提示',
                 subtitle:
                     '账号密码仅用于本机直接登录学校系统；课程表等数据请求均由你的设备直接发送到学校服务器。开发者服务器不会转发、记录或保存学校系统请求和数据，仅提供版本检测与更新服务。',
@@ -134,7 +134,7 @@ class AboutPage extends StatelessWidget {
       cancelText: '取消',
       confirmText: '开启',
       variant: SharedDialogVariant.warning,
-      icon: AppIcons.bug,
+      icon: FUIIcons.bug,
     );
     if (!confirmed) {
       return;
@@ -159,42 +159,7 @@ class _AboutHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return Row(
-      children: [
-        AppIconButton(
-          icon: AppIcons.chevronLeft,
-          tooltip: '返回',
-          variant: AppIconButtonVariant.outline,
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        const SizedBox(width: AppTokens.gap8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '关于',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: AppTokens.gap2),
-              Text(
-                '应用信息、平台说明与隐私提示',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
+    return const FuiPageHead(title: '关于', subtitle: '应用信息、平台说明与隐私提示');
   }
 }
 
@@ -213,7 +178,7 @@ class _AboutInfoTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Padding(
-      padding: AppInsets.tile,
+      padding: FUIInsets.tile,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -222,9 +187,9 @@ class _AboutInfoTile extends StatelessWidget {
             height: 36,
             decoration: BoxDecoration(
               color: colors.primarySoft,
-              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+              borderRadius: BorderRadius.circular(FUITokens.radiusSm),
             ),
-            child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
+            child: Icon(icon, size: FUITokens.iconMd, color: colors.primary),
           ),
           const SizedBox(width: 12),
           Expanded(

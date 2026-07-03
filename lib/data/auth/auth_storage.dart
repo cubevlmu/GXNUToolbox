@@ -12,9 +12,7 @@ import 'package:hive/hive.dart';
 
 class AuthStorage {
   final FlutterSecureStorage _secure = const FlutterSecureStorage(
-    mOptions: MacOsOptions(
-      accessibility: KeychainAccessibility.first_unlock,
-    ),
+    mOptions: MacOsOptions(accessibility: KeychainAccessibility.first_unlock),
   );
 
   Box<dynamic> get _box => StorageUtils.settings;

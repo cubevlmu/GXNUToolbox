@@ -6,14 +6,15 @@
 
 import 'package:class_tool/pages/info/controller.dart';
 import 'package:class_tool/data/model/student_info.dart';
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_empty_state.dart';
-import 'package:class_tool/ui/app_icon_button.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_page.dart';
-import 'package:class_tool/ui/app_surface.dart';
-import 'package:class_tool/ui/app_tag.dart';
-import 'package:class_tool/ui/app_tokens.dart';
+import 'package:fui/app_context.dart';
+import 'package:fui/app_empty_state.dart';
+import 'package:fui/app_icon_button.dart';
+import 'package:fui/app_icons.dart';
+import 'package:fui/app_page.dart';
+import 'package:fui/app_surface.dart';
+import 'package:fui/app_tag.dart';
+import 'package:fui/app_tokens.dart';
+import 'package:fui/fui_page_head.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -74,13 +75,13 @@ class _InfoPageState extends State<InfoPage> {
             );
           }
 
-          return AppPage(
+          return FUIPage(
             children: [
               _InfoHeader(
                 onBack: () => Navigator.of(context).maybePop(),
                 onRefresh: controller.isLoading ? null : controller.refresh,
               ),
-              const SizedBox(height: AppTokens.gap16),
+              const SizedBox(height: FUITokens.gap16),
               if (info.basic.name != null) ...[
                 _ProfileSummary(
                   name: info.basic.name ?? '',
@@ -89,55 +90,55 @@ class _InfoPageState extends State<InfoPage> {
                       '${info.basic.gender ?? ''} · ${info.basic.birthDate ?? ''}',
                   admissionPhoto: controller.admissionPhoto,
                 ),
-                const SizedBox(height: AppTokens.gap16),
+                const SizedBox(height: FUITokens.gap16),
                 _InfoSection(
                   title: '基本信息',
-                  icon: AppIcons.person,
+                  icon: FUIIcons.person,
                   fields: info.basic.displayFields,
                   highlightKeys: const {'学号', '姓名', '性别', '出生日期'},
                 ),
-                const SizedBox(height: AppTokens.gap12),
+                const SizedBox(height: FUITokens.gap12),
               ],
               _InfoSection(
                 title: '学籍信息',
-                icon: AppIcons.school,
+                icon: FUIIcons.school,
                 fields: info.enrollment.displayFields,
               ),
               if (info.household.displayFields.isNotEmpty) ...[
-                const SizedBox(height: AppTokens.gap12),
+                const SizedBox(height: FUITokens.gap12),
                 _InfoSection(
                   title: '户籍信息',
-                  icon: AppIcons.location,
+                  icon: FUIIcons.location,
                   fields: info.household.displayFields,
                 ),
               ],
               if (info.preschool.displayFields.isNotEmpty) ...[
-                const SizedBox(height: AppTokens.gap12),
+                const SizedBox(height: FUITokens.gap12),
                 _InfoSection(
                   title: '学前信息',
-                  icon: AppIcons.book,
+                  icon: FUIIcons.book,
                   fields: info.preschool.displayFields,
                 ),
               ],
               if (info.contact.displayFields.isNotEmpty) ...[
-                const SizedBox(height: AppTokens.gap12),
+                const SizedBox(height: FUITokens.gap12),
                 _InfoSection(
                   title: '联系方式',
-                  icon: AppIcons.info,
+                  icon: FUIIcons.info,
                   fields: info.contact.displayFields,
                 ),
               ],
               if (info.family.isNotEmpty) ...[
-                const SizedBox(height: AppTokens.gap12),
+                const SizedBox(height: FUITokens.gap12),
                 for (int i = 0; i < info.family.length; i++) ...[
                   _InfoSection(
                     title: info.family[i].title ?? '家庭成员${i + 1}',
-                    icon: AppIcons.person,
+                    icon: FUIIcons.person,
                     fields: info.family[i].displayFields,
                     compact: true,
                   ),
                   if (i < info.family.length - 1)
-                    const SizedBox(height: AppTokens.gap8),
+                    const SizedBox(height: FUITokens.gap8),
                 ],
               ],
             ],
@@ -156,42 +157,14 @@ class _InfoHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Row(
-      children: [
-        AppIconButton(
-          icon: AppIcons.chevronLeft,
-          tooltip: '返回',
-          variant: AppIconButtonVariant.outline,
-          onPressed: onBack,
-        ),
-        const SizedBox(width: AppTokens.gap12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '学生信息',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: AppTokens.gap4),
-              Text(
-                '查看学籍、基本信息与联系方式',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
-              ),
-            ],
-          ),
-        ),
-        AppIconButton(
-          icon: AppIcons.refresh,
+    return FuiPageHead(
+      title: '学生信息',
+      subtitle: '查看学籍、基本信息与联系方式',
+      actions: [
+        FUIIconButton(
+          icon: FUIIcons.refresh,
           tooltip: '刷新',
-          variant: AppIconButtonVariant.ghost,
+          variant: FUIIconButtonVariant.ghost,
           onPressed: onRefresh,
         ),
       ],
@@ -216,7 +189,7 @@ class _ProfileSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(12),
       backgroundColor: colors.primarySoft,
       borderColor: colors.primary.withValues(alpha: 0.2),
@@ -224,7 +197,7 @@ class _ProfileSummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _StudentPhotoFrame(photo: admissionPhoto),
-          const SizedBox(width: AppTokens.gap12),
+          const SizedBox(width: FUITokens.gap12),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
@@ -239,7 +212,7 @@ class _ProfileSummary extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: AppTokens.gap6),
+                  const SizedBox(height: FUITokens.gap6),
                   Text(
                     subtitle,
                     maxLines: 1,
@@ -249,12 +222,12 @@ class _ProfileSummary extends StatelessWidget {
                     ),
                   ),
                   if (studentId.isNotEmpty) ...[
-                    const SizedBox(height: AppTokens.gap8),
+                    const SizedBox(height: FUITokens.gap8),
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: AppTag(
+                      child: FUITag(
                         label: studentId,
-                        variant: AppTagVariant.primary,
+                        variant: FUITagVariant.primary,
                       ),
                     ),
                   ],
@@ -282,7 +255,7 @@ class _StudentPhotoFrame extends StatelessWidget {
       height: 92,
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        borderRadius: BorderRadius.circular(FUITokens.radiusSm),
         border: Border.all(color: colors.border),
       ),
       clipBehavior: Clip.antiAlias,
@@ -290,9 +263,9 @@ class _StudentPhotoFrame extends StatelessWidget {
           ? Image.memory(image.bytes, fit: BoxFit.cover, gaplessPlayback: true)
           : Center(
               child: Icon(
-                AppIcons.person,
+                FUIIcons.person,
                 color: colors.textSecondary,
-                size: AppTokens.iconLg,
+                size: FUITokens.iconLg,
               ),
             ),
     );
@@ -318,7 +291,7 @@ class _InfoSection extends StatelessWidget {
   Widget build(BuildContext context) {
     if (fields.isEmpty) return const SizedBox.shrink();
 
-    return AppSurface(
+    return FUISurface(
       padding: EdgeInsets.all(compact ? 12 : 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -326,7 +299,7 @@ class _InfoSection extends StatelessWidget {
           Row(
             children: [
               _IconBox(icon: icon),
-              const SizedBox(width: AppTokens.gap10),
+              const SizedBox(width: FUITokens.gap10),
               Expanded(
                 child: Text(
                   title,
@@ -337,7 +310,7 @@ class _InfoSection extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppTokens.gap12),
+          const SizedBox(height: FUITokens.gap12),
           ...fields.entries.map(
             (entry) => Padding(
               padding: EdgeInsets.only(bottom: compact ? 6 : 8),
@@ -381,7 +354,7 @@ class _InfoRow extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: AppTokens.gap10),
+        const SizedBox(width: FUITokens.gap10),
         Expanded(
           child: Text(
             value,
@@ -408,9 +381,9 @@ class _IconBox extends StatelessWidget {
       height: 36,
       decoration: BoxDecoration(
         color: colors.primarySoft,
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        borderRadius: BorderRadius.circular(FUITokens.radiusSm),
       ),
-      child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
+      child: Icon(icon, size: FUITokens.iconMd, color: colors.primary),
     );
   }
 }
@@ -423,13 +396,13 @@ class _InfoSkeletonView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SkeletonShimmer(
-      builder: (context, palette) => AppPage(
+      builder: (context, palette) => FUIPage(
         physics: const NeverScrollableScrollPhysics(),
         children: [
           _InfoHeader(onBack: onBack, onRefresh: null),
-          const SizedBox(height: AppTokens.gap16),
+          const SizedBox(height: FUITokens.gap16),
           for (int section = 0; section < 4; section++) ...[
-            AppSurface(
+            FUISurface(
               padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -439,7 +412,7 @@ class _InfoSkeletonView extends StatelessWidget {
                     widthFactor: 0.36,
                     height: 18,
                   ),
-                  const SizedBox(height: AppTokens.gap14),
+                  const SizedBox(height: FUITokens.gap14),
                   for (int row = 0; row < 5; row++) ...[
                     Row(
                       children: [
@@ -451,7 +424,7 @@ class _InfoSkeletonView extends StatelessWidget {
                             height: 12,
                           ),
                         ),
-                        const SizedBox(width: AppTokens.gap10),
+                        const SizedBox(width: FUITokens.gap10),
                         Expanded(
                           child: SkeletonBar(
                             decoration: palette.line(radius: 6),
@@ -461,12 +434,12 @@ class _InfoSkeletonView extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppTokens.gap8),
+                    const SizedBox(height: FUITokens.gap8),
                   ],
                 ],
               ),
             ),
-            const SizedBox(height: AppTokens.gap12),
+            const SizedBox(height: FUITokens.gap12),
           ],
         ],
       ),
@@ -489,17 +462,17 @@ class _FeedbackState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppPage(
+    return FUIPage(
       children: [
         _InfoHeader(onBack: onBack, onRefresh: onRefresh),
-        const SizedBox(height: AppTokens.gap16),
-        AppSurface(
+        const SizedBox(height: FUITokens.gap16),
+        FUISurface(
           child: SizedBox(
             height: 320,
-            child: AppEmptyState(
+            child: FUIEmptyState(
               title: title,
               message: message,
-              icon: AppIcons.person,
+              icon: FUIIcons.person,
               actionLabel: '重试',
               onAction: onRefresh,
             ),

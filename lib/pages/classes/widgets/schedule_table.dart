@@ -1,7 +1,7 @@
 import 'package:class_tool/pages/classes/controller.dart';
 import 'package:class_tool/pages/classes/widgets/course_detail_sheet.dart';
-import 'package:class_tool/ui/app_colors.dart';
-import 'package:class_tool/ui/app_context.dart';
+import 'package:fui/app_colors.dart';
+import 'package:fui/app_context.dart';
 import 'package:flutter/material.dart';
 
 class ScheduleTableContent extends StatelessWidget {
@@ -406,9 +406,9 @@ class _CourseBlockCard extends StatelessWidget {
   Color _foregroundColorFor(Color background) {
     final brightness = ThemeData.estimateBrightnessForColor(background);
     if (brightness == Brightness.dark) {
-      return AppColors.dark.textPrimary;
+      return FUIColors.dark.textPrimary;
     }
-    return AppColors.light.textPrimary;
+    return FUIColors.light.textPrimary;
   }
 }
 

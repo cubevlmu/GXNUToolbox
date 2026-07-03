@@ -6,16 +6,17 @@
 
 import 'package:class_tool/data/model/credit_progress.dart';
 import 'package:class_tool/pages/credit/controller.dart';
-import 'package:class_tool/ui/app_combo_box.dart';
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_empty_state.dart';
-import 'package:class_tool/ui/app_icon_button.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_page.dart';
-import 'package:class_tool/ui/app_progress_bar.dart';
-import 'package:class_tool/ui/app_surface.dart';
-import 'package:class_tool/ui/app_tag.dart';
-import 'package:class_tool/ui/app_tokens.dart';
+import 'package:fui/app_combo_box.dart';
+import 'package:fui/app_context.dart';
+import 'package:fui/app_empty_state.dart';
+import 'package:fui/app_icon_button.dart';
+import 'package:fui/app_icons.dart';
+import 'package:fui/app_page.dart';
+import 'package:fui/app_progress_bar.dart';
+import 'package:fui/app_surface.dart';
+import 'package:fui/app_tag.dart';
+import 'package:fui/app_tokens.dart';
+import 'package:fui/fui_page_head.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -77,23 +78,24 @@ class _CreditPageState extends State<CreditPage> {
             );
           }
 
-          return AppPage(
+          return FUIPage(
             children: [
               _CreditHeader(
                 onBack: () => Navigator.of(context).maybePop(),
-                onRefresh:
-                    controller.isLoading.value ? null : controller.loadData,
+                onRefresh: controller.isLoading.value
+                    ? null
+                    : controller.loadData,
               ),
-              const SizedBox(height: AppTokens.gap16),
+              const SizedBox(height: FUITokens.gap16),
               _SemesterCombo(controller: controller),
-              const SizedBox(height: AppTokens.gap16),
+              const SizedBox(height: FUITokens.gap16),
               _SummaryCard(response: response),
-              const SizedBox(height: AppTokens.gap16),
+              const SizedBox(height: FUITokens.gap16),
               _SectionHeader(count: response.sections.length),
-              const SizedBox(height: AppTokens.gap8),
+              const SizedBox(height: FUITokens.gap8),
               for (final section in response.sections) ...[
                 _CreditSectionCard(section: section),
-                const SizedBox(height: AppTokens.gap12),
+                const SizedBox(height: FUITokens.gap12),
               ],
               _TotalCard(response: response),
             ],
@@ -112,45 +114,14 @@ class _CreditHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return Row(
-      children: [
-        AppIconButton(
-          icon: AppIcons.chevronLeft,
-          tooltip: '返回',
-          variant: AppIconButtonVariant.outline,
-          onPressed: onBack,
-        ),
-        const SizedBox(width: AppTokens.gap12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '学分进程',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-              const SizedBox(height: AppTokens.gap4),
-              Text(
-                '查看已修、未修与修读中学分',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-              ),
-            ],
-          ),
-        ),
-        AppIconButton(
-          icon: AppIcons.refresh,
+    return FuiPageHead(
+      title: '学分进程',
+      subtitle: '查看已修、未修与修读中学分',
+      actions: [
+        FUIIconButton(
+          icon: FUIIcons.refresh,
           tooltip: '刷新',
-          variant: AppIconButtonVariant.ghost,
+          variant: FUIIconButtonVariant.ghost,
           onPressed: onRefresh,
         ),
       ],
@@ -167,9 +138,9 @@ class _SemesterCombo extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       final items = ['', ...controller.semesterOptions];
-      return AppSurface(
+      return FUISurface(
         padding: const EdgeInsets.all(14),
-        child: AppComboBox<String>(
+        child: FUIComboBox<String>(
           label: '学年学期',
           value: controller.selectedSemester.value,
           items: items,
@@ -197,52 +168,58 @@ class _SummaryCard extends StatelessWidget {
         ? 0.0
         : response.totalEarned / response.totalRequired;
 
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _IconBox(icon: AppIcons.credit),
-              const SizedBox(width: AppTokens.gap10),
+              _IconBox(icon: FUIIcons.credit),
+              const SizedBox(width: FUITokens.gap10),
               Expanded(
                 child: Text(
                   '学分总览',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-              AppTag(
+              FUITag(
                 label: '${(ratio * 100).clamp(0, 100).toStringAsFixed(0)}%',
                 variant: _progressVariant(ratio),
               ),
             ],
           ),
-          const SizedBox(height: AppTokens.gap14),
-          AppProgressBar(value: ratio),
-          const SizedBox(height: AppTokens.gap14),
+          const SizedBox(height: FUITokens.gap14),
+          FUIProgressBar(value: ratio),
+          const SizedBox(height: FUITokens.gap14),
           Row(
             children: [
               Expanded(
-                child: _Metric(label: '应修', value: _fmt(response.totalRequired)),
+                child: _Metric(
+                  label: '应修',
+                  value: _fmt(response.totalRequired),
+                ),
               ),
-              const SizedBox(width: AppTokens.gap10),
+              const SizedBox(width: FUITokens.gap10),
               Expanded(
                 child: _Metric(label: '已修', value: _fmt(response.totalEarned)),
               ),
             ],
           ),
-          const SizedBox(height: AppTokens.gap10),
+          const SizedBox(height: FUITokens.gap10),
           Row(
             children: [
               Expanded(
-                child: _Metric(label: '未修', value: _fmt(response.totalRemaining)),
+                child: _Metric(
+                  label: '未修',
+                  value: _fmt(response.totalRemaining),
+                ),
               ),
-              const SizedBox(width: AppTokens.gap10),
+              const SizedBox(width: FUITokens.gap10),
               Expanded(
                 child: _Metric(
                   label: '修读中',
@@ -270,17 +247,17 @@ class _SectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             '分类进度',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
         ),
         Text(
           '$count 个模块',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
+            color: colors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -301,7 +278,7 @@ class _CreditSectionCard extends StatelessWidget {
         ? 0.0
         : section.totalEarned / section.totalRequired;
 
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,30 +290,53 @@ class _CreditSectionCard extends StatelessWidget {
                   title.isEmpty ? '学分模块' : title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
-              AppTag(label: _statusText(ratio), variant: _progressVariant(ratio)),
+              FUITag(
+                label: _statusText(ratio),
+                variant: _progressVariant(ratio),
+              ),
             ],
           ),
-          const SizedBox(height: AppTokens.gap12),
-          AppProgressBar(value: ratio),
-          const SizedBox(height: AppTokens.gap12),
+          const SizedBox(height: FUITokens.gap12),
+          FUIProgressBar(value: ratio),
+          const SizedBox(height: FUITokens.gap12),
           Row(
             children: [
-              Expanded(child: _SmallMetric(label: '应修', value: _fmt(section.totalRequired))),
-              Expanded(child: _SmallMetric(label: '已修', value: _fmt(section.totalEarned))),
-              Expanded(child: _SmallMetric(label: '未修', value: _fmt(section.totalRemaining))),
-              Expanded(child: _SmallMetric(label: '修读中', value: _fmt(section.totalInProgress))),
+              Expanded(
+                child: _SmallMetric(
+                  label: '应修',
+                  value: _fmt(section.totalRequired),
+                ),
+              ),
+              Expanded(
+                child: _SmallMetric(
+                  label: '已修',
+                  value: _fmt(section.totalEarned),
+                ),
+              ),
+              Expanded(
+                child: _SmallMetric(
+                  label: '未修',
+                  value: _fmt(section.totalRemaining),
+                ),
+              ),
+              Expanded(
+                child: _SmallMetric(
+                  label: '修读中',
+                  value: _fmt(section.totalInProgress),
+                ),
+              ),
             ],
           ),
           if (section.items.isNotEmpty) ...[
-            const SizedBox(height: AppTokens.gap12),
+            const SizedBox(height: FUITokens.gap12),
             for (final item in section.items.take(4)) ...[
               _CreditItemRow(item: item),
-              const SizedBox(height: AppTokens.gap8),
+              const SizedBox(height: FUITokens.gap8),
             ],
           ],
         ],
@@ -357,7 +357,7 @@ class _CreditItemRow extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        borderRadius: BorderRadius.circular(FUITokens.radiusMd),
       ),
       child: Row(
         children: [
@@ -366,30 +366,34 @@ class _CreditItemRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.categoryName.isEmpty ? item.natureName : item.categoryName,
+                  item.categoryName.isEmpty
+                      ? item.natureName
+                      : item.categoryName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: AppTokens.gap4),
+                const SizedBox(height: FUITokens.gap4),
                 Text(
                   '已修 ${_fmt(item.earnedCredits)} / 应修 ${_fmt(item.requiredCredits)}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textSecondary,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
                 ),
               ],
             ),
           ),
-          AppTag(
-            label: item.remainingCredits <= 0 ? '已完成' : '差 ${_fmt(item.remainingCredits)}',
+          FUITag(
+            label: item.remainingCredits <= 0
+                ? '已完成'
+                : '差 ${_fmt(item.remainingCredits)}',
             variant: item.remainingCredits <= 0
-                ? AppTagVariant.success
-                : AppTagVariant.warning,
+                ? FUITagVariant.success
+                : FUITagVariant.warning,
           ),
         ],
       ),
@@ -404,22 +408,22 @@ class _TotalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       backgroundColor: context.colors.primarySoft,
       borderColor: context.colors.primary.withValues(alpha: 0.24),
       child: Row(
         children: [
-          _IconBox(icon: AppIcons.check),
-          const SizedBox(width: AppTokens.gap10),
+          _IconBox(icon: FUIIcons.check),
+          const SizedBox(width: FUITokens.gap10),
           Expanded(
             child: Text(
               '总计：已修 ${_fmt(response.totalEarned)} / 应修 ${_fmt(response.totalRequired)}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
             ),
           ),
         ],
@@ -442,7 +446,7 @@ class _Metric extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        borderRadius: BorderRadius.circular(FUITokens.radiusMd),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -453,16 +457,16 @@ class _Metric extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: colors.primary,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: colors.primary,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          const SizedBox(height: AppTokens.gap4),
+          const SizedBox(height: FUITokens.gap4),
           Text(
             label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textSecondary,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
           ),
         ],
       ),
@@ -486,16 +490,16 @@ class _SmallMetric extends StatelessWidget {
           value,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
-        const SizedBox(height: AppTokens.gap2),
+        const SizedBox(height: FUITokens.gap2),
         Text(
           label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.textSecondary,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
         ),
       ],
     );
@@ -515,9 +519,9 @@ class _IconBox extends StatelessWidget {
       height: 36,
       decoration: BoxDecoration(
         color: colors.primarySoft,
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        borderRadius: BorderRadius.circular(FUITokens.radiusSm),
       ),
-      child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
+      child: Icon(icon, size: FUITokens.iconMd, color: colors.primary),
     );
   }
 }
@@ -530,18 +534,18 @@ class _CreditSkeletonView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SkeletonShimmer(
-      builder: (context, palette) => AppPage(
+      builder: (context, palette) => FUIPage(
         physics: const NeverScrollableScrollPhysics(),
         children: [
           _CreditHeader(onBack: onBack, onRefresh: null),
-          const SizedBox(height: AppTokens.gap16),
+          const SizedBox(height: FUITokens.gap16),
           SkeletonBar(
-            decoration: palette.line(radius: AppTokens.radiusMd),
+            decoration: palette.line(radius: FUITokens.radiusMd),
             widthFactor: 1,
             height: 72,
           ),
-          const SizedBox(height: AppTokens.gap16),
-          AppSurface(
+          const SizedBox(height: FUITokens.gap16),
+          FUISurface(
             padding: const EdgeInsets.all(14),
             child: Column(
               children: [
@@ -550,27 +554,27 @@ class _CreditSkeletonView extends StatelessWidget {
                   widthFactor: 0.46,
                   height: 18,
                 ),
-                const SizedBox(height: AppTokens.gap14),
+                const SizedBox(height: FUITokens.gap14),
                 SkeletonBar(
-                  decoration: palette.line(radius: AppTokens.radiusFull),
+                  decoration: palette.line(radius: FUITokens.radiusFull),
                   widthFactor: 1,
                   height: 6,
                 ),
-                const SizedBox(height: AppTokens.gap14),
+                const SizedBox(height: FUITokens.gap14),
                 Row(
                   children: [
                     Expanded(child: _SkeletonMetric(palette: palette)),
-                    const SizedBox(width: AppTokens.gap10),
+                    const SizedBox(width: FUITokens.gap10),
                     Expanded(child: _SkeletonMetric(palette: palette)),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: AppTokens.gap16),
+          const SizedBox(height: FUITokens.gap16),
           for (int i = 0; i < 4; i++) ...[
             _SkeletonSection(palette: palette),
-            const SizedBox(height: AppTokens.gap12),
+            const SizedBox(height: FUITokens.gap12),
           ],
         ],
       ),
@@ -592,9 +596,17 @@ class _SkeletonMetric extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SkeletonBar(decoration: palette.line(radius: 8), widthFactor: 0.52, height: 15),
-          const SizedBox(height: AppTokens.gap8),
-          SkeletonBar(decoration: palette.line(radius: 8), widthFactor: 0.38, height: 12),
+          SkeletonBar(
+            decoration: palette.line(radius: 8),
+            widthFactor: 0.52,
+            height: 15,
+          ),
+          const SizedBox(height: FUITokens.gap8),
+          SkeletonBar(
+            decoration: palette.line(radius: 8),
+            widthFactor: 0.38,
+            height: 12,
+          ),
         ],
       ),
     );
@@ -608,15 +620,27 @@ class _SkeletonSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       child: Column(
         children: [
-          SkeletonBar(decoration: palette.line(radius: 8), widthFactor: 0.62, height: 16),
-          const SizedBox(height: AppTokens.gap12),
-          SkeletonBar(decoration: palette.line(radius: AppTokens.radiusFull), widthFactor: 1, height: 6),
-          const SizedBox(height: AppTokens.gap12),
-          SkeletonBar(decoration: palette.line(radius: AppTokens.radiusMd), widthFactor: 1, height: 46),
+          SkeletonBar(
+            decoration: palette.line(radius: 8),
+            widthFactor: 0.62,
+            height: 16,
+          ),
+          const SizedBox(height: FUITokens.gap12),
+          SkeletonBar(
+            decoration: palette.line(radius: FUITokens.radiusFull),
+            widthFactor: 1,
+            height: 6,
+          ),
+          const SizedBox(height: FUITokens.gap12),
+          SkeletonBar(
+            decoration: palette.line(radius: FUITokens.radiusMd),
+            widthFactor: 1,
+            height: 46,
+          ),
         ],
       ),
     );
@@ -638,17 +662,17 @@ class _FeedbackState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppPage(
+    return FUIPage(
       children: [
         _CreditHeader(onBack: onBack, onRefresh: onRefresh),
-        const SizedBox(height: AppTokens.gap16),
-        AppSurface(
+        const SizedBox(height: FUITokens.gap16),
+        FUISurface(
           child: SizedBox(
             height: 320,
-            child: AppEmptyState(
+            child: FUIEmptyState(
               title: title,
               message: message,
-              icon: AppIcons.credit,
+              icon: FUIIcons.credit,
               actionLabel: '重试',
               onAction: onRefresh,
             ),
@@ -660,7 +684,9 @@ class _FeedbackState extends StatelessWidget {
 }
 
 String _fmt(double value) {
-  return value == value.truncateToDouble() ? '${value.toInt()}' : value.toStringAsFixed(1);
+  return value == value.truncateToDouble()
+      ? '${value.toInt()}'
+      : value.toStringAsFixed(1);
 }
 
 String _statusText(double ratio) {
@@ -669,8 +695,8 @@ String _statusText(double ratio) {
   return '进行中';
 }
 
-AppTagVariant _progressVariant(double ratio) {
-  if (ratio >= 1) return AppTagVariant.success;
-  if (ratio <= 0) return AppTagVariant.warning;
-  return AppTagVariant.primary;
+FUITagVariant _progressVariant(double ratio) {
+  if (ratio >= 1) return FUITagVariant.success;
+  if (ratio <= 0) return FUITagVariant.warning;
+  return FUITagVariant.primary;
 }

@@ -4,18 +4,25 @@
  * Copyright (c) 2026 by FlybirdGames, All Rights Reserved.
  */
 
+import 'package:add_2_calendar/add_2_calendar.dart';
+import 'package:class_tool/data/model/course_note.dart';
 import 'package:class_tool/data/model/exam.dart';
+import 'package:class_tool/data/repo/course_note_repo.dart';
+import 'package:class_tool/data/services/calendar_export_service.dart';
 import 'package:class_tool/pages/exams/controller.dart';
-import 'package:class_tool/ui/app_button.dart';
-import 'package:class_tool/ui/app_combo_box.dart';
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_empty_state.dart';
-import 'package:class_tool/ui/app_icon_button.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_page.dart';
-import 'package:class_tool/ui/app_surface.dart';
-import 'package:class_tool/ui/app_tag.dart';
-import 'package:class_tool/ui/app_tokens.dart';
+import 'package:class_tool/pages/settings/controller.dart';
+import 'package:fui/app_button.dart';
+import 'package:fui/app_combo_box.dart';
+import 'package:fui/app_context.dart';
+import 'package:fui/app_empty_state.dart';
+import 'package:fui/app_icon_button.dart';
+import 'package:fui/app_icons.dart';
+import 'package:fui/app_page.dart';
+import 'package:fui/app_surface.dart';
+import 'package:fui/app_tag.dart';
+import 'package:fui/app_toast.dart';
+import 'package:fui/app_tokens.dart';
+import 'package:fui/fui_page_head.dart';
 import 'package:class_tool/widgets/app_bottom_sheet.dart';
 import 'package:class_tool/widgets/simple_easy_refresher.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
@@ -57,16 +64,13 @@ class _ExamsPageState extends State<ExamsPage> {
               !controller.isLoading && !controller.isLoadingMore;
 
           if (controller.isLoading && !controller.hasData) {
-            return _ExamSkeletonView(
-              onBack: () => Navigator.of(context).maybePop(),
-            );
+            return const _ExamSkeletonView();
           }
 
           if (controller.error.isNotEmpty && !controller.hasData) {
             return _FeedbackState(
               title: '考试信息加载失败',
               message: controller.error,
-              onBack: () => Navigator.of(context).maybePop(),
               onFilter: canInteract ? () => _openFilterSheet(context) : null,
               onRefresh: canInteract ? controller.refreshExams : null,
             );
@@ -76,7 +80,6 @@ class _ExamsPageState extends State<ExamsPage> {
             return _FeedbackState(
               title: '请选择筛选条件',
               message: '选择学期和考试批次后刷新',
-              onBack: () => Navigator.of(context).maybePop(),
               onFilter: canInteract ? () => _openFilterSheet(context) : null,
               onRefresh: canInteract ? controller.refreshExams : null,
             );
@@ -86,7 +89,6 @@ class _ExamsPageState extends State<ExamsPage> {
             return _FeedbackState(
               title: '暂无考试安排',
               message: '当前筛选条件下没有考试记录',
-              onBack: () => Navigator.of(context).maybePop(),
               onFilter: canInteract ? () => _openFilterSheet(context) : null,
               onRefresh: canInteract ? controller.refreshExams : null,
             );
@@ -99,18 +101,18 @@ class _ExamsPageState extends State<ExamsPage> {
             autoRefreshOnStart: false,
             refreshEnabled: canInteract,
             loadEnabled: controller.hasMore && canInteract,
-            childBuilder: (context, physics) => AppPage(
+            childBuilder: (context, physics) => FUIPage(
               physics: canInteract
                   ? physics
                   : const NeverScrollableScrollPhysics(),
               children: [
                 _ExamHeader(
-                  onBack: () => Navigator.of(context).maybePop(),
-                  onFilter:
-                      canInteract ? () => _openFilterSheet(context) : null,
+                  onFilter: canInteract
+                      ? () => _openFilterSheet(context)
+                      : null,
                   onRefresh: canInteract ? controller.refreshExams : null,
                 ),
-                const SizedBox(height: AppTokens.gap16),
+                const SizedBox(height: FUITokens.gap16),
                 _ExamSummary(
                   total: controller.total,
                   page: controller.page,
@@ -118,12 +120,12 @@ class _ExamsPageState extends State<ExamsPage> {
                   selectedSemester: controller.selectedSemester,
                   selectedBatch: _selectedBatchLabel(controller),
                 ),
-                const SizedBox(height: AppTokens.gap16),
+                const SizedBox(height: FUITokens.gap16),
                 _ListHeader(total: controller.total),
-                const SizedBox(height: AppTokens.gap8),
+                const SizedBox(height: FUITokens.gap8),
                 for (final exam in controller.exams) ...[
                   _ExamCard(exam: exam),
-                  const SizedBox(height: AppTokens.gap12),
+                  const SizedBox(height: FUITokens.gap12),
                 ],
               ],
             ),
@@ -166,65 +168,28 @@ class _ExamsPageState extends State<ExamsPage> {
 }
 
 class _ExamHeader extends StatelessWidget {
-  const _ExamHeader({
-    required this.onBack,
-    required this.onFilter,
-    required this.onRefresh,
-  });
+  const _ExamHeader({required this.onFilter, required this.onRefresh});
 
-  final VoidCallback onBack;
   final VoidCallback? onFilter;
   final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return Row(
-      children: [
-        AppIconButton(
-          icon: AppIcons.chevronLeft,
-          tooltip: '返回',
-          variant: AppIconButtonVariant.outline,
-          onPressed: onBack,
-        ),
-        const SizedBox(width: AppTokens.gap12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '考试安排',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-              const SizedBox(height: AppTokens.gap4),
-              Text(
-                '查看考试时间、地点与座位信息',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: AppTokens.gap8),
-        AppIconButton(
-          icon: AppIcons.filter,
+    return FuiPageHead(
+      title: '考试安排',
+      subtitle: '查看考试时间、地点与座位信息',
+      actions: [
+        FUIIconButton(
+          icon: FUIIcons.filter,
           tooltip: '筛选',
-          variant: AppIconButtonVariant.ghost,
+          variant: FUIIconButtonVariant.ghost,
           onPressed: onFilter,
         ),
-        const SizedBox(width: AppTokens.gap8),
-        AppIconButton(
-          icon: AppIcons.refresh,
+        const SizedBox(width: FUITokens.gap8),
+        FUIIconButton(
+          icon: FUIIcons.refresh,
           tooltip: '刷新',
-          variant: AppIconButtonVariant.ghost,
+          variant: FUIIconButtonVariant.ghost,
           onPressed: onRefresh,
         ),
       ],
@@ -249,42 +214,47 @@ class _ExamSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _IconBox(icon: AppIcons.exam),
-              const SizedBox(width: AppTokens.gap10),
+              _IconBox(icon: FUIIcons.exam),
+              const SizedBox(width: FUITokens.gap10),
               Expanded(
                 child: Text(
                   '考试概览',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-              AppTag(label: '$total 场考试', variant: AppTagVariant.primary),
+              FUITag(label: '$total 场考试', variant: FUITagVariant.primary),
             ],
           ),
-          const SizedBox(height: AppTokens.gap14),
+          const SizedBox(height: FUITokens.gap14),
           Row(
             children: [
               Expanded(
                 child: _SummaryMetric(label: '学期', value: selectedSemester),
               ),
-              const SizedBox(width: AppTokens.gap10),
+              const SizedBox(width: FUITokens.gap10),
               Expanded(
                 child: _SummaryMetric(label: '批次', value: selectedBatch),
               ),
+              const SizedBox(width: FUITokens.gap10),
+              Expanded(
+                child: _SummaryMetric(
+                  label: '分页',
+                  value: '第 $page/$totalPages 页',
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: AppTokens.gap10),
-          _SummaryMetric(label: '分页', value: '第 $page/$totalPages 页'),
         ],
       ),
     );
@@ -306,7 +276,7 @@ class _SummaryMetric extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        borderRadius: BorderRadius.circular(FUITokens.radiusMd),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -316,18 +286,18 @@ class _SummaryMetric extends StatelessWidget {
             value.isEmpty ? '-' : value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: AppTokens.gap4),
+          const SizedBox(height: FUITokens.gap4),
           Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textSecondary,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
           ),
         ],
       ),
@@ -351,17 +321,17 @@ class _ListHeader extends StatelessWidget {
             '考试列表',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
         ),
         Text(
           '共 $total 场',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
+            color: colors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -375,7 +345,7 @@ class _ExamCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -383,8 +353,8 @@ class _ExamCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _IconBox(icon: AppIcons.exam),
-              const SizedBox(width: AppTokens.gap12),
+              _IconBox(icon: FUIIcons.exam),
+              const SizedBox(width: FUITokens.gap12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -394,61 +364,220 @@ class _ExamCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                    const SizedBox(height: AppTokens.gap6),
+                    const SizedBox(height: FUITokens.gap6),
                     Wrap(
-                      spacing: AppTokens.gap8,
-                      runSpacing: AppTokens.gap8,
+                      spacing: FUITokens.gap8,
+                      runSpacing: FUITokens.gap8,
                       children: [
                         if (exam.examBatchName.isNotEmpty)
-                          AppTag(label: exam.examBatchName),
+                          FUITag(label: exam.examBatchName),
                         if (exam.examTypeLabel.isNotEmpty)
-                          AppTag(
+                          FUITag(
                             label: exam.examTypeLabel,
-                            variant: AppTagVariant.primary,
+                            variant: FUITagVariant.primary,
                           ),
-                        AppTag(
+                        FUITag(
                           label: exam.makeupCount == 0
                               ? '非补考'
                               : '补考 ${exam.makeupCount} 次',
                           variant: exam.makeupCount == 0
-                              ? AppTagVariant.neutral
-                              : AppTagVariant.warning,
+                              ? FUITagVariant.neutral
+                              : FUITagVariant.warning,
                         ),
                       ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: AppTokens.gap10),
+              const SizedBox(width: FUITokens.gap10),
               _SeatBadge(seatNumber: exam.seatNumber),
             ],
           ),
-          const SizedBox(height: AppTokens.gap14),
+          const SizedBox(height: FUITokens.gap14),
           _MetaRow(
-            icon: AppIcons.schedule,
+            icon: FUIIcons.schedule,
             label: '时间',
             value: _examTimeText(exam),
           ),
-          const SizedBox(height: AppTokens.gap8),
+          const SizedBox(height: FUITokens.gap8),
           _MetaRow(
-            icon: AppIcons.location,
+            icon: FUIIcons.location,
             label: '地点',
             value: exam.location.isEmpty ? '地点待定' : exam.location,
           ),
           if (exam.className.isNotEmpty) ...[
-            const SizedBox(height: AppTokens.gap8),
+            const SizedBox(height: FUITokens.gap8),
             _MetaRow(
-              icon: AppIcons.classroom,
+              icon: FUIIcons.classroom,
               label: '班级',
               value: exam.className,
             ),
           ],
+          const SizedBox(height: FUITokens.gap12),
+          _buildActions(context),
         ],
       ),
     );
+  }
+
+  Widget _buildActions(BuildContext context) {
+    final settingsController = Get.isRegistered<SettingsController>()
+        ? Get.find<SettingsController>()
+        : null;
+    if (settingsController == null) {
+      return _buildCalendarButton(context);
+    }
+
+    return Obx(() {
+      if (!settingsController.todoFeatureEnabled.value) {
+        return _buildCalendarButton(context);
+      }
+      return Row(
+        children: [
+          Expanded(
+            child: FUIButton(
+              label: '加入待办',
+              icon: FUIIcons.add,
+              small: true,
+              fullWidth: true,
+              onPressed: () => _addToTodo(context),
+            ),
+          ),
+          const SizedBox(width: FUITokens.gap8),
+          Expanded(child: _buildCalendarButton(context)),
+        ],
+      );
+    });
+  }
+
+  Widget _buildCalendarButton(BuildContext context) {
+    return FUIButton(
+      label: '加入日历',
+      icon: FUIIcons.calendarAdd,
+      small: true,
+      variant: FUIButtonVariant.secondary,
+      fullWidth: true,
+      onPressed: () => _addToCalendar(context),
+    );
+  }
+
+  Future<void> _addToTodo(BuildContext context) async {
+    if (!Get.isRegistered<CourseNoteRepo>()) {
+      FUIToast.error(context, message: '待办服务未初始化');
+      return;
+    }
+
+    final examAt = _parseExamDateTime(exam);
+    final courseName = exam.courseName.trim().isEmpty
+        ? '考试安排'
+        : exam.courseName.trim();
+    try {
+      await Get.find<CourseNoteRepo>().save(
+        CourseNoteDraft(
+          course: CourseNoteRepo.courseDraftFromParts(
+            semester: '',
+            courseName: courseName,
+            classroom: exam.location,
+            rawCourseId: exam.id,
+          ),
+          type: CourseNoteType.exam,
+          title: courseName == '考试安排' ? courseName : '$courseName考试',
+          content: _examTodoContent(exam),
+          dueAt: examAt,
+          remindAt: _defaultExamRemindAt(examAt),
+        ),
+      );
+      if (!context.mounted) return;
+      FUIToast.success(context, message: '已添加到待办任务');
+    } catch (e) {
+      if (!context.mounted) return;
+      FUIToast.error(context, message: e.toString().split('\n').first);
+    }
+  }
+
+  Future<void> _addToCalendar(BuildContext context) async {
+    final examAt = _parseExamDateTime(exam);
+    if (examAt == null) {
+      FUIToast.warning(context, message: '考试时间不完整，无法导入日历');
+      return;
+    }
+    try {
+      final added = await CalendarExportService.addEventsOneByOne([
+        Event(
+          title: exam.courseName.isEmpty ? '考试安排' : '${exam.courseName}考试',
+          description: _examCalendarDescription(exam),
+          location: exam.location,
+          startDate: examAt,
+          endDate: examAt.add(const Duration(hours: 2)),
+          allDay: false,
+        ),
+      ]);
+      if (!context.mounted) return;
+      FUIToast.success(context, message: added > 0 ? '已导入系统日历' : '日历中已存在');
+    } catch (e) {
+      if (!context.mounted) return;
+      FUIToast.error(context, message: e.toString().split('\n').first);
+    }
+  }
+
+  DateTime? _parseExamDateTime(ExamItem exam) {
+    final dateMatch = RegExp(
+      r'(\d{4})\D{0,2}(\d{1,2})\D{0,2}(\d{1,2})',
+    ).firstMatch(exam.examDate);
+    final timeMatch = RegExp(r'(\d{1,2}):(\d{1,2})').firstMatch(
+      exam.startTime.isNotEmpty ? exam.startTime : exam.examTimeRange,
+    );
+    if (dateMatch == null || timeMatch == null) {
+      return null;
+    }
+    final year = int.tryParse(dateMatch.group(1) ?? '');
+    final month = int.tryParse(dateMatch.group(2) ?? '');
+    final day = int.tryParse(dateMatch.group(3) ?? '');
+    final hour = int.tryParse(timeMatch.group(1) ?? '');
+    final minute = int.tryParse(timeMatch.group(2) ?? '');
+    if (year == null ||
+        month == null ||
+        day == null ||
+        hour == null ||
+        minute == null) {
+      return null;
+    }
+    return DateTime(year, month, day, hour, minute);
+  }
+
+  DateTime? _defaultExamRemindAt(DateTime? examAt) {
+    if (examAt == null) {
+      return null;
+    }
+    final remindAt = examAt.subtract(const Duration(days: 1));
+    return remindAt.isAfter(DateTime.now()) ? remindAt : null;
+  }
+
+  String _examCalendarDescription(ExamItem exam) {
+    return [
+      if (exam.examBatchName.isNotEmpty) '批次: ${exam.examBatchName}',
+      '时间: ${_examTimeText(exam)}',
+      if (exam.location.isNotEmpty) '地点: ${exam.location}',
+      if (exam.seatNumber.isNotEmpty) '座位号: ${exam.seatNumber}',
+      if (exam.className.isNotEmpty) '班级: ${exam.className}',
+      '来源: GXNU Class Tool',
+      'class_tool_exam_id=${exam.id}',
+    ].join('\n');
+  }
+
+  String _examTodoContent(ExamItem exam) {
+    return [
+      if (exam.examBatchName.isNotEmpty) '批次: ${exam.examBatchName}',
+      if (exam.examTypeLabel.isNotEmpty) '类型: ${exam.examTypeLabel}',
+      '时间: ${_examTimeText(exam)}',
+      if (exam.location.isNotEmpty) '地点: ${exam.location}',
+      if (exam.seatNumber.isNotEmpty) '座位号: ${exam.seatNumber}',
+      if (exam.className.isNotEmpty) '班级: ${exam.className}',
+      '来源: GXNU Class Tool',
+    ].join('\n');
   }
 
   String _examTimeText(ExamItem exam) {
@@ -475,7 +604,7 @@ class _SeatBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: colors.primarySoft,
-        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        borderRadius: BorderRadius.circular(FUITokens.radiusMd),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -485,15 +614,15 @@ class _SeatBadge extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: colors.primary,
-                  fontWeight: FontWeight.w900,
-                ),
+              color: colors.primary,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           Text(
             '座位',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: colors.primary.withValues(alpha: 0.78),
-                ),
+              color: colors.primary.withValues(alpha: 0.78),
+            ),
           ),
         ],
       ),
@@ -518,27 +647,27 @@ class _MetaRow extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(icon, size: AppTokens.iconSm, color: colors.textTertiary),
-        const SizedBox(width: AppTokens.gap8),
+        Icon(icon, size: FUITokens.iconSm, color: colors.textTertiary),
+        const SizedBox(width: FUITokens.gap8),
         SizedBox(
           width: 38,
           child: Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: colors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
-        const SizedBox(width: AppTokens.gap8),
+        const SizedBox(width: FUITokens.gap8),
         Expanded(
           child: Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
           ),
         ),
       ],
@@ -559,9 +688,9 @@ class _IconBox extends StatelessWidget {
       height: 36,
       decoration: BoxDecoration(
         color: colors.primarySoft,
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        borderRadius: BorderRadius.circular(FUITokens.radiusSm),
       ),
-      child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
+      child: Icon(icon, size: FUITokens.iconMd, color: colors.primary),
     );
   }
 }
@@ -630,24 +759,24 @@ class _ExamFilterSheetState extends State<_ExamFilterSheet> {
             children: [
               Row(
                 children: [
-                  _IconBox(icon: AppIcons.filter),
-                  const SizedBox(width: AppTokens.gap10),
+                  _IconBox(icon: FUIIcons.filter),
+                  const SizedBox(width: FUITokens.gap10),
                   Expanded(
                     child: Text(
                       '筛选条件',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: AppTokens.gap16),
-              AppSurface(
+              const SizedBox(height: FUITokens.gap16),
+              FUISurface(
                 padding: const EdgeInsets.all(14),
                 child: Column(
                   children: [
-                    AppComboBox<ExamSemesterOption>(
+                    FUIComboBox<ExamSemesterOption>(
                       label: '学年学期',
                       value: selectedSemester,
                       items: semesters,
@@ -660,8 +789,8 @@ class _ExamFilterSheetState extends State<_ExamFilterSheet> {
                         });
                       },
                     ),
-                    const SizedBox(height: AppTokens.gap14),
-                    AppComboBox<_ExamBatchChoice>(
+                    const SizedBox(height: FUITokens.gap14),
+                    FUIComboBox<_ExamBatchChoice>(
                       label: '考试批次',
                       value: selectedBatch,
                       items: batchChoices,
@@ -674,15 +803,15 @@ class _ExamFilterSheetState extends State<_ExamFilterSheet> {
                   ],
                 ),
               ),
-              const SizedBox(height: AppTokens.gap14),
-              AppButton(
+              const SizedBox(height: FUITokens.gap14),
+              FUIButton(
                 label: '应用筛选',
-                icon: AppIcons.check,
+                icon: FUIIcons.check,
                 fullWidth: true,
                 onPressed: () {
-                  Navigator.of(context).pop(
-                    _ExamFilterResult(semester: semester, pcid: pcid),
-                  );
+                  Navigator.of(
+                    context,
+                  ).pop(_ExamFilterResult(semester: semester, pcid: pcid));
                 },
               ),
             ],
@@ -694,19 +823,17 @@ class _ExamFilterSheetState extends State<_ExamFilterSheet> {
 }
 
 class _ExamSkeletonView extends StatelessWidget {
-  const _ExamSkeletonView({required this.onBack});
-
-  final VoidCallback onBack;
+  const _ExamSkeletonView();
 
   @override
   Widget build(BuildContext context) {
     return SkeletonShimmer(
-      builder: (context, palette) => AppPage(
+      builder: (context, palette) => FUIPage(
         physics: const NeverScrollableScrollPhysics(),
         children: [
-          _ExamHeader(onBack: onBack, onFilter: null, onRefresh: null),
-          const SizedBox(height: AppTokens.gap16),
-          AppSurface(
+          _ExamHeader(onFilter: null, onRefresh: null),
+          const SizedBox(height: FUITokens.gap16),
+          FUISurface(
             padding: const EdgeInsets.all(14),
             child: Column(
               children: [
@@ -715,9 +842,9 @@ class _ExamSkeletonView extends StatelessWidget {
                     Container(
                       width: 36,
                       height: 36,
-                      decoration: palette.block(radius: AppTokens.radiusSm),
+                      decoration: palette.block(radius: FUITokens.radiusSm),
                     ),
-                    const SizedBox(width: AppTokens.gap10),
+                    const SizedBox(width: FUITokens.gap10),
                     Expanded(
                       child: SkeletonBar(
                         decoration: palette.line(radius: 8),
@@ -728,25 +855,25 @@ class _ExamSkeletonView extends StatelessWidget {
                     Container(
                       width: 76,
                       height: 24,
-                      decoration: palette.block(radius: AppTokens.radiusFull),
+                      decoration: palette.block(radius: FUITokens.radiusFull),
                     ),
                   ],
                 ),
-                const SizedBox(height: AppTokens.gap14),
+                const SizedBox(height: FUITokens.gap14),
                 Row(
                   children: [
                     Expanded(child: _SkeletonMetric(palette: palette)),
-                    const SizedBox(width: AppTokens.gap10),
+                    const SizedBox(width: FUITokens.gap10),
                     Expanded(child: _SkeletonMetric(palette: palette)),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: AppTokens.gap12),
+          const SizedBox(height: FUITokens.gap12),
           for (int i = 0; i < 5; i++) ...[
             _SkeletonExamCard(palette: palette),
-            const SizedBox(height: AppTokens.gap12),
+            const SizedBox(height: FUITokens.gap12),
           ],
         ],
       ),
@@ -773,7 +900,7 @@ class _SkeletonMetric extends StatelessWidget {
             widthFactor: 0.58,
             height: 15,
           ),
-          const SizedBox(height: AppTokens.gap8),
+          const SizedBox(height: FUITokens.gap8),
           SkeletonBar(
             decoration: palette.line(radius: 8),
             widthFactor: 0.42,
@@ -792,7 +919,7 @@ class _SkeletonExamCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -800,9 +927,9 @@ class _SkeletonExamCard extends StatelessWidget {
           Container(
             width: 36,
             height: 36,
-            decoration: palette.block(radius: AppTokens.radiusSm),
+            decoration: palette.block(radius: FUITokens.radiusSm),
           ),
-          const SizedBox(width: AppTokens.gap12),
+          const SizedBox(width: FUITokens.gap12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -812,13 +939,13 @@ class _SkeletonExamCard extends StatelessWidget {
                   widthFactor: 0.82,
                   height: 17,
                 ),
-                const SizedBox(height: AppTokens.gap8),
+                const SizedBox(height: FUITokens.gap8),
                 SkeletonBar(
                   decoration: palette.line(radius: 8),
                   widthFactor: 0.5,
                   height: 12,
                 ),
-                const SizedBox(height: AppTokens.gap14),
+                const SizedBox(height: FUITokens.gap14),
                 SkeletonBar(
                   decoration: palette.line(radius: 8),
                   widthFactor: 0.72,
@@ -827,11 +954,11 @@ class _SkeletonExamCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: AppTokens.gap10),
+          const SizedBox(width: FUITokens.gap10),
           Container(
             width: 58,
             height: 52,
-            decoration: palette.block(radius: AppTokens.radiusMd),
+            decoration: palette.block(radius: FUITokens.radiusMd),
           ),
         ],
       ),
@@ -843,34 +970,28 @@ class _FeedbackState extends StatelessWidget {
   const _FeedbackState({
     required this.title,
     required this.message,
-    required this.onBack,
     required this.onFilter,
     required this.onRefresh,
   });
 
   final String title;
   final String message;
-  final VoidCallback onBack;
   final VoidCallback? onFilter;
   final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return AppPage(
+    return FUIPage(
       children: [
-        _ExamHeader(
-          onBack: onBack,
-          onFilter: onFilter,
-          onRefresh: onRefresh,
-        ),
-        const SizedBox(height: AppTokens.gap16),
-        AppSurface(
+        _ExamHeader(onFilter: onFilter, onRefresh: onRefresh),
+        const SizedBox(height: FUITokens.gap16),
+        FUISurface(
           child: SizedBox(
             height: 320,
-            child: AppEmptyState(
+            child: FUIEmptyState(
               title: title,
               message: message,
-              icon: AppIcons.exam,
+              icon: FUIIcons.exam,
               actionLabel: '重试',
               onAction: onRefresh,
             ),

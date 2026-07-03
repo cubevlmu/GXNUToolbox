@@ -3,13 +3,14 @@ import 'package:class_tool/pages/classes/table_schedule_page.dart';
 import 'package:class_tool/pages/classes/widgets/course_detail_sheet.dart';
 import 'package:class_tool/pages/classes/widgets/schedule_picker_sheet.dart';
 import 'package:class_tool/data/model/class_table.dart';
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_empty_state.dart';
-import 'package:class_tool/ui/app_icon_button.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_surface.dart';
-import 'package:class_tool/ui/app_tag.dart';
-import 'package:class_tool/ui/app_tokens.dart';
+import 'package:fui/app_context.dart';
+import 'package:fui/app_empty_state.dart';
+import 'package:fui/app_icon_button.dart';
+import 'package:fui/app_icons.dart';
+import 'package:fui/app_surface.dart';
+import 'package:fui/app_tag.dart';
+import 'package:fui/app_tokens.dart';
+import 'package:fui/fui_navigation.dart';
 import 'package:class_tool/widgets/simple_easy_refresher.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -44,7 +45,7 @@ class _ClassesPageState extends State<ClassesPage> {
                   builder: (controller) =>
                       _ClassesHeader(controller: controller),
                 ),
-                const SizedBox(height: AppTokens.gap12),
+                const SizedBox(height: FUITokens.gap12),
                 GetBuilder<ClassesController>(
                   id: 'classes-header',
                   builder: (controller) =>
@@ -148,7 +149,7 @@ class _ClassesToolbar extends StatelessWidget {
     final colors = context.colors;
     final foregroundColor = enabled ? colors.textPrimary : colors.textSecondary;
 
-    return AppSurface(
+    return FUISurface(
       backgroundColor: colors.surface,
       borderColor: colors.border,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -223,7 +224,7 @@ class _ClassesHeader extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: AppTokens.gap4),
+              const SizedBox(height: FUITokens.gap4),
               Text(
                 subtitle.isEmpty ? '查看本周课程安排' : subtitle,
                 maxLines: 1,
@@ -235,24 +236,22 @@ class _ClassesHeader extends StatelessWidget {
             ],
           ),
         ),
-        AppIconButton(
-          icon: AppIcons.refresh,
+        FUIIconButton(
+          icon: FUIIcons.refresh,
           tooltip: '刷新课表',
-          variant: AppIconButtonVariant.ghost,
+          variant: FUIIconButtonVariant.ghost,
           onPressed: controller.isLoading ? null : controller.refreshSchedule,
         ),
-        const SizedBox(width: AppTokens.gap8),
-        AppIconButton(
-          icon: AppIcons.calendar,
+        const SizedBox(width: FUITokens.gap8),
+        FUIIconButton(
+          icon: FUIIcons.calendar,
           tooltip: '表格课表',
-          variant: AppIconButtonVariant.ghost,
-          onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const TableSchedulePage(),
-              ),
-            );
-          },
+          variant: FUIIconButtonVariant.ghost,
+          onPressed: () => FuiNavigation.openDetail(
+            context,
+            title: '表格课表',
+            builder: (_) => const TableSchedulePage(),
+          ),
         ),
       ],
     );
@@ -275,7 +274,7 @@ class _ReturnTodayFloatingButton extends StatelessWidget {
         backgroundColor: colors.primary,
         foregroundColor: colors.textInverse,
         onPressed: onPressed,
-        child: const Icon(AppIcons.today, size: 28),
+        child: const Icon(FUIIcons.today, size: 28),
       ),
     );
   }
@@ -312,8 +311,9 @@ class _AgendaScheduleView extends StatelessWidget {
           days: controller.days,
           selectedWeekday: selectedWeekday,
           onSelected: onWeekdaySelected,
+          onWeekSwipe: controller.changeWeekByOffset,
         ),
-        const SizedBox(height: AppTokens.gap16),
+        const SizedBox(height: FUITokens.gap16),
         Row(
           children: [
             Expanded(
@@ -333,7 +333,7 @@ class _AgendaScheduleView extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: AppTokens.gap8),
+        const SizedBox(height: FUITokens.gap8),
         _SelectedDaySchedule(
           courses: selectedCourses,
           weekdayLabel: controller.days.length > selectedDayIndex
@@ -351,69 +351,85 @@ class _WeekDateStrip extends StatelessWidget {
     required this.days,
     required this.selectedWeekday,
     required this.onSelected,
+    required this.onWeekSwipe,
   });
 
   final List<ScheduleDay> days;
   final int selectedWeekday;
   final ValueChanged<int> onSelected;
+  final ValueChanged<int> onWeekSwipe;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return Row(
-      children: List.generate(7, (index) {
-        final weekday = index + 1;
-        final day = index < days.length ? days[index] : null;
-        final selected = weekday == selectedWeekday;
-        return Expanded(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => onSelected(weekday),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  day?.weekdayText ??
-                      _weekdayLabel(weekday).replaceFirst('周', ''),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.textTertiary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: AppTokens.gap6),
-                Container(
-                  width: 34,
-                  height: 34,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: selected ? colors.primary : Colors.transparent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    _dayNumberText(day?.dateText, weekday),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: selected ? colors.textInverse : colors.textPrimary,
-                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity.abs() < 180) {
+          return;
+        }
+        onWeekSwipe(velocity < 0 ? 1 : -1);
+      },
+      child: Row(
+        children: List.generate(7, (index) {
+          final weekday = index + 1;
+          final day = index < days.length ? days[index] : null;
+          final selected = weekday == selectedWeekday;
+          return Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onSelected(weekday),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    day?.weekdayText ??
+                        _weekdayLabel(weekday).replaceFirst('周', ''),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textTertiary,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ),
-                const SizedBox(height: AppTokens.gap4),
-                Container(
-                  width: 4,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: day?.isToday == true
-                        ? colors.primary
-                        : Colors.transparent,
-                    shape: BoxShape.circle,
+                  const SizedBox(height: FUITokens.gap6),
+                  Container(
+                    width: 34,
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: selected ? colors.primary : Colors.transparent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      _dayNumberText(day?.dateText, weekday),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: selected
+                            ? colors.textInverse
+                            : colors.textPrimary,
+                        fontWeight: selected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: FUITokens.gap4),
+                  Container(
+                    width: 4,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: day?.isToday == true
+                          ? colors.primary
+                          : Colors.transparent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
-      }),
+          );
+        }),
+      ),
     );
   }
 
@@ -437,15 +453,15 @@ class _SelectedDaySchedule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return AppSurface(
+    return FUISurface(
       padding: EdgeInsets.zero,
       child: courses.isEmpty
           ? Padding(
-              padding: const EdgeInsets.all(AppTokens.gap16),
+              padding: const EdgeInsets.all(FUITokens.gap16),
               child: Row(
                 children: [
-                  Icon(AppIcons.check, color: colors.textTertiary, size: 18),
-                  const SizedBox(width: AppTokens.gap8),
+                  Icon(FUIIcons.check, color: colors.textTertiary, size: 18),
+                  const SizedBox(width: FUITokens.gap8),
                   Text(
                     '当天暂无课程',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -495,7 +511,7 @@ class _CompactCourseRow extends StatelessWidget {
         weekdayLabel: weekdayLabel,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(AppTokens.gap12),
+        padding: const EdgeInsets.all(FUITokens.gap12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -511,7 +527,7 @@ class _CompactCourseRow extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: AppTokens.gap4),
+                  const SizedBox(height: FUITokens.gap4),
                   Text(
                     _endTimeText(course),
                     style: Theme.of(
@@ -522,7 +538,7 @@ class _CompactCourseRow extends StatelessWidget {
               ),
             ),
             Container(width: 1, height: 58, color: colors.border),
-            const SizedBox(width: AppTokens.gap12),
+            const SizedBox(width: FUITokens.gap12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -537,7 +553,7 @@ class _CompactCourseRow extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                       ),
-                      const SizedBox(width: AppTokens.gap8),
+                      const SizedBox(width: FUITokens.gap8),
                       Expanded(
                         child: Text(
                           course.title,
@@ -549,23 +565,23 @@ class _CompactCourseRow extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppTokens.gap6),
+                  const SizedBox(height: FUITokens.gap6),
                   if (course.classroom.isNotEmpty)
                     _CourseMetaRow(
-                      icon: AppIcons.location,
+                      icon: FUIIcons.location,
                       text: course.classroom,
                     ),
                   if (course.teacher.isNotEmpty)
-                    _CourseMetaRow(icon: AppIcons.person, text: course.teacher),
+                    _CourseMetaRow(icon: FUIIcons.person, text: course.teacher),
                   if (course.weeks.isNotEmpty)
-                    _CourseMetaRow(icon: AppIcons.calendar, text: course.weeks),
+                    _CourseMetaRow(icon: FUIIcons.calendar, text: course.weeks),
                 ],
               ),
             ),
-            const SizedBox(width: AppTokens.gap8),
-            AppTag(
+            const SizedBox(width: FUITokens.gap8),
+            FUITag(
               label: _sectionRangeText(course),
-              variant: AppTagVariant.primary,
+              variant: FUITagVariant.primary,
             ),
           ],
         ),
@@ -621,8 +637,8 @@ class _CourseMetaRow extends StatelessWidget {
     final colors = context.colors;
     return Row(
       children: [
-        Icon(icon, size: AppTokens.iconSm, color: colors.textTertiary),
-        const SizedBox(width: AppTokens.gap6),
+        Icon(icon, size: FUITokens.iconSm, color: colors.textTertiary),
+        const SizedBox(width: FUITokens.gap6),
         Expanded(
           child: Text(
             text.isEmpty ? '待定' : text,
@@ -726,7 +742,7 @@ class _SelectorRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 1),
-              Icon(AppIcons.chevronDown, color: foregroundColor, size: 18),
+              Icon(FUIIcons.chevronDown, color: foregroundColor, size: 18),
             ],
           ),
         ),
@@ -746,10 +762,10 @@ class _ClassesFeedbackState extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: AppEmptyState(
+        child: FUIEmptyState(
           title: title,
           message: subtitle,
-          icon: AppIcons.calendar,
+          icon: FUIIcons.calendar,
         ),
       ),
     );
