@@ -1,5 +1,3 @@
-library gx_update_client;
-
 export 'src/gx_update_config.dart';
 export 'src/gx_update_models.dart';
 export 'src/gx_update_exception.dart';

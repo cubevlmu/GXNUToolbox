@@ -13,6 +13,8 @@ class LogUtil {
   static late Logger _logger;
   static late File _logFile;
   static late Directory _logDir;
+  static bool _initialized = false;
+  static Future<void>? _initTask;
 
   static const int _maxKeepDays = 30;
 
@@ -34,6 +36,32 @@ class LogUtil {
 
   // Logger init function
   static Future<void> init() async {
+    if (_initialized) {
+      return;
+    }
+
+    final activeTask = _initTask;
+    if (activeTask != null) {
+      await activeTask;
+      return;
+    }
+
+    final task = _doInit();
+    _initTask = task;
+    try {
+      await task;
+    } finally {
+      if (identical(_initTask, task)) {
+        _initTask = null;
+      }
+    }
+  }
+
+  static Future<void> _doInit() async {
+    if (_initialized) {
+      return;
+    }
+
     final dir = await getApplicationSupportDirectory();
     _logDir = Directory('${dir.path}/logs');
     if (!_logDir.existsSync()) {
@@ -52,6 +80,7 @@ class LogUtil {
     );
 
     _logger.i('Logger initialized at ${_logFile.path}');
+    _initialized = true;
     unawaited(_cleanOldLogsAsync());
   }
 

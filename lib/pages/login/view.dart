@@ -1,11 +1,11 @@
 import 'package:class_tool/pages/login/controller.dart';
-import 'package:class_tool/ui/app_button.dart';
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_icon_button.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_surface.dart';
-import 'package:class_tool/ui/app_text_field.dart';
-import 'package:class_tool/ui/app_tokens.dart';
+import 'package:fin_ui/app_button.dart';
+import 'package:fin_ui/app_context.dart';
+import 'package:fin_ui/app_icon_button.dart';
+import 'package:fin_ui/app_icons.dart';
+import 'package:fin_ui/app_surface.dart';
+import 'package:fin_ui/app_text_field.dart';
+import 'package:fin_ui/app_tokens.dart';
 import 'package:class_tool/utils/app_info_util.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -19,13 +19,18 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   late final LoginController controller;
+  final String _controllerTag = UniqueKey().toString();
   late final TextEditingController accountTextController;
   final TextEditingController passwordTextController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    controller = Get.put(LoginController(), permanent: false);
+    controller = Get.put(
+      LoginController(),
+      tag: _controllerTag,
+      permanent: false,
+    );
     accountTextController = TextEditingController(text: controller.account);
   }
 
@@ -33,8 +38,8 @@ class _LoginPageState extends State<LoginPage> {
   void dispose() {
     accountTextController.dispose();
     passwordTextController.dispose();
-    if (Get.isRegistered<LoginController>()) {
-      Get.delete<LoginController>();
+    if (Get.isRegistered<LoginController>(tag: _controllerTag)) {
+      Get.delete<LoginController>(tag: _controllerTag);
     }
     super.dispose();
   }
@@ -53,13 +58,13 @@ class _LoginPageState extends State<LoginPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const _BrandHeader(),
-                  const SizedBox(height: AppTokens.gap20),
+                  const SizedBox(height: FUITokens.gap20),
                   _LoginPanel(
                     controller: controller,
                     accountTextController: accountTextController,
                     passwordTextController: passwordTextController,
                   ),
-                  const SizedBox(height: AppTokens.gap16),
+                  const SizedBox(height: FUITokens.gap16),
                   const _HelpPanel(),
                 ],
               ),
@@ -86,10 +91,10 @@ class _BrandHeader extends StatelessWidget {
           height: 64,
           decoration: BoxDecoration(
             color: colors.primarySoft,
-            borderRadius: BorderRadius.circular(AppTokens.radiusXl),
+            borderRadius: BorderRadius.circular(FUITokens.radiusXl),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppTokens.radiusXl),
+            borderRadius: BorderRadius.circular(FUITokens.radiusXl),
             child: Image.asset(
               'assets/images/icon.png',
               cacheWidth: 64,
@@ -97,21 +102,21 @@ class _BrandHeader extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: AppTokens.gap16),
+        const SizedBox(height: FUITokens.gap16),
         Text(
           'GXNU Toolbox',
           style: Theme.of(
             context,
           ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
-        const SizedBox(height: AppTokens.gap6),
+        const SizedBox(height: FUITokens.gap6),
         Text(
           '使用统一身份认证登录，同步学期、周次与课程安排。',
           style: Theme.of(
             context,
           ).textTheme.bodyMedium?.copyWith(color: colors.textSecondary),
         ),
-        const SizedBox(height: AppTokens.gap8),
+        const SizedBox(height: FUITokens.gap8),
         FutureBuilder<String>(
           future: AppInfoUtil.getVersionLabel(),
           builder: (context, snapshot) {
@@ -146,15 +151,15 @@ class _LoginPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              _IconBox(icon: AppIcons.login),
-              const SizedBox(width: AppTokens.gap10),
+              _IconBox(icon: FUIIcons.login),
+              const SizedBox(width: FUITokens.gap10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -165,7 +170,7 @@ class _LoginPanel extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: AppTokens.gap4),
+                    const SizedBox(height: FUITokens.gap4),
                     Text(
                       '请输入账户信息继续',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -177,19 +182,19 @@ class _LoginPanel extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppTokens.gap20),
+          const SizedBox(height: FUITokens.gap20),
           _AccountField(
             controller: controller,
             textController: accountTextController,
           ),
-          const SizedBox(height: AppTokens.gap14),
+          const SizedBox(height: FUITokens.gap14),
           _PasswordField(
             controller: controller,
             textController: passwordTextController,
           ),
-          const SizedBox(height: AppTokens.gap12),
+          const SizedBox(height: FUITokens.gap12),
           _RememberLoginRow(controller: controller),
-          const SizedBox(height: AppTokens.gap20),
+          const SizedBox(height: FUITokens.gap20),
           _LoginButton(controller: controller),
         ],
       ),
@@ -206,10 +211,10 @@ class _AccountField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(
-      () => AppTextField(
+      () => FUITextField(
         controller: textController,
         label: '学号 / 工号',
-        prefixIcon: AppIcons.person,
+        prefixIcon: FUIIcons.person,
         onChanged: controller.setAccount,
         enabled: controller.isInputEnabled,
         textInputAction: TextInputAction.next,
@@ -231,10 +236,10 @@ class _PasswordField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(
-      () => AppTextField(
+      () => FUITextField(
         controller: textController,
         label: '密码',
-        prefixIcon: AppIcons.password,
+        prefixIcon: FUIIcons.password,
         onChanged: controller.setPassword,
         enabled: controller.isInputEnabled,
         obscureText: controller.obscurePassword.value,
@@ -245,12 +250,12 @@ class _PasswordField extends StatelessWidget {
           }
         },
         autofillHints: const [AutofillHints.password],
-        suffix: AppIconButton(
+        suffix: FUIIconButton(
           icon: controller.obscurePassword.value
-              ? AppIcons.visibilityOff
-              : AppIcons.visibility,
+              ? FUIIcons.visibilityOff
+              : FUIIcons.visibility,
           tooltip: controller.obscurePassword.value ? '显示密码' : '隐藏密码',
-          variant: AppIconButtonVariant.ghost,
+          variant: FUIIconButtonVariant.ghost,
           onPressed: controller.isInputEnabled
               ? controller.togglePasswordVisible
               : null,
@@ -274,7 +279,7 @@ class _RememberLoginRow extends StatelessWidget {
       return Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+          borderRadius: BorderRadius.circular(FUITokens.radiusMd),
           onTap: controller.isInputEnabled
               ? () => controller.setRememberLogin(!selected)
               : null,
@@ -287,20 +292,20 @@ class _RememberLoginRow extends StatelessWidget {
                   height: 22,
                   decoration: BoxDecoration(
                     color: selected ? colors.primary : colors.surface,
-                    borderRadius: BorderRadius.circular(AppTokens.radiusXs),
+                    borderRadius: BorderRadius.circular(FUITokens.radiusXs),
                     border: Border.all(
                       color: selected ? colors.primary : colors.border,
                     ),
                   ),
                   child: selected
                       ? Icon(
-                          AppIcons.checkmark,
+                          FUIIcons.checkmark,
                           size: 15,
                           color: colors.textInverse,
                         )
                       : null,
                 ),
-                const SizedBox(width: AppTokens.gap10),
+                const SizedBox(width: FUITokens.gap10),
                 Expanded(
                   child: Text(
                     '记住登录状态',
@@ -327,9 +332,9 @@ class _LoginButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(
-      () => AppButton(
+      () => FUIButton(
         label: controller.isLoading.value ? '登录中' : '登录',
-        icon: controller.isLoading.value ? null : AppIcons.login,
+        icon: controller.isLoading.value ? null : FUIIcons.login,
         loading: controller.isLoading.value,
         fullWidth: true,
         onPressed: controller.isLoading.value ? null : controller.startLogin,
@@ -343,7 +348,7 @@ class _HelpPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -356,7 +361,7 @@ class _HelpPanel extends StatelessWidget {
               '如学校系统页面结构或接口规则发生变化，可能导致登录失败、同步失败或部分功能暂时不可用。',
             ],
           ),
-          SizedBox(height: AppTokens.gap20),
+          SizedBox(height: FUITokens.gap20),
           _InfoSection(
             title: '隐私说明',
             lines: [
@@ -366,7 +371,7 @@ class _HelpPanel extends StatelessWidget {
               '退出登录后，App 会清除本地保存的账号状态、会话信息和相关缓存。',
             ],
           ),
-          SizedBox(height: AppTokens.gap20),
+          SizedBox(height: FUITokens.gap20),
           _InfoSection(
             title: '风险说明',
             lines: [
@@ -400,10 +405,10 @@ class _InfoSection extends StatelessWidget {
             context,
           ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
         ),
-        const SizedBox(height: AppTokens.gap8),
+        const SizedBox(height: FUITokens.gap8),
         ...lines.map(
           (line) => Padding(
-            padding: const EdgeInsets.only(bottom: AppTokens.gap6),
+            padding: const EdgeInsets.only(bottom: FUITokens.gap6),
             child: Text(
               line,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -431,9 +436,9 @@ class _IconBox extends StatelessWidget {
       height: 36,
       decoration: BoxDecoration(
         color: colors.primarySoft,
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        borderRadius: BorderRadius.circular(FUITokens.radiusSm),
       ),
-      child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
+      child: Icon(icon, size: FUITokens.iconMd, color: colors.primary),
     );
   }
 }

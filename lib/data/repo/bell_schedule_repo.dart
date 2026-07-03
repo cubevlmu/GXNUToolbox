@@ -61,23 +61,20 @@ class BellScheduleRepo {
 
   Future<void> saveCache(BellScheduleResponse response) async {
     final semester = computeSemester();
-    await StorageUtils.cache.put(
-      'bell_schedule_semester',
-      semester,
-    );
+    await StorageUtils.cache.put('bell_schedule_semester', semester);
     await StorageUtils.cache.put(_cacheKey, jsonEncode(response.toJson()));
     _cachedSemester = semester;
   }
 
-  Future<BellScheduleResponse> ensureLoaded({
-    bool forceRefresh = false,
-  }) async {
+  Future<BellScheduleResponse> ensureLoaded({bool forceRefresh = false}) async {
     final semester = computeSemester();
 
     if (!forceRefresh && _cachedSemester == semester) {
       final cached = loadCached();
       if (cached != null) {
-        LogUtil.debug('[BellScheduleRepo] reuse cached schedule semester=$semester');
+        LogUtil.debug(
+          '[BellScheduleRepo] reuse cached schedule semester=$semester',
+        );
         return cached;
       }
     }
@@ -111,7 +108,9 @@ class BellScheduleRepo {
       final response = await Api.getBellSchedule(semester: semester);
       await saveCache(response);
       _cachedSemester = semester;
-      LogUtil.info('[BellScheduleRepo] fetch success campuses=${response.campuses.length}');
+      LogUtil.info(
+        '[BellScheduleRepo] fetch success campuses=${response.campuses.length}',
+      );
       return response;
     } on ApiLoginExpiredException catch (e, s) {
       LogUtil.warnE('[BellScheduleRepo] login expired', e, s);

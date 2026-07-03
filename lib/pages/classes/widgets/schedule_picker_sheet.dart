@@ -1,6 +1,6 @@
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_tokens.dart';
+import 'package:fin_ui/app_context.dart';
+import 'package:fin_ui/app_icons.dart';
+import 'package:fin_ui/app_tokens.dart';
 import 'package:class_tool/widgets/app_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 
@@ -19,7 +19,6 @@ Future<void> showScheduleSelectionSheet({
 }) {
   return showAppBottomSheet<void>(
     context: context,
-    heightFactor: 0.625,
     child: ScheduleSelectionSheetContent(
       selectedValue: selectedValue,
       items: items,
@@ -94,6 +93,7 @@ class _ScheduleSelectionSheetContentState
       top: false,
       child: ListView.builder(
         controller: _scrollController,
+        shrinkWrap: true,
         primary: false,
         padding: const EdgeInsets.fromLTRB(0, 4, 0, 12),
         itemCount: widget.items.length,
@@ -126,18 +126,22 @@ class _ScheduleSelectionSheetContentState
                           children: [
                             Text(
                               item.label,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: isSelected ? colors.primary : colors.textPrimary,
-                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: isSelected
+                                        ? colors.primary
+                                        : colors.textPrimary,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
                                   ),
                             ),
                             if (item.subtitle != null) ...[
-                              const SizedBox(height: AppTokens.gap2),
+                              const SizedBox(height: FUITokens.gap2),
                               Text(
                                 item.subtitle!,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: colors.textSecondary,
-                                    ),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: colors.textSecondary),
                               ),
                             ],
                           ],
@@ -145,8 +149,8 @@ class _ScheduleSelectionSheetContentState
                       ),
                       if (isSelected)
                         Icon(
-                          AppIcons.check,
-                          size: AppTokens.iconMd,
+                          FUIIcons.check,
+                          size: FUITokens.iconMd,
                           color: colors.primary,
                         ),
                     ],

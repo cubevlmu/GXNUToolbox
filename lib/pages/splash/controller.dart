@@ -5,7 +5,7 @@ import 'package:class_tool/data/repo/user_repo.dart';
 import 'package:class_tool/data/services/app_update_service.dart';
 import 'package:class_tool/pages/login/view.dart';
 import 'package:class_tool/pages/main/view.dart';
-import 'package:class_tool/ui/app_update_prompt.dart';
+import 'package:class_tool/widgets/app_update_prompt.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
@@ -449,7 +449,9 @@ class SplashController extends GetxController {
 
   void _navigateToLogin() {
     if (_updateBlocksStartup) {
-      LogUtil.warn('[SplashController] login navigation blocked by update gate');
+      LogUtil.warn(
+        '[SplashController] login navigation blocked by update gate',
+      );
       return;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -165,8 +165,9 @@ class ExamsController extends GetxController {
       }
       _exams.addAll(response.results);
       _page.value = response.page <= 0 ? nextPage : response.page;
-      _totalPages.value =
-          response.totalPages <= 0 ? totalPages : response.totalPages;
+      _totalPages.value = response.totalPages <= 0
+          ? totalPages
+          : response.totalPages;
       _total.value = response.total;
     } catch (e, s) {
       if (!_isActiveRequest(version)) {
@@ -209,5 +210,4 @@ class ExamsController extends GetxController {
         version == _batchRequestVersion &&
         semester == _selectedSemester.value;
   }
-
 }

@@ -6,16 +6,17 @@
 
 import 'package:class_tool/data/model/course_plan.dart';
 import 'package:class_tool/pages/progress/controller.dart';
-import 'package:class_tool/ui/app_combo_box.dart';
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_empty_state.dart';
-import 'package:class_tool/ui/app_icon_button.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_page.dart';
-import 'package:class_tool/ui/app_progress_bar.dart';
-import 'package:class_tool/ui/app_surface.dart';
-import 'package:class_tool/ui/app_tag.dart';
-import 'package:class_tool/ui/app_tokens.dart';
+import 'package:fin_ui/app_combo_box.dart';
+import 'package:fin_ui/app_context.dart';
+import 'package:fin_ui/app_empty_state.dart';
+import 'package:fin_ui/app_icon_button.dart';
+import 'package:fin_ui/app_icons.dart';
+import 'package:fin_ui/app_page.dart';
+import 'package:fin_ui/app_progress_bar.dart';
+import 'package:fin_ui/app_surface.dart';
+import 'package:fin_ui/app_tag.dart';
+import 'package:fin_ui/app_tokens.dart';
+import 'package:fin_ui/fui_page_head.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -77,27 +78,28 @@ class _ProgressPageState extends State<ProgressPage> {
             );
           }
 
-          return AppPage(
+          return FUIPage(
             children: [
               _ProgressHeader(
                 onBack: () => Navigator.of(context).maybePop(),
-                onRefresh:
-                    controller.isLoading.value ? null : controller.loadData,
+                onRefresh: controller.isLoading.value
+                    ? null
+                    : controller.loadData,
               ),
-              const SizedBox(height: AppTokens.gap16),
+              const SizedBox(height: FUITokens.gap16),
               _SemesterCombo(controller: controller),
-              const SizedBox(height: AppTokens.gap16),
+              const SizedBox(height: FUITokens.gap16),
               _OverviewCard(
                 completed: controller.completedCount,
                 total: controller.totalCount,
               ),
-              const SizedBox(height: AppTokens.gap16),
+              const SizedBox(height: FUITokens.gap16),
               _GroupHeader(count: _groupCount(response)),
-              const SizedBox(height: AppTokens.gap8),
+              const SizedBox(height: FUITokens.gap8),
               for (final section in response.sections)
                 for (final group in section.groups) ...[
                   _GroupCard(group: group),
-                  const SizedBox(height: AppTokens.gap12),
+                  const SizedBox(height: FUITokens.gap12),
                 ],
             ],
           );
@@ -115,45 +117,14 @@ class _ProgressHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return Row(
-      children: [
-        AppIconButton(
-          icon: AppIcons.chevronLeft,
-          tooltip: '返回',
-          variant: AppIconButtonVariant.outline,
-          onPressed: onBack,
-        ),
-        const SizedBox(width: AppTokens.gap12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '培养进度',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-              const SizedBox(height: AppTokens.gap4),
-              Text(
-                '查看培养方案课程修读情况',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-              ),
-            ],
-          ),
-        ),
-        AppIconButton(
-          icon: AppIcons.refresh,
+    return FuiPageHead(
+      title: '培养进度',
+      subtitle: '查看培养方案课程修读情况',
+      actions: [
+        FUIIconButton(
+          icon: FUIIcons.refresh,
           tooltip: '刷新',
-          variant: AppIconButtonVariant.ghost,
+          variant: FUIIconButtonVariant.ghost,
           onPressed: onRefresh,
         ),
       ],
@@ -170,9 +141,9 @@ class _SemesterCombo extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       final items = ['', ...controller.semesterOptions];
-      return AppSurface(
+      return FUISurface(
         padding: const EdgeInsets.all(14),
-        child: AppComboBox<String>(
+        child: FUIComboBox<String>(
           label: '学年学期',
           value: controller.selectedSemester.value,
           items: items,
@@ -199,37 +170,43 @@ class _OverviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ratio = total == 0 ? 0.0 : completed / total;
 
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _IconBox(icon: AppIcons.progress),
-              const SizedBox(width: AppTokens.gap10),
+              _IconBox(icon: FUIIcons.progress),
+              const SizedBox(width: FUITokens.gap10),
               Expanded(
                 child: Text(
                   '完成进度',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-              AppTag(
+              FUITag(
                 label: '$completed / $total',
-                variant: ratio >= 1 ? AppTagVariant.success : AppTagVariant.primary,
+                variant: ratio >= 1
+                    ? FUITagVariant.success
+                    : FUITagVariant.primary,
               ),
             ],
           ),
-          const SizedBox(height: AppTokens.gap14),
-          AppProgressBar(value: ratio),
-          const SizedBox(height: AppTokens.gap14),
+          const SizedBox(height: FUITokens.gap14),
+          FUIProgressBar(value: ratio),
+          const SizedBox(height: FUITokens.gap14),
           Row(
             children: [
-              Expanded(child: _Metric(label: '已完成', value: '$completed')),
-              const SizedBox(width: AppTokens.gap10),
-              Expanded(child: _Metric(label: '总课程', value: '$total')),
+              Expanded(
+                child: _Metric(label: '已完成', value: '$completed'),
+              ),
+              const SizedBox(width: FUITokens.gap10),
+              Expanded(
+                child: _Metric(label: '总课程', value: '$total'),
+              ),
             ],
           ),
         ],
@@ -251,17 +228,17 @@ class _GroupHeader extends StatelessWidget {
         Expanded(
           child: Text(
             '课程模块',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
         ),
         Text(
           '$count 个分组',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
+            color: colors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -286,7 +263,7 @@ class _GroupCardState extends State<_GroupCard> {
     final completed = group.items.where((item) => item.isCompleted).length;
     final ratio = group.items.isEmpty ? 0.0 : completed / group.items.length;
 
-    return AppSurface(
+    return FUISurface(
       padding: EdgeInsets.zero,
       child: Column(
         children: [
@@ -306,24 +283,25 @@ class _GroupCardState extends State<_GroupCard> {
                             group.name.isEmpty ? '课程模块' : group.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w800),
                           ),
-                          const SizedBox(height: AppTokens.gap8),
-                          AppProgressBar(value: ratio),
+                          const SizedBox(height: FUITokens.gap8),
+                          FUIProgressBar(value: ratio),
                         ],
                       ),
                     ),
-                    const SizedBox(width: AppTokens.gap12),
-                    AppTag(
+                    const SizedBox(width: FUITokens.gap12),
+                    FUITag(
                       label: '$completed / ${group.items.length}',
-                      variant: ratio >= 1 ? AppTagVariant.success : AppTagVariant.primary,
+                      variant: ratio >= 1
+                          ? FUITagVariant.success
+                          : FUITagVariant.primary,
                     ),
-                    const SizedBox(width: AppTokens.gap8),
+                    const SizedBox(width: FUITokens.gap8),
                     Icon(
-                      _expanded ? AppIcons.chevronDown : AppIcons.chevronRight,
-                      size: AppTokens.iconMd,
+                      _expanded ? FUIIcons.chevronDown : FUIIcons.chevronRight,
+                      size: FUITokens.iconMd,
                       color: context.colors.textSecondary,
                     ),
                   ],
@@ -332,8 +310,7 @@ class _GroupCardState extends State<_GroupCard> {
             ),
           ),
           if (_expanded)
-            for (final item in group.items)
-              _CourseTile(item: item),
+            for (final item in group.items) _CourseTile(item: item),
         ],
       ),
     );
@@ -364,25 +341,27 @@ class _CourseTile extends StatelessWidget {
                   item.courseName,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: AppTokens.gap6),
+                const SizedBox(height: FUITokens.gap6),
                 Wrap(
-                  spacing: AppTokens.gap8,
-                  runSpacing: AppTokens.gap6,
+                  spacing: FUITokens.gap8,
+                  runSpacing: FUITokens.gap6,
                   children: [
-                    if (item.credits.isNotEmpty) AppTag(label: '${item.credits} 学分'),
-                    if (item.examType.isNotEmpty) AppTag(label: item.examType),
-                    if (item.categoryLabel.isNotEmpty) AppTag(label: item.categoryLabel),
+                    if (item.credits.isNotEmpty)
+                      FUITag(label: '${item.credits} 学分'),
+                    if (item.examType.isNotEmpty) FUITag(label: item.examType),
+                    if (item.categoryLabel.isNotEmpty)
+                      FUITag(label: item.categoryLabel),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(width: AppTokens.gap10),
-          AppTag(
+          const SizedBox(width: FUITokens.gap10),
+          FUITag(
             label: item.scoreText.isEmpty ? '待修读' : item.scoreText,
             variant: _statusVariant(item),
           ),
@@ -391,10 +370,10 @@ class _CourseTile extends StatelessWidget {
     );
   }
 
-  AppTagVariant _statusVariant(CoursePlanItem item) {
-    if (item.isCompleted) return AppTagVariant.success;
-    if (item.scoreText == '修读中') return AppTagVariant.primary;
-    return AppTagVariant.warning;
+  FUITagVariant _statusVariant(CoursePlanItem item) {
+    if (item.isCompleted) return FUITagVariant.success;
+    if (item.scoreText == '修读中') return FUITagVariant.primary;
+    return FUITagVariant.warning;
   }
 }
 
@@ -412,7 +391,7 @@ class _Metric extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        borderRadius: BorderRadius.circular(FUITokens.radiusMd),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -421,16 +400,16 @@ class _Metric extends StatelessWidget {
           Text(
             value,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: colors.primary,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: colors.primary,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          const SizedBox(height: AppTokens.gap4),
+          const SizedBox(height: FUITokens.gap4),
           Text(
             label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textSecondary,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
           ),
         ],
       ),
@@ -451,9 +430,9 @@ class _IconBox extends StatelessWidget {
       height: 36,
       decoration: BoxDecoration(
         color: colors.primarySoft,
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        borderRadius: BorderRadius.circular(FUITokens.radiusSm),
       ),
-      child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
+      child: Icon(icon, size: FUITokens.iconMd, color: colors.primary),
     );
   }
 }
@@ -466,39 +445,47 @@ class _ProgressSkeletonView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SkeletonShimmer(
-      builder: (context, palette) => AppPage(
+      builder: (context, palette) => FUIPage(
         physics: const NeverScrollableScrollPhysics(),
         children: [
           _ProgressHeader(onBack: onBack, onRefresh: null),
-          const SizedBox(height: AppTokens.gap16),
+          const SizedBox(height: FUITokens.gap16),
           SkeletonBar(
-            decoration: palette.line(radius: AppTokens.radiusMd),
+            decoration: palette.line(radius: FUITokens.radiusMd),
             widthFactor: 1,
             height: 72,
           ),
-          const SizedBox(height: AppTokens.gap16),
-          AppSurface(
+          const SizedBox(height: FUITokens.gap16),
+          FUISurface(
             padding: const EdgeInsets.all(14),
             child: Column(
               children: [
-                SkeletonBar(decoration: palette.line(radius: 8), widthFactor: 0.46, height: 18),
-                const SizedBox(height: AppTokens.gap14),
-                SkeletonBar(decoration: palette.line(radius: AppTokens.radiusFull), widthFactor: 1, height: 6),
-                const SizedBox(height: AppTokens.gap14),
+                SkeletonBar(
+                  decoration: palette.line(radius: 8),
+                  widthFactor: 0.46,
+                  height: 18,
+                ),
+                const SizedBox(height: FUITokens.gap14),
+                SkeletonBar(
+                  decoration: palette.line(radius: FUITokens.radiusFull),
+                  widthFactor: 1,
+                  height: 6,
+                ),
+                const SizedBox(height: FUITokens.gap14),
                 Row(
                   children: [
                     Expanded(child: _SkeletonMetric(palette: palette)),
-                    const SizedBox(width: AppTokens.gap10),
+                    const SizedBox(width: FUITokens.gap10),
                     Expanded(child: _SkeletonMetric(palette: palette)),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: AppTokens.gap16),
+          const SizedBox(height: FUITokens.gap16),
           for (int i = 0; i < 4; i++) ...[
             _SkeletonGroup(palette: palette),
-            const SizedBox(height: AppTokens.gap12),
+            const SizedBox(height: FUITokens.gap12),
           ],
         ],
       ),
@@ -520,9 +507,17 @@ class _SkeletonMetric extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SkeletonBar(decoration: palette.line(radius: 8), widthFactor: 0.52, height: 15),
-          const SizedBox(height: AppTokens.gap8),
-          SkeletonBar(decoration: palette.line(radius: 8), widthFactor: 0.38, height: 12),
+          SkeletonBar(
+            decoration: palette.line(radius: 8),
+            widthFactor: 0.52,
+            height: 15,
+          ),
+          const SizedBox(height: FUITokens.gap8),
+          SkeletonBar(
+            decoration: palette.line(radius: 8),
+            widthFactor: 0.38,
+            height: 12,
+          ),
         ],
       ),
     );
@@ -536,18 +531,34 @@ class _SkeletonGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SkeletonBar(decoration: palette.line(radius: 8), widthFactor: 0.62, height: 16),
-          const SizedBox(height: AppTokens.gap12),
-          SkeletonBar(decoration: palette.line(radius: AppTokens.radiusFull), widthFactor: 1, height: 6),
-          const SizedBox(height: AppTokens.gap12),
-          SkeletonBar(decoration: palette.line(radius: AppTokens.radiusMd), widthFactor: 1, height: 46),
-          const SizedBox(height: AppTokens.gap8),
-          SkeletonBar(decoration: palette.line(radius: AppTokens.radiusMd), widthFactor: 1, height: 46),
+          SkeletonBar(
+            decoration: palette.line(radius: 8),
+            widthFactor: 0.62,
+            height: 16,
+          ),
+          const SizedBox(height: FUITokens.gap12),
+          SkeletonBar(
+            decoration: palette.line(radius: FUITokens.radiusFull),
+            widthFactor: 1,
+            height: 6,
+          ),
+          const SizedBox(height: FUITokens.gap12),
+          SkeletonBar(
+            decoration: palette.line(radius: FUITokens.radiusMd),
+            widthFactor: 1,
+            height: 46,
+          ),
+          const SizedBox(height: FUITokens.gap8),
+          SkeletonBar(
+            decoration: palette.line(radius: FUITokens.radiusMd),
+            widthFactor: 1,
+            height: 46,
+          ),
         ],
       ),
     );
@@ -569,17 +580,17 @@ class _FeedbackState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppPage(
+    return FUIPage(
       children: [
         _ProgressHeader(onBack: onBack, onRefresh: onRefresh),
-        const SizedBox(height: AppTokens.gap16),
-        AppSurface(
+        const SizedBox(height: FUITokens.gap16),
+        FUISurface(
           child: SizedBox(
             height: 320,
-            child: AppEmptyState(
+            child: FUIEmptyState(
               title: title,
               message: message,
-              icon: AppIcons.progress,
+              icon: FUIIcons.progress,
               actionLabel: '重试',
               onAction: onRefresh,
             ),

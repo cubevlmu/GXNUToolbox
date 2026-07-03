@@ -1,13 +1,16 @@
+import 'dart:async';
+
 import 'package:class_tool/data/model/school_notification.dart';
 import 'package:class_tool/pages/notifications/controller.dart';
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_empty_state.dart';
-import 'package:class_tool/ui/app_icon_button.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_page.dart';
-import 'package:class_tool/ui/app_surface.dart';
-import 'package:class_tool/ui/app_tag.dart';
-import 'package:class_tool/ui/app_tokens.dart';
+import 'package:fin_ui/app_context.dart';
+import 'package:fin_ui/app_empty_state.dart';
+import 'package:fin_ui/app_icon_button.dart';
+import 'package:fin_ui/app_icons.dart';
+import 'package:fin_ui/app_page.dart';
+import 'package:fin_ui/app_surface.dart';
+import 'package:fin_ui/app_tag.dart';
+import 'package:fin_ui/app_tokens.dart';
+import 'package:fin_ui/fui_page_head.dart';
 import 'package:class_tool/widgets/app_bottom_sheet.dart';
 import 'package:class_tool/widgets/simple_easy_refresher.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
@@ -24,17 +27,22 @@ class NotificationsPage extends StatefulWidget {
 
 class _NotificationsPageState extends State<NotificationsPage> {
   late final NotificationsController controller;
+  final String _controllerTag = UniqueKey().toString();
 
   @override
   void initState() {
     super.initState();
-    controller = Get.put(NotificationsController(), permanent: false);
+    controller = Get.put(
+      NotificationsController(),
+      tag: _controllerTag,
+      permanent: false,
+    );
   }
 
   @override
   void dispose() {
-    if (Get.isRegistered<NotificationsController>()) {
-      Get.delete<NotificationsController>();
+    if (Get.isRegistered<NotificationsController>(tag: _controllerTag)) {
+      Get.delete<NotificationsController>(tag: _controllerTag);
     }
     super.dispose();
   }
@@ -44,22 +52,20 @@ class _NotificationsPageState extends State<NotificationsPage> {
     return Scaffold(
       backgroundColor: context.colors.background,
       body: GetBuilder<NotificationsController>(
+        tag: _controllerTag,
         id: 'notification-content',
         builder: (controller) {
           final canInteract =
               !controller.isLoading && !controller.isLoadingMore;
 
           if (controller.isLoading && !controller.hasData) {
-            return _NotificationSkeletonView(
-              onBack: () => Navigator.of(context).maybePop(),
-            );
+            return const _NotificationSkeletonView();
           }
 
           if (controller.error.isNotEmpty && !controller.hasData) {
             return _FeedbackState(
               title: '通知加载失败',
               message: controller.error,
-              onBack: () => Navigator.of(context).maybePop(),
               onRefresh: canInteract ? controller.refreshNotifications : null,
             );
           }
@@ -68,7 +74,6 @@ class _NotificationsPageState extends State<NotificationsPage> {
             return _FeedbackState(
               title: '暂无通知',
               message: '点击刷新后重试',
-              onBack: () => Navigator.of(context).maybePop(),
               onRefresh: canInteract ? controller.refreshNotifications : null,
             );
           }
@@ -80,26 +85,26 @@ class _NotificationsPageState extends State<NotificationsPage> {
             autoRefreshOnStart: false,
             refreshEnabled: canInteract,
             loadEnabled: controller.hasMore && canInteract,
-            childBuilder: (context, physics) => AppPage(
+            childBuilder: (context, physics) => FUIPage(
               physics: canInteract
                   ? physics
                   : const NeverScrollableScrollPhysics(),
               children: [
                 _NotificationHeader(
-                  onBack: () => Navigator.of(context).maybePop(),
                   onRefresh: canInteract
                       ? controller.refreshNotifications
                       : null,
                 ),
-                const SizedBox(height: AppTokens.gap16),
+                const SizedBox(height: FUITokens.gap16),
                 _ListHeader(total: controller.total),
-                const SizedBox(height: AppTokens.gap8),
+                const SizedBox(height: FUITokens.gap8),
                 for (final item in controller.items) ...[
                   _NotificationCard(
                     item: item,
-                    onTap: () => _openDetailSheet(context, item),
+                    onTap: () => _openDetailSheet(context, controller, item),
+                    onDelete: () => controller.deleteNotification(item),
                   ),
-                  const SizedBox(height: AppTokens.gap12),
+                  const SizedBox(height: FUITokens.gap12),
                 ],
               ],
             ),
@@ -111,64 +116,34 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   Future<void> _openDetailSheet(
     BuildContext context,
+    NotificationsController controller,
     SchoolNotificationItem item,
   ) async {
+    final displayItem = item.isRead ? item : item.markRead();
+    unawaited(controller.markAsRead(item));
     await showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      heightFactor: 0.58,
-      child: _NotificationDetailSheet(item: item),
+      child: _NotificationDetailSheet(item: displayItem),
     );
   }
 }
 
 class _NotificationHeader extends StatelessWidget {
-  const _NotificationHeader({required this.onBack, required this.onRefresh});
+  const _NotificationHeader({required this.onRefresh});
 
-  final VoidCallback onBack;
   final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return Row(
-      children: [
-        AppIconButton(
-          icon: AppIcons.chevronLeft,
-          tooltip: '返回',
-          variant: AppIconButtonVariant.outline,
-          onPressed: onBack,
-        ),
-        const SizedBox(width: AppTokens.gap12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '通知公告',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: AppTokens.gap4),
-              Text(
-                '查看教务工作台消息',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
-              ),
-            ],
-          ),
-        ),
-        AppIconButton(
-          icon: AppIcons.refresh,
+    return FuiPageHead(
+      title: '通知公告',
+      subtitle: '查看教务工作台消息',
+      actions: [
+        FUIIconButton(
+          icon: FUIIcons.refresh,
           tooltip: '刷新',
-          variant: AppIconButtonVariant.ghost,
+          variant: FUIIconButtonVariant.ghost,
           onPressed: onRefresh,
         ),
       ],
@@ -208,17 +183,22 @@ class _ListHeader extends StatelessWidget {
 }
 
 class _NotificationCard extends StatelessWidget {
-  const _NotificationCard({required this.item, required this.onTap});
+  const _NotificationCard({
+    required this.item,
+    required this.onTap,
+    required this.onDelete,
+  });
 
   final SchoolNotificationItem item;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final contentText = _plainText(item.content);
 
-    return AppSurface(
+    return FUISurface(
       onTap: onTap,
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -229,10 +209,10 @@ class _NotificationCard extends StatelessWidget {
             children: [
               _IconBox(
                 icon: item.isRead
-                    ? AppIcons.notification
-                    : AppIcons.notificationActive,
+                    ? FUIIcons.notification
+                    : FUIIcons.notificationActive,
               ),
-              const SizedBox(width: AppTokens.gap12),
+              const SizedBox(width: FUITokens.gap12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,38 +225,45 @@ class _NotificationCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: AppTokens.gap8),
+                    const SizedBox(height: FUITokens.gap8),
                     Wrap(
-                      spacing: AppTokens.gap8,
-                      runSpacing: AppTokens.gap8,
+                      spacing: FUITokens.gap8,
+                      runSpacing: FUITokens.gap8,
                       children: [
-                        AppTag(
+                        FUITag(
                           label: item.readStatusLabel,
                           variant: item.isRead
-                              ? AppTagVariant.neutral
-                              : AppTagVariant.primary,
+                              ? FUITagVariant.neutral
+                              : FUITagVariant.primary,
                         ),
                         if (item.noticeType.isNotEmpty)
-                          AppTag(label: item.noticeType),
+                          FUITag(label: item.noticeType),
                         if (item.isPinned)
-                          const AppTag(
+                          const FUITag(
                             label: '置顶',
-                            variant: AppTagVariant.warning,
+                            variant: FUITagVariant.warning,
                           ),
                         if (item.isNew)
-                          const AppTag(
+                          const FUITag(
                             label: '新',
-                            variant: AppTagVariant.success,
+                            variant: FUITagVariant.success,
                           ),
                       ],
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: FUITokens.gap6),
+              FUIIconButton(
+                icon: FUIIcons.delete,
+                tooltip: '删除',
+                variant: FUIIconButtonVariant.ghost,
+                onPressed: onDelete,
+              ),
             ],
           ),
           if (contentText.isNotEmpty) ...[
-            const SizedBox(height: AppTokens.gap12),
+            const SizedBox(height: FUITokens.gap12),
             Text(
               contentText,
               maxLines: 2,
@@ -288,15 +275,15 @@ class _NotificationCard extends StatelessWidget {
             ),
           ],
           if (item.releaseDate.isNotEmpty) ...[
-            const SizedBox(height: AppTokens.gap12),
+            const SizedBox(height: FUITokens.gap12),
             Row(
               children: [
                 Icon(
-                  AppIcons.calendar,
-                  size: AppTokens.iconSm,
+                  FUIIcons.calendar,
+                  size: FUITokens.iconSm,
                   color: colors.textTertiary,
                 ),
-                const SizedBox(width: AppTokens.gap6),
+                const SizedBox(width: FUITokens.gap6),
                 Expanded(
                   child: Text(
                     item.releaseDate,
@@ -333,8 +320,8 @@ class _NotificationDetailSheet extends StatelessWidget {
       children: [
         Row(
           children: [
-            _IconBox(icon: AppIcons.notification),
-            const SizedBox(width: AppTokens.gap10),
+            _IconBox(icon: FUIIcons.notification),
+            const SizedBox(width: FUITokens.gap10),
             Expanded(
               child: Text(
                 '通知详情',
@@ -345,32 +332,32 @@ class _NotificationDetailSheet extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: AppTokens.gap16),
+        const SizedBox(height: FUITokens.gap16),
         Text(
           item.title.isEmpty ? '未命名通知' : item.title,
           style: Theme.of(
             context,
           ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
         ),
-        const SizedBox(height: AppTokens.gap10),
+        const SizedBox(height: FUITokens.gap10),
         Wrap(
-          spacing: AppTokens.gap8,
-          runSpacing: AppTokens.gap8,
+          spacing: FUITokens.gap8,
+          runSpacing: FUITokens.gap8,
           children: [
-            AppTag(
+            FUITag(
               label: item.readStatusLabel,
               variant: item.isRead
-                  ? AppTagVariant.neutral
-                  : AppTagVariant.primary,
+                  ? FUITagVariant.neutral
+                  : FUITagVariant.primary,
             ),
-            if (item.noticeType.isNotEmpty) AppTag(label: item.noticeType),
-            if (item.releaseDate.isNotEmpty) AppTag(label: item.releaseDate),
+            if (item.noticeType.isNotEmpty) FUITag(label: item.noticeType),
+            if (item.releaseDate.isNotEmpty) FUITag(label: item.releaseDate),
             if (item.isPinned)
-              const AppTag(label: '置顶', variant: AppTagVariant.warning),
+              const FUITag(label: '置顶', variant: FUITagVariant.warning),
           ],
         ),
-        const SizedBox(height: AppTokens.gap16),
-        AppSurface(
+        const SizedBox(height: FUITokens.gap16),
+        FUISurface(
           padding: const EdgeInsets.all(14),
           child: Text(
             contentText.isEmpty ? '暂无正文内容' : contentText,
@@ -400,45 +387,43 @@ class _IconBox extends StatelessWidget {
       height: 36,
       decoration: BoxDecoration(
         color: colors.primarySoft,
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        borderRadius: BorderRadius.circular(FUITokens.radiusSm),
       ),
-      child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
+      child: Icon(icon, size: FUITokens.iconMd, color: colors.primary),
     );
   }
 }
 
 class _NotificationSkeletonView extends StatelessWidget {
-  const _NotificationSkeletonView({required this.onBack});
-
-  final VoidCallback onBack;
+  const _NotificationSkeletonView();
 
   @override
   Widget build(BuildContext context) {
     return SkeletonShimmer(
-      builder: (context, palette) => AppPage(
+      builder: (context, palette) => FUIPage(
         physics: const NeverScrollableScrollPhysics(),
         children: [
-          _NotificationHeader(onBack: onBack, onRefresh: null),
-          const SizedBox(height: AppTokens.gap16),
+          _NotificationHeader(onRefresh: null),
+          const SizedBox(height: FUITokens.gap16),
           SkeletonBar(
-            decoration: palette.line(radius: AppTokens.radiusMd),
+            decoration: palette.line(radius: FUITokens.radiusMd),
             widthFactor: 1,
             height: 52,
           ),
-          const SizedBox(height: AppTokens.gap16),
+          const SizedBox(height: FUITokens.gap16),
           SkeletonBar(
-            decoration: palette.line(radius: AppTokens.radiusMd),
+            decoration: palette.line(radius: FUITokens.radiusMd),
             widthFactor: 1,
             height: 70,
           ),
-          const SizedBox(height: AppTokens.gap16),
+          const SizedBox(height: FUITokens.gap16),
           for (int i = 0; i < 6; i++) ...[
             SkeletonBar(
-              decoration: palette.line(radius: AppTokens.radiusLg),
+              decoration: palette.line(radius: FUITokens.radiusLg),
               widthFactor: 1,
               height: 112,
             ),
-            const SizedBox(height: AppTokens.gap12),
+            const SizedBox(height: FUITokens.gap12),
           ],
         ],
       ),
@@ -450,28 +435,26 @@ class _FeedbackState extends StatelessWidget {
   const _FeedbackState({
     required this.title,
     required this.message,
-    required this.onBack,
     required this.onRefresh,
   });
 
   final String title;
   final String message;
-  final VoidCallback onBack;
   final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return AppPage(
+    return FUIPage(
       children: [
-        _NotificationHeader(onBack: onBack, onRefresh: onRefresh),
-        const SizedBox(height: AppTokens.gap16),
-        AppSurface(
+        _NotificationHeader(onRefresh: onRefresh),
+        const SizedBox(height: FUITokens.gap16),
+        FUISurface(
           child: SizedBox(
             height: 320,
-            child: AppEmptyState(
+            child: FUIEmptyState(
               title: title,
               message: message,
-              icon: AppIcons.notification,
+              icon: FUIIcons.notification,
               actionLabel: '重试',
               onAction: onRefresh,
             ),

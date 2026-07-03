@@ -177,13 +177,19 @@ class MainActivity : FlutterActivity() {
       val title = event["title"]?.toString()?.takeIf { it.isNotBlank() } ?: "课程"
       val startMillis = (event["startMillis"] as? Number)?.toLong() ?: continue
       val endMillis = (event["endMillis"] as? Number)?.toLong() ?: continue
+      val description = event["description"]?.toString() ?: ""
+      val location = event["location"]?.toString() ?: ""
+      val normalizedEndMillis = if (endMillis > startMillis) endMillis else startMillis + 45 * 60 * 1000
+      if (calendarEventExists(calendarId, title, description, location, startMillis, normalizedEndMillis)) {
+        continue
+      }
       val values = ContentValues().apply {
         put(CalendarContract.Events.CALENDAR_ID, calendarId)
         put(CalendarContract.Events.TITLE, title)
-        put(CalendarContract.Events.DESCRIPTION, event["description"]?.toString() ?: "")
-        put(CalendarContract.Events.EVENT_LOCATION, event["location"]?.toString() ?: "")
+        put(CalendarContract.Events.DESCRIPTION, description)
+        put(CalendarContract.Events.EVENT_LOCATION, location)
         put(CalendarContract.Events.DTSTART, startMillis)
-        put(CalendarContract.Events.DTEND, if (endMillis > startMillis) endMillis else startMillis + 45 * 60 * 1000)
+        put(CalendarContract.Events.DTEND, normalizedEndMillis)
         put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
       }
       val uri = contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
@@ -192,6 +198,45 @@ class MainActivity : FlutterActivity() {
       }
     }
     return added
+  }
+
+  private fun calendarEventExists(
+    calendarId: Long,
+    title: String,
+    description: String,
+    location: String,
+    startMillis: Long,
+    endMillis: Long,
+  ): Boolean {
+    val marker = Regex("class_tool_[A-Za-z0-9_\\-]+=[^\\s]+").find(description)?.value
+    val projection = arrayOf(CalendarContract.Events._ID)
+    val selection: String
+    val args: Array<String>
+    if (marker != null) {
+      selection =
+        "${CalendarContract.Events.CALENDAR_ID}=? AND ${CalendarContract.Events.DESCRIPTION} LIKE ?"
+      args = arrayOf(calendarId.toString(), "%$marker%")
+    } else {
+      selection =
+        "${CalendarContract.Events.CALENDAR_ID}=? AND ${CalendarContract.Events.TITLE}=? AND ${CalendarContract.Events.DTSTART}=? AND ${CalendarContract.Events.DTEND}=? AND ${CalendarContract.Events.EVENT_LOCATION}=?"
+      args = arrayOf(
+        calendarId.toString(),
+        title,
+        startMillis.toString(),
+        endMillis.toString(),
+        location,
+      )
+    }
+    contentResolver.query(
+      CalendarContract.Events.CONTENT_URI,
+      projection,
+      selection,
+      args,
+      null,
+    )?.use { cursor ->
+      return cursor.moveToFirst()
+    }
+    return false
   }
 
   private fun resolveCalendarId(): Long? {

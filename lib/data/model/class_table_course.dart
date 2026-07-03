@@ -27,19 +27,13 @@ class ClassTableCourseResponse {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'ret': ret,
-      'msg': msg,
-      'data': data.toJson(),
-    };
+    return {'ret': ret, 'msg': msg, 'data': data.toJson()};
   }
 }
 
 @immutable
 class ClassTableCourseData {
-  const ClassTableCourseData({
-    required this.courses,
-  });
+  const ClassTableCourseData({required this.courses});
 
   final List<ClassTableCourse> courses;
 
@@ -52,9 +46,7 @@ class ClassTableCourseData {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'kckbData': courses.map((item) => item.toJson()).toList(),
-    };
+    return {'kckbData': courses.map((item) => item.toJson()).toList()};
   }
 }
 

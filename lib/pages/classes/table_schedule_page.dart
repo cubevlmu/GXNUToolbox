@@ -6,11 +6,11 @@ import 'package:class_tool/data/services/schedule_export_service.dart';
 import 'package:class_tool/pages/classes/controller.dart';
 import 'package:class_tool/pages/classes/widgets/schedule_picker_sheet.dart';
 import 'package:class_tool/pages/classes/widgets/schedule_table.dart';
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_icon_button.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_tokens.dart';
-import 'package:class_tool/ui/app_toast.dart';
+import 'package:fin_ui/app_context.dart';
+import 'package:fin_ui/app_icon_button.dart';
+import 'package:fin_ui/app_icons.dart';
+import 'package:fin_ui/app_toast.dart';
+import 'package:fin_ui/fui_page_head.dart';
 import 'package:class_tool/utils/shared_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -50,7 +50,7 @@ class _TableSchedulePageState extends State<TableSchedulePage> {
       );
     } catch (e) {
       if (!mounted) return;
-      AppToast.error(context, message: e.toString().split('\n').first);
+      FUIToast.error(context, message: e.toString().split('\n').first);
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -75,19 +75,19 @@ class _TableSchedulePageState extends State<TableSchedulePage> {
       );
     } catch (e) {
       if (!mounted) return;
-      AppToast.error(context, message: e.toString().split('\n').first);
+      FUIToast.error(context, message: e.toString().split('\n').first);
       return;
     }
 
     if (events.isEmpty) {
-      AppToast.info(context, message: '本周没有可导入的课程');
+      FUIToast.info(context, message: '本周没有可导入的课程');
       return;
     }
 
     final confirmed = await SharedDialog.showConfirmDialog(
       context,
       title: '导入日历',
-      content: '将本周 ${events.length} 门课一次性写入系统日历。重复导入可能产生重复日程。',
+      content: '将本周 ${events.length} 门课一次性写入系统日历。已导入过的日程会自动跳过。',
       confirmText: '开始导入',
       cancelText: '取消',
       variant: SharedDialogVariant.info,
@@ -100,10 +100,10 @@ class _TableSchedulePageState extends State<TableSchedulePage> {
     try {
       final added = await CalendarExportService.addEventsOneByOne(events);
       if (!mounted) return;
-      AppToast.success(context, message: '已导入 $added/${events.length} 个日程');
+      FUIToast.success(context, message: '已导入 $added/${events.length} 个日程');
     } catch (e) {
       if (!mounted) return;
-      AppToast.error(context, message: e.toString().split('\n').first);
+      FUIToast.error(context, message: e.toString().split('\n').first);
     } finally {
       if (mounted) {
         setState(() => _isImportingCalendar = false);
@@ -172,95 +172,54 @@ class _TableScheduleHeader extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
-        child: Row(
-          children: [
-            AppIconButton(
-              icon: AppIcons.chevronLeft,
-              tooltip: '返回',
-              variant: AppIconButtonVariant.outline,
-              onPressed: () => Navigator.of(context).maybePop(),
-            ),
-            const SizedBox(width: AppTokens.gap4),
-            Expanded(
-              child: GetBuilder<ClassesController>(
-                id: 'classes-header',
-                builder: (controller) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '表格课表',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: colors.textPrimary,
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                      const SizedBox(height: AppTokens.gap2),
-                      Text(
-                        '${controller.selectedSemester} · ${controller.selectedWeek}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textSecondary,
+        child: GetBuilder<ClassesController>(
+          id: 'classes-header',
+          builder: (controller) {
+            return FuiPageHead(
+              title: '表格课表',
+              subtitle:
+                  '${controller.selectedSemester} · ${controller.selectedWeek}',
+              actions: [
+                if (supportsCalendarImport)
+                  FUIIconButton(
+                    icon: FUIIcons.calendarAdd,
+                    tooltip: isImportingCalendar ? '正在导入' : '导入日历',
+                    variant: FUIIconButtonVariant.ghost,
+                    onPressed: controller.isLoading || isImportingCalendar
+                        ? null
+                        : () => unawaited(onImportCalendar()),
+                  ),
+                FUIIconButton(
+                  icon: FUIIcons.save,
+                  tooltip: isSaving ? '正在保存' : '保存为图片',
+                  variant: FUIIconButtonVariant.ghost,
+                  onPressed: controller.isLoading || isSaving
+                      ? null
+                      : () => unawaited(onSaveImage()),
+                ),
+                FUIIconButton(
+                  icon: FUIIcons.calendar,
+                  tooltip: '选择周次',
+                  variant: FUIIconButtonVariant.ghost,
+                  onPressed: controller.isLoading
+                      ? null
+                      : () => showScheduleSelectionSheet(
+                          context: context,
+                          selectedValue: controller.selectedWeek,
+                          items: controller.weeks
+                              .map(
+                                (item) => SelectionSheetItem(
+                                  label: item.label,
+                                  subtitle: item.extra,
+                                ),
+                              )
+                              .toList(growable: false),
+                          onSelected: controller.changeWeek,
                         ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-            GetBuilder<ClassesController>(
-              id: 'classes-header',
-              builder: (controller) {
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (supportsCalendarImport) ...[
-                      AppIconButton(
-                        icon: AppIcons.calendarAdd,
-                        tooltip: isImportingCalendar ? '正在导入' : '导入日历',
-                        variant: AppIconButtonVariant.ghost,
-                        onPressed: controller.isLoading || isImportingCalendar
-                            ? null
-                            : () => unawaited(onImportCalendar()),
-                      ),
-                      const SizedBox(width: AppTokens.gap4),
-                    ],
-                    AppIconButton(
-                      icon: AppIcons.save,
-                      tooltip: isSaving ? '正在保存' : '保存为图片',
-                      variant: AppIconButtonVariant.ghost,
-                      onPressed: controller.isLoading || isSaving
-                          ? null
-                          : () => unawaited(onSaveImage()),
-                    ),
-                    const SizedBox(width: AppTokens.gap4),
-                    AppIconButton(
-                      icon: AppIcons.calendar,
-                      tooltip: '选择周次',
-                      variant: AppIconButtonVariant.ghost,
-                      onPressed: controller.isLoading
-                          ? null
-                          : () => showScheduleSelectionSheet(
-                              context: context,
-                              selectedValue: controller.selectedWeek,
-                              items: controller.weeks
-                                  .map(
-                                    (item) => SelectionSheetItem(
-                                      label: item.label,
-                                      subtitle: item.extra,
-                                    ),
-                                  )
-                                  .toList(growable: false),
-                              onSelected: controller.changeWeek,
-                            ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

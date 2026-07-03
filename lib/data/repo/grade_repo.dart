@@ -78,13 +78,15 @@ class GradeRepo {
       return activeTask;
     }
 
-    final task = _helper.runWithLoginRetry(
-      'fetch grade filter options',
-      Api.getGradeFilterOptions,
-    ).then((options) {
-      _filterOptions = options;
-      return options;
-    });
+    final task = _helper
+        .runWithLoginRetry(
+          'fetch grade filter options',
+          Api.getGradeFilterOptions,
+        )
+        .then((options) {
+          _filterOptions = options;
+          return options;
+        });
     _filterOptionsTask = task;
     return task.whenComplete(() {
       if (identical(_filterOptionsTask, task)) {

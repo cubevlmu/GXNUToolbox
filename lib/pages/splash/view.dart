@@ -1,7 +1,7 @@
 import 'package:class_tool/pages/splash/controller.dart';
-import 'package:class_tool/ui/app_button.dart';
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_icons.dart';
+import 'package:fin_ui/app_button.dart';
+import 'package:fin_ui/app_context.dart';
+import 'package:fin_ui/app_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -14,17 +14,22 @@ class SplashPage extends StatefulWidget {
 
 class _SplashPageState extends State<SplashPage> {
   late final SplashController controller;
+  final String _controllerTag = UniqueKey().toString();
 
   @override
   void initState() {
     super.initState();
-    controller = Get.put(SplashController(), permanent: false);
+    controller = Get.put(
+      SplashController(),
+      tag: _controllerTag,
+      permanent: false,
+    );
   }
 
   @override
   void dispose() {
-    if (Get.isRegistered<SplashController>()) {
-      Get.delete<SplashController>();
+    if (Get.isRegistered<SplashController>(tag: _controllerTag)) {
+      Get.delete<SplashController>(tag: _controllerTag);
     }
     super.dispose();
   }
@@ -85,7 +90,8 @@ class _SplashPageState extends State<SplashPage> {
                           ),
                         ),
                       ),
-                    if (controller.stage.value == SplashStage.downloadingUpdate) ...[
+                    if (controller.stage.value ==
+                        SplashStage.downloadingUpdate) ...[
                       LinearProgressIndicator(
                         value: controller.downloadProgress.value <= 0
                             ? null
@@ -96,90 +102,93 @@ class _SplashPageState extends State<SplashPage> {
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ],
-                    if (controller.stage.value == SplashStage.updateAvailable) ...[
-                      AppButton(
+                    if (controller.stage.value ==
+                        SplashStage.updateAvailable) ...[
+                      FUIButton(
                         label: '立即更新',
-                        icon: AppIcons.update,
+                        icon: FUIIcons.update,
                         fullWidth: true,
                         onPressed: controller.downloadUpdate,
                       ),
                       const SizedBox(height: 12),
-                      AppButton(
+                      FUIButton(
                         label: '暂不更新',
-                        variant: AppButtonVariant.secondary,
+                        variant: FUIButtonVariant.secondary,
                         fullWidth: true,
                         onPressed: controller.skipUpdate,
                       ),
                     ],
                     if (controller.stage.value == SplashStage.forceUpdate) ...[
-                      AppButton(
+                      FUIButton(
                         label: '立即更新',
-                        icon: AppIcons.update,
+                        icon: FUIIcons.update,
                         fullWidth: true,
                         onPressed: controller.downloadUpdate,
                       ),
                       const SizedBox(height: 12),
-                      AppButton(
+                      FUIButton(
                         label: '重新检查',
-                        icon: AppIcons.refresh,
-                        variant: AppButtonVariant.secondary,
+                        icon: FUIIcons.refresh,
+                        variant: FUIButtonVariant.secondary,
                         fullWidth: true,
                         onPressed: controller.retry,
                       ),
                     ],
-                    if (controller.stage.value == SplashStage.updateBlocked) ...[
+                    if (controller.stage.value ==
+                        SplashStage.updateBlocked) ...[
                       if (controller.hasPendingUpdate.value) ...[
-                        AppButton(
+                        FUIButton(
                           label: '立即更新',
-                          icon: AppIcons.update,
+                          icon: FUIIcons.update,
                           fullWidth: true,
                           onPressed: controller.downloadUpdate,
                         ),
                         const SizedBox(height: 12),
                       ],
-                      AppButton(
+                      FUIButton(
                         label: '重新检查',
-                        icon: AppIcons.refresh,
-                        variant: AppButtonVariant.secondary,
+                        icon: FUIIcons.refresh,
+                        variant: FUIButtonVariant.secondary,
                         fullWidth: true,
                         onPressed: controller.retry,
                       ),
                     ],
-                    if (controller.stage.value == SplashStage.offlineAvailable) ...[
-                      AppButton(
+                    if (controller.stage.value ==
+                        SplashStage.offlineAvailable) ...[
+                      FUIButton(
                         label: '重新检查',
-                        icon: AppIcons.refresh,
+                        icon: FUIIcons.refresh,
                         fullWidth: true,
                         onPressed: controller.retry,
                       ),
                       const SizedBox(height: 12),
-                      AppButton(
+                      FUIButton(
                         label: '进入离线模式',
-                        icon: AppIcons.warning,
-                        variant: AppButtonVariant.secondary,
+                        icon: FUIIcons.warning,
+                        variant: FUIButtonVariant.secondary,
                         fullWidth: true,
                         onPressed: controller.goOffline,
                       ),
                       const SizedBox(height: 12),
-                      AppButton(
+                      FUIButton(
                         label: '返回登录页',
-                        variant: AppButtonVariant.secondary,
+                        variant: FUIButtonVariant.secondary,
                         fullWidth: true,
                         onPressed: controller.goLogin,
                       ),
                     ],
                     if (controller.stage.value == SplashStage.syncFailed) ...[
-                      AppButton(
+                      FUIButton(
                         label: '重试',
-                        icon: AppIcons.refresh,
+                        icon: FUIIcons.refresh,
                         fullWidth: true,
                         onPressed: controller.retry,
                       ),
                       const SizedBox(height: 12),
-                      AppButton(
+                      FUIButton(
                         label: '重新登录',
-                        icon: AppIcons.login,
-                        variant: AppButtonVariant.secondary,
+                        icon: FUIIcons.login,
+                        variant: FUIButtonVariant.secondary,
                         fullWidth: true,
                         onPressed: controller.goLogin,
                       ),
@@ -199,16 +208,16 @@ class _SplashPageState extends State<SplashPage> {
       case SplashStage.updateAvailable:
       case SplashStage.forceUpdate:
       case SplashStage.downloadingUpdate:
-        return AppIcons.update;
+        return FUIIcons.update;
       case SplashStage.updateBlocked:
       case SplashStage.syncFailed:
-        return AppIcons.error;
+        return FUIIcons.error;
       case SplashStage.offlineAvailable:
-        return AppIcons.warning;
+        return FUIIcons.warning;
       case SplashStage.checkingUpdate:
       case SplashStage.checkingNetwork:
       case SplashStage.syncingLogin:
-        return AppIcons.refresh;
+        return FUIIcons.refresh;
     }
   }
 

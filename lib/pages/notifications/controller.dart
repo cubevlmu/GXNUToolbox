@@ -126,6 +126,72 @@ class NotificationsController extends GetxController {
     }
   }
 
+  Future<void> markAsRead(SchoolNotificationItem item) async {
+    if (item.id.isEmpty || item.isRead) {
+      return;
+    }
+
+    final index = _items.indexWhere((candidate) => candidate.id == item.id);
+    if (index < 0) {
+      return;
+    }
+
+    final previous = _items[index];
+    _items[index] = previous.markRead();
+    update(<Object>['notification-content']);
+
+    try {
+      await _notificationRepo.markRead([item.id]);
+      LogUtil.info('[NotificationsController] mark read success');
+    } catch (e, s) {
+      if (isClosed) {
+        return;
+      }
+      final currentIndex = _items.indexWhere(
+        (candidate) => candidate.id == item.id,
+      );
+      if (currentIndex >= 0) {
+        _items[currentIndex] = previous;
+      }
+      _error.value = e.toString();
+      update(<Object>['notification-content']);
+      LogUtil.errorE('[NotificationsController] mark read failed', e, s);
+    }
+  }
+
+  Future<void> deleteNotification(SchoolNotificationItem item) async {
+    if (item.id.isEmpty) {
+      return;
+    }
+
+    final index = _items.indexWhere((candidate) => candidate.id == item.id);
+    if (index < 0) {
+      return;
+    }
+
+    final previous = _items[index];
+    _items.removeAt(index);
+    if (_total.value > 0) {
+      _total.value -= 1;
+    }
+    update(<Object>['notification-content']);
+
+    try {
+      await _notificationRepo.delete([item.id]);
+      LogUtil.info('[NotificationsController] delete success');
+    } catch (e, s) {
+      if (isClosed) {
+        return;
+      }
+      final insertIndex = index.clamp(0, _items.length).toInt();
+      _items.insert(insertIndex, previous);
+      _total.value += 1;
+      _error.value = e.toString();
+      update(<Object>['notification-content']);
+      LogUtil.errorE('[NotificationsController] delete failed', e, s);
+    }
+  }
+
   Future<SchoolNotificationQueryResponse> _fetchPage(int targetPage) {
     return _notificationRepo.fetchPage(
       page: targetPage,

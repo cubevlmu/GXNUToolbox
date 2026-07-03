@@ -81,11 +81,7 @@ class GradeFilterOptions {
   factory GradeFilterOptions.fromHtml(String html) {
     final document = html_parser.parse(html);
     return GradeFilterOptions(
-      startSemesters: _selectOptions(
-        document,
-        '#startXnxq',
-        name: 'startXnxq',
-      ),
+      startSemesters: _selectOptions(document, '#startXnxq', name: 'startXnxq'),
       endSemesters: _selectOptions(document, '#endXnxq', name: 'endXnxq'),
       passStatuses: passStatusOptions,
       courseNatures: _selectOptions(document, '#kcxz', name: 'kcxz'),

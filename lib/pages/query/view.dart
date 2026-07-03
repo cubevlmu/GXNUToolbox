@@ -6,16 +6,17 @@
 
 import 'package:class_tool/data/model/grade.dart';
 import 'package:class_tool/pages/query/controller.dart';
-import 'package:class_tool/ui/app_button.dart';
-import 'package:class_tool/ui/app_combo_box.dart';
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_empty_state.dart';
-import 'package:class_tool/ui/app_icon_button.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_page.dart';
-import 'package:class_tool/ui/app_surface.dart';
-import 'package:class_tool/ui/app_tag.dart';
-import 'package:class_tool/ui/app_tokens.dart';
+import 'package:fin_ui/app_button.dart';
+import 'package:fin_ui/app_combo_box.dart';
+import 'package:fin_ui/app_context.dart';
+import 'package:fin_ui/app_empty_state.dart';
+import 'package:fin_ui/app_icon_button.dart';
+import 'package:fin_ui/app_icons.dart';
+import 'package:fin_ui/app_page.dart';
+import 'package:fin_ui/app_surface.dart';
+import 'package:fin_ui/app_tag.dart';
+import 'package:fin_ui/app_tokens.dart';
+import 'package:fin_ui/fui_page_head.dart';
 import 'package:class_tool/widgets/app_bottom_sheet.dart';
 import 'package:class_tool/widgets/simple_easy_refresher.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
@@ -57,16 +58,13 @@ class _QueryPageState extends State<QueryPage> {
               !controller.isLoading && !controller.isLoadingMore;
 
           if (controller.isLoading && !controller.hasData) {
-            return _QuerySkeletonView(
-              onBack: () => Navigator.of(context).maybePop(),
-            );
+            return const _QuerySkeletonView();
           }
 
           if (controller.error.isNotEmpty && !controller.hasData) {
             return _QueryFeedbackState(
               title: '成绩加载失败',
               message: controller.error,
-              onBack: () => Navigator.of(context).maybePop(),
               onFilter: canInteract ? () => _openFilterSheet(context) : null,
               onRefresh: canInteract ? controller.refreshGrades : null,
             );
@@ -76,7 +74,6 @@ class _QueryPageState extends State<QueryPage> {
             return _QueryFeedbackState(
               title: '暂无成绩',
               message: '点击筛选或刷新后再试',
-              onBack: () => Navigator.of(context).maybePop(),
               onFilter: canInteract ? () => _openFilterSheet(context) : null,
               onRefresh: canInteract ? controller.refreshGrades : null,
             );
@@ -89,34 +86,33 @@ class _QueryPageState extends State<QueryPage> {
             autoRefreshOnStart: false,
             refreshEnabled: canInteract,
             loadEnabled: controller.hasMore && canInteract,
-            childBuilder: (context, physics) => AppPage(
+            childBuilder: (context, physics) => FUIPage(
               physics: canInteract
                   ? physics
                   : const NeverScrollableScrollPhysics(),
               children: [
                 _QueryHeader(
-                  onBack: () => Navigator.of(context).maybePop(),
                   onFilter: canInteract
                       ? () => _openFilterSheet(context)
                       : null,
                   onRefresh: canInteract ? controller.refreshGrades : null,
                 ),
-                const SizedBox(height: AppTokens.gap16),
+                const SizedBox(height: FUITokens.gap16),
                 _SummaryCard(
                   grades: controller.grades,
                   total: controller.total,
                   majorRank: controller.majorRank,
                 ),
-                const SizedBox(height: AppTokens.gap16),
+                const SizedBox(height: FUITokens.gap16),
                 _ResultsHeader(
                   total: controller.total,
                   page: controller.page,
                   totalPages: controller.totalPages,
                 ),
-                const SizedBox(height: AppTokens.gap8),
+                const SizedBox(height: FUITokens.gap8),
                 for (final grade in controller.grades) ...[
                   _GradeCard(grade: grade),
-                  const SizedBox(height: AppTokens.gap12),
+                  const SizedBox(height: FUITokens.gap12),
                 ],
               ],
             ),
@@ -147,64 +143,27 @@ class _QueryPageState extends State<QueryPage> {
 }
 
 class _QueryHeader extends StatelessWidget {
-  const _QueryHeader({
-    required this.onBack,
-    required this.onFilter,
-    required this.onRefresh,
-  });
+  const _QueryHeader({required this.onFilter, required this.onRefresh});
 
-  final VoidCallback onBack;
   final VoidCallback? onFilter;
   final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return Row(
-      children: [
-        AppIconButton(
-          icon: AppIcons.chevronLeft,
-          tooltip: '返回',
-          variant: AppIconButtonVariant.outline,
-          onPressed: onBack,
-        ),
-        const SizedBox(width: AppTokens.gap12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '成绩查询',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-              const SizedBox(height: AppTokens.gap4),
-              Text(
-                '最高成绩 / 绩点 / 学分',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: AppTokens.gap8),
-        AppIconButton(
-          icon: AppIcons.filter,
+    return FuiPageHead(
+      title: '成绩查询',
+      subtitle: '最高成绩 / 绩点 / 学分',
+      actions: [
+        FUIIconButton(
+          icon: FUIIcons.filter,
           tooltip: '筛选',
-          variant: AppIconButtonVariant.ghost,
+          variant: FUIIconButtonVariant.ghost,
           onPressed: onFilter,
         ),
-        AppIconButton(
-          icon: AppIcons.refresh,
+        FUIIconButton(
+          icon: FUIIcons.refresh,
           tooltip: '刷新',
-          variant: AppIconButtonVariant.ghost,
+          variant: FUIIconButtonVariant.ghost,
           onPressed: onRefresh,
         ),
       ],
@@ -237,34 +196,34 @@ class _SummaryCard extends StatelessWidget {
     final avgScore = grades.isEmpty
         ? 0.0
         : grades.fold<double>(0, (sum, item) => sum + item.score) /
-            grades.length;
+              grades.length;
 
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _SectionIcon(icon: AppIcons.chart),
-              const SizedBox(width: AppTokens.gap10),
+              _SectionIcon(icon: FUIIcons.chart),
+              const SizedBox(width: FUITokens.gap10),
               Expanded(
                 child: Text(
                   '成绩概览',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-              AppTag(
+              FUITag(
                 label: total > 0 ? '$total 门课程' : '${grades.length} 门课程',
-                variant: AppTagVariant.primary,
+                variant: FUITagVariant.primary,
               ),
             ],
           ),
-          const SizedBox(height: AppTokens.gap14),
+          const SizedBox(height: FUITokens.gap14),
           Row(
             children: [
               Expanded(
@@ -273,7 +232,7 @@ class _SummaryCard extends StatelessWidget {
                   value: avgGpa.toStringAsFixed(2),
                 ),
               ),
-              const SizedBox(width: AppTokens.gap10),
+              const SizedBox(width: FUITokens.gap10),
               Expanded(
                 child: _SummaryMetric(
                   label: '平均分',
@@ -282,7 +241,7 @@ class _SummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppTokens.gap10),
+          const SizedBox(height: FUITokens.gap10),
           Row(
             children: [
               Expanded(
@@ -291,7 +250,7 @@ class _SummaryCard extends StatelessWidget {
                   value: totalCredit.toStringAsFixed(1),
                 ),
               ),
-              const SizedBox(width: AppTokens.gap10),
+              const SizedBox(width: FUITokens.gap10),
               Expanded(
                 child: _SummaryMetric(
                   label: '专业排名',
@@ -321,7 +280,7 @@ class _SummaryMetric extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        borderRadius: BorderRadius.circular(FUITokens.radiusMd),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -332,18 +291,18 @@ class _SummaryMetric extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: colors.primary,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: colors.primary,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          const SizedBox(height: AppTokens.gap4),
+          const SizedBox(height: FUITokens.gap4),
           Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textSecondary,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
           ),
         ],
       ),
@@ -375,9 +334,9 @@ class _ResultsHeader extends StatelessWidget {
               '成绩详情',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
           ),
           Text(
@@ -385,9 +344,9 @@ class _ResultsHeader extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: colors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -405,7 +364,7 @@ class _GradeCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = context.colors;
 
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -425,15 +384,15 @@ class _GradeCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: AppTokens.gap6),
+                    const SizedBox(height: FUITokens.gap6),
                     Row(
                       children: [
                         Icon(
-                          AppIcons.calendar,
-                          size: AppTokens.iconSm,
+                          FUIIcons.calendar,
+                          size: FUITokens.iconSm,
                           color: colors.textSecondary,
                         ),
-                        const SizedBox(width: AppTokens.gap4),
+                        const SizedBox(width: FUITokens.gap4),
                         Expanded(
                           child: Text(
                             grade.semester,
@@ -449,53 +408,53 @@ class _GradeCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: AppTokens.gap10),
+              const SizedBox(width: FUITokens.gap10),
               _ScoreBadge(score: grade.finalGrade),
             ],
           ),
-          const SizedBox(height: AppTokens.gap14),
+          const SizedBox(height: FUITokens.gap14),
           Wrap(
-            spacing: AppTokens.gap8,
-            runSpacing: AppTokens.gap8,
+            spacing: FUITokens.gap8,
+            runSpacing: FUITokens.gap8,
             children: [
               if (grade.courseNatureLabel.isNotEmpty)
-                AppTag(
+                FUITag(
                   label: grade.courseNatureLabel,
-                  variant: AppTagVariant.primary,
+                  variant: FUITagVariant.primary,
                 ),
               if (grade.examTypeLabel.isNotEmpty)
-                AppTag(label: grade.examTypeLabel),
+                FUITag(label: grade.examTypeLabel),
               if (grade.studyNatureLabel.isNotEmpty)
-                AppTag(label: grade.studyNatureLabel),
+                FUITag(label: grade.studyNatureLabel),
               if (grade.specialGradeLabel.isNotEmpty)
-                AppTag(
+                FUITag(
                   label: grade.specialGradeLabel,
                   variant: _tagVariantForSpecialGrade(grade.specialGradeLabel),
                 ),
             ],
           ),
-          const SizedBox(height: AppTokens.gap14),
+          const SizedBox(height: FUITokens.gap14),
           Row(
             children: [
               Expanded(
                 child: _DataBlock(
-                  icon: AppIcons.chart,
+                  icon: FUIIcons.chart,
                   label: '绩点',
                   value: grade.gradePoint.toStringAsFixed(1),
                 ),
               ),
-              const SizedBox(width: AppTokens.gap8),
+              const SizedBox(width: FUITokens.gap8),
               Expanded(
                 child: _DataBlock(
-                  icon: AppIcons.credit,
+                  icon: FUIIcons.credit,
                   label: '学分',
                   value: grade.credit.toStringAsFixed(1),
                 ),
               ),
-              const SizedBox(width: AppTokens.gap8),
+              const SizedBox(width: FUITokens.gap8),
               Expanded(
                 child: _DataBlock(
-                  icon: AppIcons.book,
+                  icon: FUIIcons.book,
                   label: '初修',
                   value: grade.retakeGrade,
                 ),
@@ -504,7 +463,7 @@ class _GradeCard extends StatelessWidget {
           ),
           if (grade.gradeMode.isNotEmpty || grade.gradeBreakdown.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: AppTokens.gap12),
+              padding: const EdgeInsets.only(top: FUITokens.gap12),
               child: Text(
                 grade.gradeMode.isNotEmpty
                     ? grade.gradeMode
@@ -521,14 +480,14 @@ class _GradeCard extends StatelessWidget {
     );
   }
 
-  AppTagVariant _tagVariantForSpecialGrade(String label) {
+  FUITagVariant _tagVariantForSpecialGrade(String label) {
     if (label.contains('不及格') || label.contains('重修')) {
-      return AppTagVariant.danger;
+      return FUITagVariant.danger;
     }
     if (label.contains('及格') || label.contains('通过')) {
-      return AppTagVariant.success;
+      return FUITagVariant.success;
     }
-    return AppTagVariant.neutral;
+    return FUITagVariant.neutral;
   }
 }
 
@@ -542,9 +501,9 @@ class _ScoreBadge extends StatelessWidget {
     final colors = context.colors;
     final variant = _scoreVariant(score);
     final (bg, fg) = switch (variant) {
-      AppTagVariant.success => (colors.successSoft, colors.success),
-      AppTagVariant.warning => (colors.warningSoft, colors.warning),
-      AppTagVariant.danger => (colors.dangerSoft, colors.danger),
+      FUITagVariant.success => (colors.successSoft, colors.success),
+      FUITagVariant.warning => (colors.warningSoft, colors.warning),
+      FUITagVariant.danger => (colors.dangerSoft, colors.danger),
       _ => (colors.primarySoft, colors.primary),
     };
 
@@ -553,7 +512,7 @@ class _ScoreBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        borderRadius: BorderRadius.circular(FUITokens.radiusMd),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -563,33 +522,33 @@ class _ScoreBadge extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: fg,
-                  fontWeight: FontWeight.w900,
-                ),
+              color: fg,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           Text(
             '成绩',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: fg.withValues(alpha: 0.78),
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: fg.withValues(alpha: 0.78)),
           ),
         ],
       ),
     );
   }
 
-  AppTagVariant _scoreVariant(String value) {
+  FUITagVariant _scoreVariant(String value) {
     final scoreValue = double.tryParse(value);
     if (scoreValue == null) {
-      return AppTagVariant.primary;
+      return FUITagVariant.primary;
     }
     if (scoreValue < 60) {
-      return AppTagVariant.danger;
+      return FUITagVariant.danger;
     }
     if (scoreValue < 75) {
-      return AppTagVariant.warning;
+      return FUITagVariant.warning;
     }
-    return AppTagVariant.success;
+    return FUITagVariant.success;
   }
 }
 
@@ -613,28 +572,28 @@ class _DataBlock extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        borderRadius: BorderRadius.circular(FUITokens.radiusMd),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Icon(icon, size: AppTokens.iconSm, color: colors.primary),
+          Icon(icon, size: FUITokens.iconSm, color: colors.primary),
           Text(
             value.isEmpty ? '-' : value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textSecondary,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
           ),
         ],
       ),
@@ -656,9 +615,9 @@ class _SectionIcon extends StatelessWidget {
       height: 34,
       decoration: BoxDecoration(
         color: colors.primarySoft,
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        borderRadius: BorderRadius.circular(FUITokens.radiusSm),
       ),
-      child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
+      child: Icon(icon, size: FUITokens.iconMd, color: colors.primary),
     );
   }
 }
@@ -702,20 +661,20 @@ class _GradeFilterSheetState extends State<GradeFilterSheet> {
             children: [
               Row(
                 children: [
-                  _SectionIcon(icon: AppIcons.filter),
-                  const SizedBox(width: AppTokens.gap10),
+                  _SectionIcon(icon: FUIIcons.filter),
+                  const SizedBox(width: FUITokens.gap10),
                   Expanded(
                     child: Text(
                       '筛选条件',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: AppTokens.gap16),
-              AppSurface(
+              const SizedBox(height: FUITokens.gap16),
+              FUISurface(
                 padding: const EdgeInsets.all(14),
                 child: Column(
                   children: [
@@ -744,9 +703,7 @@ class _GradeFilterSheetState extends State<GradeFilterSheet> {
                       value: filter.passStatus,
                       options: widget.options.passStatuses,
                       onChanged: (value) => setState(
-                        () => filter = filter.copyWith(
-                          passStatus: value ?? '',
-                        ),
+                        () => filter = filter.copyWith(passStatus: value ?? ''),
                       ),
                     ),
                     _DropdownField(
@@ -754,9 +711,8 @@ class _GradeFilterSheetState extends State<GradeFilterSheet> {
                       value: filter.courseNature,
                       options: widget.options.courseNatures,
                       onChanged: (value) => setState(
-                        () => filter = filter.copyWith(
-                          courseNature: value ?? '',
-                        ),
+                        () =>
+                            filter = filter.copyWith(courseNature: value ?? ''),
                       ),
                     ),
                     _DropdownField(
@@ -788,10 +744,10 @@ class _GradeFilterSheetState extends State<GradeFilterSheet> {
                   ],
                 ),
               ),
-              const SizedBox(height: AppTokens.gap14),
-              AppButton(
+              const SizedBox(height: FUITokens.gap14),
+              FUIButton(
                 label: '应用筛选',
-                icon: AppIcons.check,
+                icon: FUIIcons.check,
                 fullWidth: true,
                 onPressed: () => Navigator.pop(context, filter),
               ),
@@ -825,7 +781,7 @@ class _DropdownField extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: AppComboBox<GradeFilterOption>(
+      child: FUIComboBox<GradeFilterOption>(
         label: label,
         value: selected,
         items: items,
@@ -851,34 +807,28 @@ class _QueryFeedbackState extends StatelessWidget {
   const _QueryFeedbackState({
     required this.title,
     required this.message,
-    required this.onBack,
     required this.onFilter,
     required this.onRefresh,
   });
 
   final String title;
   final String message;
-  final VoidCallback onBack;
   final VoidCallback? onFilter;
   final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return AppPage(
+    return FUIPage(
       children: [
-        _QueryHeader(
-          onBack: onBack,
-          onFilter: onFilter,
-          onRefresh: onRefresh,
-        ),
-        const SizedBox(height: AppTokens.gap16),
-        AppSurface(
+        _QueryHeader(onFilter: onFilter, onRefresh: onRefresh),
+        const SizedBox(height: FUITokens.gap16),
+        FUISurface(
           child: SizedBox(
             height: 320,
-            child: AppEmptyState(
+            child: FUIEmptyState(
               title: title,
               message: message,
-              icon: AppIcons.grade,
+              icon: FUIIcons.grade,
               actionLabel: '重试',
               onAction: onRefresh,
             ),
@@ -890,23 +840,17 @@ class _QueryFeedbackState extends StatelessWidget {
 }
 
 class _QuerySkeletonView extends StatelessWidget {
-  const _QuerySkeletonView({required this.onBack});
-
-  final VoidCallback onBack;
+  const _QuerySkeletonView();
 
   @override
   Widget build(BuildContext context) {
     return SkeletonShimmer(
-      builder: (context, palette) => AppPage(
+      builder: (context, palette) => FUIPage(
         physics: const NeverScrollableScrollPhysics(),
         children: [
-          _QueryHeader(
-            onBack: onBack,
-            onFilter: null,
-            onRefresh: null,
-          ),
-          const SizedBox(height: AppTokens.gap16),
-          AppSurface(
+          _QueryHeader(onFilter: null, onRefresh: null),
+          const SizedBox(height: FUITokens.gap16),
+          FUISurface(
             padding: const EdgeInsets.all(14),
             child: Column(
               children: [
@@ -915,9 +859,9 @@ class _QuerySkeletonView extends StatelessWidget {
                     Container(
                       width: 34,
                       height: 34,
-                      decoration: palette.block(radius: AppTokens.radiusSm),
+                      decoration: palette.block(radius: FUITokens.radiusSm),
                     ),
-                    const SizedBox(width: AppTokens.gap10),
+                    const SizedBox(width: FUITokens.gap10),
                     Expanded(
                       child: SkeletonBar(
                         decoration: palette.line(radius: 8),
@@ -928,34 +872,34 @@ class _QuerySkeletonView extends StatelessWidget {
                     Container(
                       width: 72,
                       height: 24,
-                      decoration: palette.block(radius: AppTokens.radiusFull),
+                      decoration: palette.block(radius: FUITokens.radiusFull),
                     ),
                   ],
                 ),
-                const SizedBox(height: AppTokens.gap14),
+                const SizedBox(height: FUITokens.gap14),
                 Row(
                   children: [
                     Expanded(child: _SkeletonMetric(palette: palette)),
-                    const SizedBox(width: AppTokens.gap10),
+                    const SizedBox(width: FUITokens.gap10),
                     Expanded(child: _SkeletonMetric(palette: palette)),
                   ],
                 ),
-                const SizedBox(height: AppTokens.gap10),
+                const SizedBox(height: FUITokens.gap10),
                 Row(
                   children: [
                     Expanded(child: _SkeletonMetric(palette: palette)),
-                    const SizedBox(width: AppTokens.gap10),
+                    const SizedBox(width: FUITokens.gap10),
                     Expanded(child: _SkeletonMetric(palette: palette)),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: AppTokens.gap12),
+          const SizedBox(height: FUITokens.gap12),
           _SkeletonGradeCard(palette: palette),
-          const SizedBox(height: AppTokens.gap12),
+          const SizedBox(height: FUITokens.gap12),
           _SkeletonGradeCard(palette: palette),
-          const SizedBox(height: AppTokens.gap12),
+          const SizedBox(height: FUITokens.gap12),
           _SkeletonGradeCard(palette: palette),
         ],
       ),
@@ -982,7 +926,7 @@ class _SkeletonMetric extends StatelessWidget {
             widthFactor: 0.54,
             height: 18,
           ),
-          const SizedBox(height: AppTokens.gap8),
+          const SizedBox(height: FUITokens.gap8),
           SkeletonBar(
             decoration: palette.line(radius: 8),
             widthFactor: 0.72,
@@ -1001,7 +945,7 @@ class _SkeletonGradeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1018,7 +962,7 @@ class _SkeletonGradeCard extends StatelessWidget {
                       widthFactor: 0.76,
                       height: 18,
                     ),
-                    const SizedBox(height: AppTokens.gap8),
+                    const SizedBox(height: FUITokens.gap8),
                     SkeletonBar(
                       decoration: palette.line(radius: 8),
                       widthFactor: 0.42,
@@ -1027,43 +971,43 @@ class _SkeletonGradeCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: AppTokens.gap12),
+              const SizedBox(width: FUITokens.gap12),
               Container(
                 width: 58,
                 height: 52,
-                decoration: palette.block(radius: AppTokens.radiusMd),
+                decoration: palette.block(radius: FUITokens.radiusMd),
               ),
             ],
           ),
-          const SizedBox(height: AppTokens.gap14),
+          const SizedBox(height: FUITokens.gap14),
           Row(
             children: [
               Container(
                 width: 88,
                 height: 24,
-                decoration: palette.block(radius: AppTokens.radiusFull),
+                decoration: palette.block(radius: FUITokens.radiusFull),
               ),
-              const SizedBox(width: AppTokens.gap8),
+              const SizedBox(width: FUITokens.gap8),
               Container(
                 width: 58,
                 height: 24,
-                decoration: palette.block(radius: AppTokens.radiusFull),
+                decoration: palette.block(radius: FUITokens.radiusFull),
               ),
-              const SizedBox(width: AppTokens.gap8),
+              const SizedBox(width: FUITokens.gap8),
               Container(
                 width: 58,
                 height: 24,
-                decoration: palette.block(radius: AppTokens.radiusFull),
+                decoration: palette.block(radius: FUITokens.radiusFull),
               ),
             ],
           ),
-          const SizedBox(height: AppTokens.gap14),
+          const SizedBox(height: FUITokens.gap14),
           Row(
             children: [
               Expanded(child: _SkeletonDataBlock(palette: palette)),
-              const SizedBox(width: AppTokens.gap8),
+              const SizedBox(width: FUITokens.gap8),
               Expanded(child: _SkeletonDataBlock(palette: palette)),
-              const SizedBox(width: AppTokens.gap8),
+              const SizedBox(width: FUITokens.gap8),
               Expanded(child: _SkeletonDataBlock(palette: palette)),
             ],
           ),
@@ -1090,7 +1034,7 @@ class _SkeletonDataBlock extends StatelessWidget {
           Container(
             width: 16,
             height: 16,
-            decoration: palette.block(radius: AppTokens.radiusXs),
+            decoration: palette.block(radius: FUITokens.radiusXs),
           ),
           SkeletonBar(
             decoration: palette.line(radius: 8),

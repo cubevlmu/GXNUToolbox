@@ -6,15 +6,16 @@
 
 import 'package:class_tool/data/model/bell_schedule.dart';
 import 'package:class_tool/pages/time/controller.dart';
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_empty_state.dart';
-import 'package:class_tool/ui/app_icon_button.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_page.dart';
-import 'package:class_tool/ui/app_segmented_control.dart';
-import 'package:class_tool/ui/app_surface.dart';
-import 'package:class_tool/ui/app_tag.dart';
-import 'package:class_tool/ui/app_tokens.dart';
+import 'package:fin_ui/app_context.dart';
+import 'package:fin_ui/app_empty_state.dart';
+import 'package:fin_ui/app_icon_button.dart';
+import 'package:fin_ui/app_icons.dart';
+import 'package:fin_ui/app_page.dart';
+import 'package:fin_ui/app_segmented_control.dart';
+import 'package:fin_ui/app_surface.dart';
+import 'package:fin_ui/app_tag.dart';
+import 'package:fin_ui/app_tokens.dart';
+import 'package:fin_ui/fui_page_head.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -51,16 +52,13 @@ class _TimePageState extends State<TimePage> {
         id: 'time-content',
         builder: (controller) {
           if (controller.isLoading.value && controller.campuses.isEmpty) {
-            return _TimeSkeletonView(
-              onBack: () => Navigator.of(context).maybePop(),
-            );
+            return const _TimeSkeletonView();
           }
 
           if (controller.error.isNotEmpty && controller.campuses.isEmpty) {
             return _FeedbackState(
               title: '作息时间加载失败',
               message: controller.error.value,
-              onBack: () => Navigator.of(context).maybePop(),
               onRefresh: controller.refresh,
             );
           }
@@ -69,21 +67,20 @@ class _TimePageState extends State<TimePage> {
             return _FeedbackState(
               title: '暂无作息数据',
               message: '点击刷新后重试',
-              onBack: () => Navigator.of(context).maybePop(),
               onRefresh: controller.refresh,
             );
           }
 
-          return AppPage(
+          return FUIPage(
             children: [
               _TimeHeader(
-                onBack: () => Navigator.of(context).maybePop(),
-                onRefresh:
-                    controller.isLoading.value ? null : controller.refresh,
+                onRefresh: controller.isLoading.value
+                    ? null
+                    : controller.refresh,
               ),
-              const SizedBox(height: AppTokens.gap16),
+              const SizedBox(height: FUITokens.gap16),
               _CampusSelector(controller: controller),
-              const SizedBox(height: AppTokens.gap16),
+              const SizedBox(height: FUITokens.gap16),
               Obx(() {
                 final campus = controller.selectedCampus;
                 if (campus == null) return const SizedBox.shrink();
@@ -95,13 +92,10 @@ class _TimePageState extends State<TimePage> {
                       semester: controller.semester.value,
                       campusCount: controller.campuses.length,
                     ),
-                    const SizedBox(height: AppTokens.gap16),
+                    const SizedBox(height: FUITokens.gap16),
                     _ListHeader(count: campus.periods.length),
-                    const SizedBox(height: AppTokens.gap8),
-                    for (final period in campus.periods) ...[
-                      _PeriodTile(period: period),
-                      const SizedBox(height: AppTokens.gap10),
-                    ],
+                    const SizedBox(height: FUITokens.gap8),
+                    _PeriodTimeline(periods: campus.periods),
                   ],
                 );
               }),
@@ -114,49 +108,20 @@ class _TimePageState extends State<TimePage> {
 }
 
 class _TimeHeader extends StatelessWidget {
-  const _TimeHeader({required this.onBack, required this.onRefresh});
+  const _TimeHeader({required this.onRefresh});
 
-  final VoidCallback onBack;
   final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Row(
-      children: [
-        AppIconButton(
-          icon: AppIcons.chevronLeft,
-          tooltip: '返回',
-          variant: AppIconButtonVariant.outline,
-          onPressed: onBack,
-        ),
-        const SizedBox(width: AppTokens.gap12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '作息时间',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-              const SizedBox(height: AppTokens.gap4),
-              Text(
-                '查看各校区上课时间安排',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-              ),
-            ],
-          ),
-        ),
-        AppIconButton(
-          icon: AppIcons.refresh,
+    return FuiPageHead(
+      title: '作息时间',
+      subtitle: '查看各校区上课时间安排',
+      actions: [
+        FUIIconButton(
+          icon: FUIIcons.refresh,
           tooltip: '刷新',
-          variant: AppIconButtonVariant.outline,
+          variant: FUIIconButtonVariant.outline,
           onPressed: onRefresh,
         ),
       ],
@@ -172,14 +137,14 @@ class _CampusSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      return AppSegmentedControl<int>(
+      return FUISegmentedControl<int>(
         value: controller.selectedCampusIndex.value,
         items: [
           for (var i = 0; i < controller.campuses.length; i++)
-            AppSegmentedItem<int>(
+            FUISegmentedItem<int>(
               value: i,
               label: controller.campuses[i].campusName,
-              icon: AppIcons.building,
+              icon: FUIIcons.building,
             ),
         ],
         onChanged: (value) => controller.selectedCampusIndex.value = value,
@@ -201,12 +166,12 @@ class _ScheduleSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
-          _IconBox(icon: AppIcons.schedule),
-          const SizedBox(width: AppTokens.gap10),
+          _IconBox(icon: FUIIcons.schedule),
+          const SizedBox(width: FUITokens.gap10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,24 +181,24 @@ class _ScheduleSummary extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                const SizedBox(height: AppTokens.gap4),
+                const SizedBox(height: FUITokens.gap4),
                 Text(
                   '$semester 学期 · $campusCount 个校区',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: context.colors.textSecondary,
-                      ),
+                    color: context.colors.textSecondary,
+                  ),
                 ),
               ],
             ),
           ),
-          AppTag(
+          FUITag(
             label: '${campus.periods.length} 节',
-            variant: AppTagVariant.primary,
+            variant: FUITagVariant.primary,
           ),
         ],
       ),
@@ -254,69 +219,126 @@ class _ListHeader extends StatelessWidget {
         Expanded(
           child: Text(
             '节次安排',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
         ),
         Text(
           '$count 条',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
+            color: colors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
   }
 }
 
-class _PeriodTile extends StatelessWidget {
-  const _PeriodTile({required this.period});
+class _PeriodTimeline extends StatelessWidget {
+  const _PeriodTimeline({required this.periods});
+
+  final List<PeriodItem> periods;
+
+  @override
+  Widget build(BuildContext context) {
+    return FUISurface(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 2),
+      child: Column(
+        children: [
+          for (var i = 0; i < periods.length; i++)
+            _PeriodTimelineItem(
+              period: periods[i],
+              isFirst: i == 0,
+              isLast: i == periods.length - 1,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PeriodTimelineItem extends StatelessWidget {
+  const _PeriodTimelineItem({
+    required this.period,
+    required this.isFirst,
+    required this.isLast,
+  });
 
   final PeriodItem period;
+  final bool isFirst;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return AppSurface(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    return IntrinsicHeight(
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
+          SizedBox(
             width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: colors.primarySoft,
-              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              '${period.periodNumber}',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: colors.primary,
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-          ),
-          const SizedBox(width: AppTokens.gap12),
-          Expanded(
-            child: Text(
-              period.periodName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ),
-          const SizedBox(width: AppTokens.gap10),
-          Text(
-            period.timeText,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colors.primary,
-                  fontWeight: FontWeight.w800,
+            child: Column(
+              children: [
+                Container(
+                  width: 2,
+                  height: 4,
+                  color: isFirst ? Colors.transparent : colors.border,
                 ),
+                Container(
+                  width: 26,
+                  height: 26,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: colors.primarySoft,
+                    borderRadius: BorderRadius.circular(FUITokens.radiusFull),
+                  ),
+                  child: Text(
+                    '${period.periodNumber}',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    color: isLast ? Colors.transparent : colors.border,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: FUITokens.gap8),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: FUITokens.gap12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      period.periodName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: FUITokens.gap10),
+                  Text(
+                    period.timeText,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -337,45 +359,43 @@ class _IconBox extends StatelessWidget {
       height: 36,
       decoration: BoxDecoration(
         color: colors.primarySoft,
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        borderRadius: BorderRadius.circular(FUITokens.radiusSm),
       ),
-      child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
+      child: Icon(icon, size: FUITokens.iconMd, color: colors.primary),
     );
   }
 }
 
 class _TimeSkeletonView extends StatelessWidget {
-  const _TimeSkeletonView({required this.onBack});
-
-  final VoidCallback onBack;
+  const _TimeSkeletonView();
 
   @override
   Widget build(BuildContext context) {
     return SkeletonShimmer(
-      builder: (context, palette) => AppPage(
+      builder: (context, palette) => FUIPage(
         physics: const NeverScrollableScrollPhysics(),
         children: [
-          _TimeHeader(onBack: onBack, onRefresh: null),
-          const SizedBox(height: AppTokens.gap16),
+          _TimeHeader(onRefresh: null),
+          const SizedBox(height: FUITokens.gap16),
           SkeletonBar(
-            decoration: palette.line(radius: AppTokens.radiusSm),
+            decoration: palette.line(radius: FUITokens.radiusSm),
             widthFactor: 1,
             height: 52,
           ),
-          const SizedBox(height: AppTokens.gap16),
+          const SizedBox(height: FUITokens.gap16),
           SkeletonBar(
-            decoration: palette.line(radius: AppTokens.radiusMd),
+            decoration: palette.line(radius: FUITokens.radiusMd),
             widthFactor: 1,
             height: 70,
           ),
-          const SizedBox(height: AppTokens.gap16),
+          const SizedBox(height: FUITokens.gap16),
           for (int i = 0; i < 8; i++) ...[
             SkeletonBar(
-              decoration: palette.line(radius: AppTokens.radiusLg),
+              decoration: palette.line(radius: FUITokens.radiusLg),
               widthFactor: 1,
               height: 64,
             ),
-            const SizedBox(height: AppTokens.gap10),
+            const SizedBox(height: FUITokens.gap10),
           ],
         ],
       ),
@@ -387,28 +407,26 @@ class _FeedbackState extends StatelessWidget {
   const _FeedbackState({
     required this.title,
     required this.message,
-    required this.onBack,
     required this.onRefresh,
   });
 
   final String title;
   final String message;
-  final VoidCallback onBack;
   final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return AppPage(
+    return FUIPage(
       children: [
-        _TimeHeader(onBack: onBack, onRefresh: onRefresh),
-        const SizedBox(height: AppTokens.gap16),
-        AppSurface(
+        _TimeHeader(onRefresh: onRefresh),
+        const SizedBox(height: FUITokens.gap16),
+        FUISurface(
           child: SizedBox(
             height: 320,
-            child: AppEmptyState(
+            child: FUIEmptyState(
               title: title,
               message: message,
-              icon: AppIcons.schedule,
+              icon: FUIIcons.schedule,
               actionLabel: '重试',
               onAction: onRefresh,
             ),

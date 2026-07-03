@@ -7,11 +7,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:html/parser.dart' as html_parser;
 
-enum ExamBatchCategory {
-  beforeExamWeek,
-  examWeek,
-  makeup,
-}
+enum ExamBatchCategory { beforeExamWeek, examWeek, makeup }
 
 @immutable
 class ExamBatchOption {
@@ -41,10 +37,7 @@ class ExamSemesterOption {
 
 @immutable
 class ExamFilterOptions {
-  const ExamFilterOptions({
-    required this.semesters,
-    required this.batches,
-  });
+  const ExamFilterOptions({required this.semesters, required this.batches});
 
   final List<ExamSemesterOption> semesters;
   final List<ExamBatchOption> batches;
@@ -157,9 +150,9 @@ class ExamQueryResponse {
       rows: _asInt(json['rows']),
       total: _asInt(json['total']),
       totalPages: _asInt(json['totalPages']),
-      results: _asList(json['results'])
-          .map((item) => ExamItem.fromJson(_asMap(item)))
-          .toList(growable: false),
+      results: _asList(
+        json['results'],
+      ).map((item) => ExamItem.fromJson(_asMap(item))).toList(growable: false),
     );
   }
 

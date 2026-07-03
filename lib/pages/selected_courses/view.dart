@@ -1,14 +1,15 @@
 import 'package:class_tool/data/model/selected_course.dart';
 import 'package:class_tool/pages/selected_courses/controller.dart';
-import 'package:class_tool/ui/app_combo_box.dart';
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_empty_state.dart';
-import 'package:class_tool/ui/app_icon_button.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_page.dart';
-import 'package:class_tool/ui/app_surface.dart';
-import 'package:class_tool/ui/app_tag.dart';
-import 'package:class_tool/ui/app_tokens.dart';
+import 'package:fin_ui/app_combo_box.dart';
+import 'package:fin_ui/app_context.dart';
+import 'package:fin_ui/app_empty_state.dart';
+import 'package:fin_ui/app_icon_button.dart';
+import 'package:fin_ui/app_icons.dart';
+import 'package:fin_ui/app_page.dart';
+import 'package:fin_ui/app_surface.dart';
+import 'package:fin_ui/app_tag.dart';
+import 'package:fin_ui/app_tokens.dart';
+import 'package:fin_ui/fui_page_head.dart';
 import 'package:class_tool/widgets/app_bottom_sheet.dart';
 import 'package:class_tool/widgets/simple_easy_refresher.dart';
 import 'package:class_tool/widgets/skeleton_shimmer.dart';
@@ -88,7 +89,7 @@ class _SelectedCoursesPageState extends State<SelectedCoursesPage> {
             autoRefreshOnStart: false,
             refreshEnabled: canInteract,
             loadEnabled: controller.hasMore && canInteract,
-            childBuilder: (context, physics) => AppPage(
+            childBuilder: (context, physics) => FUIPage(
               physics: canInteract
                   ? physics
                   : const NeverScrollableScrollPhysics(),
@@ -97,30 +98,30 @@ class _SelectedCoursesPageState extends State<SelectedCoursesPage> {
                   onBack: () => Navigator.of(context).maybePop(),
                   onRefresh: canInteract ? controller.refresh : null,
                 ),
-                const SizedBox(height: AppTokens.gap16),
+                const SizedBox(height: FUITokens.gap16),
                 _SemesterSelector(controller: controller, enabled: canInteract),
-                const SizedBox(height: AppTokens.gap16),
+                const SizedBox(height: FUITokens.gap16),
                 _OverviewCard(
                   loaded: controller.courses.length,
                   total: controller.total,
                   totalCredits: controller.totalCredits,
                   semesters: controller.semesters,
                 ),
-                const SizedBox(height: AppTokens.gap16),
+                const SizedBox(height: FUITokens.gap16),
                 _ListHeader(
                   loaded: controller.courses.length,
                   total: controller.total,
                 ),
-                const SizedBox(height: AppTokens.gap8),
+                const SizedBox(height: FUITokens.gap8),
                 for (final item in controller.courses) ...[
                   _SelectedCourseCard(
                     item: item,
                     onTap: () => _openDetailSheet(context, item),
                   ),
-                  const SizedBox(height: AppTokens.gap12),
+                  const SizedBox(height: FUITokens.gap12),
                 ],
                 if (controller.error.isNotEmpty) ...[
-                  const SizedBox(height: AppTokens.gap4),
+                  const SizedBox(height: FUITokens.gap4),
                   _InlineError(message: controller.error),
                 ],
               ],
@@ -138,7 +139,6 @@ class _SelectedCoursesPageState extends State<SelectedCoursesPage> {
     await showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      heightFactor: 0.62,
       child: _SelectedCourseDetailSheet(item: item),
     );
   }
@@ -152,9 +152,9 @@ class _SemesterSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
-      child: AppComboBox<String>(
+      child: FUIComboBox<String>(
         label: '学年学期',
         value: controller.selectedSemester,
         items: controller.semesterOptions,
@@ -177,45 +177,14 @@ class _SelectedCoursesHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return Row(
-      children: [
-        AppIconButton(
-          icon: AppIcons.chevronLeft,
-          tooltip: '返回',
-          variant: AppIconButtonVariant.outline,
-          onPressed: onBack,
-        ),
-        const SizedBox(width: AppTokens.gap12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '已选课程',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: AppTokens.gap4),
-              Text(
-                '查看当前账号已选课程和上课安排',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
-              ),
-            ],
-          ),
-        ),
-        AppIconButton(
-          icon: AppIcons.refresh,
+    return FuiPageHead(
+      title: '已选课程',
+      subtitle: '查看当前账号已选课程和上课安排',
+      actions: [
+        FUIIconButton(
+          icon: FUIIcons.refresh,
           tooltip: '刷新',
-          variant: AppIconButtonVariant.ghost,
+          variant: FUIIconButtonVariant.ghost,
           onPressed: onRefresh,
         ),
       ],
@@ -244,12 +213,12 @@ class _OverviewCard extends StatelessWidget {
         ? '${semesters.first} 学期'
         : '${semesters.length} 个学期';
 
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
-          _IconBox(icon: AppIcons.book),
-          const SizedBox(width: AppTokens.gap10),
+          _IconBox(icon: FUIIcons.book),
+          const SizedBox(width: FUITokens.gap10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,7 +231,7 @@ class _OverviewCard extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: AppTokens.gap4),
+                const SizedBox(height: FUITokens.gap4),
                 Text(
                   loaded < total
                       ? '已加载 $loaded / $total 门 · ${_formatCredits(totalCredits)} 学分'
@@ -276,7 +245,7 @@ class _OverviewCard extends StatelessWidget {
               ],
             ),
           ),
-          AppTag(label: '$total 门', variant: AppTagVariant.primary),
+          FUITag(label: '$total 门', variant: FUITagVariant.primary),
         ],
       ),
     );
@@ -323,7 +292,7 @@ class _SelectedCourseCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return AppSurface(
+    return FUISurface(
       onTap: onTap,
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -343,32 +312,32 @@ class _SelectedCourseCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: AppTokens.gap10),
+              const SizedBox(width: FUITokens.gap10),
               if (item.credits.isNotEmpty)
-                AppTag(
+                FUITag(
                   label: '${item.credits} 学分',
-                  variant: AppTagVariant.primary,
+                  variant: FUITagVariant.primary,
                 ),
             ],
           ),
-          const SizedBox(height: AppTokens.gap8),
-          _MetaRow(icon: AppIcons.person, text: item.teacherLabel),
+          const SizedBox(height: FUITokens.gap8),
+          _MetaRow(icon: FUIIcons.person, text: item.teacherLabel),
           if (item.scheduleText.isNotEmpty) ...[
-            const SizedBox(height: AppTokens.gap6),
-            _MetaRow(icon: AppIcons.calendar, text: item.scheduleText),
+            const SizedBox(height: FUITokens.gap6),
+            _MetaRow(icon: FUIIcons.calendar, text: item.scheduleText),
           ],
-          const SizedBox(height: AppTokens.gap10),
+          const SizedBox(height: FUITokens.gap10),
           Wrap(
-            spacing: AppTokens.gap8,
-            runSpacing: AppTokens.gap6,
+            spacing: FUITokens.gap8,
+            runSpacing: FUITokens.gap6,
             children: [
-              if (item.semester.isNotEmpty) AppTag(label: item.semester),
+              if (item.semester.isNotEmpty) FUITag(label: item.semester),
               if (item.courseCategory.isNotEmpty)
-                AppTag(label: item.courseCategory),
+                FUITag(label: item.courseCategory),
               if (item.selectionType.isNotEmpty)
-                AppTag(label: item.selectionType),
+                FUITag(label: item.selectionType),
               if (item.selectionMethod.isNotEmpty)
-                AppTag(label: item.selectionMethod),
+                FUITag(label: item.selectionMethod),
             ],
           ),
         ],
@@ -388,8 +357,8 @@ class _MetaRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: AppTokens.iconSm, color: context.colors.textTertiary),
-        const SizedBox(width: AppTokens.gap6),
+        Icon(icon, size: FUITokens.iconSm, color: context.colors.textTertiary),
+        const SizedBox(width: FUITokens.gap6),
         Expanded(
           child: Text(
             text,
@@ -423,26 +392,26 @@ class _SelectedCourseDetailSheet extends StatelessWidget {
             context,
           ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
         ),
-        const SizedBox(height: AppTokens.gap10),
+        const SizedBox(height: FUITokens.gap10),
         Wrap(
-          spacing: AppTokens.gap8,
-          runSpacing: AppTokens.gap8,
+          spacing: FUITokens.gap8,
+          runSpacing: FUITokens.gap8,
           children: [
             if (item.credits.isNotEmpty)
-              AppTag(
+              FUITag(
                 label: '${item.credits} 学分',
-                variant: AppTagVariant.primary,
+                variant: FUITagVariant.primary,
               ),
-            if (item.semester.isNotEmpty) AppTag(label: item.semester),
+            if (item.semester.isNotEmpty) FUITag(label: item.semester),
             if (item.courseCategory.isNotEmpty)
-              AppTag(label: item.courseCategory),
+              FUITag(label: item.courseCategory),
             if (item.selectionType.isNotEmpty)
-              AppTag(label: item.selectionType),
+              FUITag(label: item.selectionType),
             if (item.selectionMethod.isNotEmpty)
-              AppTag(label: item.selectionMethod),
+              FUITag(label: item.selectionMethod),
           ],
         ),
-        const SizedBox(height: AppTokens.gap16),
+        const SizedBox(height: FUITokens.gap16),
         _DetailSection(
           title: '上课安排',
           children: [
@@ -453,7 +422,7 @@ class _SelectedCourseDetailSheet extends StatelessWidget {
             _DetailRow(label: '教学班备注', value: item.classRemark),
           ],
         ),
-        const SizedBox(height: AppTokens.gap12),
+        const SizedBox(height: FUITokens.gap12),
         _DetailSection(
           title: '课程信息',
           children: [
@@ -466,7 +435,7 @@ class _SelectedCourseDetailSheet extends StatelessWidget {
             _DetailRow(label: '授课方式', value: item.teachingMethod),
           ],
         ),
-        const SizedBox(height: AppTokens.gap12),
+        const SizedBox(height: FUITokens.gap12),
         _DetailSection(
           title: '学时',
           children: [
@@ -479,7 +448,7 @@ class _SelectedCourseDetailSheet extends StatelessWidget {
           ],
         ),
         if (item.courseIntro.isNotEmpty || item.courseRemark.isNotEmpty) ...[
-          const SizedBox(height: AppTokens.gap12),
+          const SizedBox(height: FUITokens.gap12),
           _DetailSection(
             title: '说明',
             children: [
@@ -501,7 +470,7 @@ class _DetailSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -512,7 +481,7 @@ class _DetailSection extends StatelessWidget {
               context,
             ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: AppTokens.gap10),
+          const SizedBox(height: FUITokens.gap10),
           for (final child in children) child,
         ],
       ),
@@ -533,7 +502,7 @@ class _DetailRow extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppTokens.gap8),
+      padding: const EdgeInsets.only(bottom: FUITokens.gap8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -547,7 +516,7 @@ class _DetailRow extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: AppTokens.gap10),
+          const SizedBox(width: FUITokens.gap10),
           Expanded(
             child: Text(
               value,
@@ -570,18 +539,18 @@ class _InlineError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
+    return FUISurface(
       padding: const EdgeInsets.all(12),
       backgroundColor: context.colors.dangerSoft,
       borderColor: context.colors.danger.withValues(alpha: 0.24),
       child: Row(
         children: [
           Icon(
-            AppIcons.warning,
-            size: AppTokens.iconMd,
+            FUIIcons.warning,
+            size: FUITokens.iconMd,
             color: context.colors.danger,
           ),
-          const SizedBox(width: AppTokens.gap8),
+          const SizedBox(width: FUITokens.gap8),
           Expanded(
             child: Text(
               message,
@@ -612,9 +581,9 @@ class _IconBox extends StatelessWidget {
       height: 36,
       decoration: BoxDecoration(
         color: colors.primarySoft,
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        borderRadius: BorderRadius.circular(FUITokens.radiusSm),
       ),
-      child: Icon(icon, size: AppTokens.iconMd, color: colors.primary),
+      child: Icon(icon, size: FUITokens.iconMd, color: colors.primary),
     );
   }
 }
@@ -627,24 +596,24 @@ class _SelectedCoursesSkeletonView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SkeletonShimmer(
-      builder: (context, palette) => AppPage(
+      builder: (context, palette) => FUIPage(
         physics: const NeverScrollableScrollPhysics(),
         children: [
           _SelectedCoursesHeader(onBack: onBack, onRefresh: null),
-          const SizedBox(height: AppTokens.gap16),
+          const SizedBox(height: FUITokens.gap16),
           SkeletonBar(
-            decoration: palette.line(radius: AppTokens.radiusMd),
+            decoration: palette.line(radius: FUITokens.radiusMd),
             widthFactor: 1,
             height: 70,
           ),
-          const SizedBox(height: AppTokens.gap16),
+          const SizedBox(height: FUITokens.gap16),
           for (var i = 0; i < 6; i++) ...[
             SkeletonBar(
-              decoration: palette.line(radius: AppTokens.radiusLg),
+              decoration: palette.line(radius: FUITokens.radiusLg),
               widthFactor: 1,
               height: 118,
             ),
-            const SizedBox(height: AppTokens.gap12),
+            const SizedBox(height: FUITokens.gap12),
           ],
         ],
       ),
@@ -669,21 +638,21 @@ class _FeedbackState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppPage(
+    return FUIPage(
       children: [
         _SelectedCoursesHeader(onBack: onBack, onRefresh: onRefresh),
-        const SizedBox(height: AppTokens.gap16),
+        const SizedBox(height: FUITokens.gap16),
         if (selector != null) ...[
           selector!,
-          const SizedBox(height: AppTokens.gap16),
+          const SizedBox(height: FUITokens.gap16),
         ],
-        AppSurface(
+        FUISurface(
           child: SizedBox(
             height: 320,
-            child: AppEmptyState(
+            child: FUIEmptyState(
               title: title,
               message: message,
-              icon: AppIcons.book,
+              icon: FUIIcons.book,
               actionLabel: onRefresh == null ? null : '重试',
               onAction: onRefresh,
             ),

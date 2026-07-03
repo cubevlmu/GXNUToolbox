@@ -37,7 +37,8 @@ class CreditItem {
       remainingCredits: double.tryParse(json['wxxf']?.toString() ?? '') ?? 0,
       inProgressCredits: double.tryParse(json['xdxf']?.toString() ?? '') ?? 0,
       allEarnedCredits: double.tryParse(json['qbyxxf']?.toString() ?? '') ?? 0,
-      thisSemesterCredits: double.tryParse(json['xqhdxf']?.toString() ?? '') ?? 0,
+      thisSemesterCredits:
+          double.tryParse(json['xqhdxf']?.toString() ?? '') ?? 0,
     );
   }
 }

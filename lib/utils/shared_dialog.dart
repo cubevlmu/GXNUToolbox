@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:class_tool/ui/app_button.dart';
-import 'package:class_tool/ui/app_colors.dart';
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_tokens.dart';
+import 'package:fin_ui/app_button.dart';
+import 'package:fin_ui/app_colors.dart';
+import 'package:fin_ui/app_context.dart';
+import 'package:fin_ui/app_icons.dart';
+import 'package:fin_ui/app_tokens.dart';
 import 'package:flutter/material.dart';
 
 // ignore_for_file: use_build_context_synchronously
@@ -25,8 +25,8 @@ class SharedDialog {
     String confirmText = '确定',
     SharedDialogVariant variant = SharedDialogVariant.info,
     IconData? icon,
-    AppButtonVariant? cancelButtonVariant,
-    AppButtonVariant? confirmButtonVariant,
+    FUIButtonVariant? cancelButtonVariant,
+    FUIButtonVariant? confirmButtonVariant,
     Function()? cancelAction,
     Function()? confirmAction,
   }) async {
@@ -53,13 +53,13 @@ class SharedDialog {
               vertical: 24,
             ),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppTokens.radiusXl),
+              borderRadius: BorderRadius.circular(FUITokens.radiusXl),
               side: BorderSide(color: colors.border),
             ),
             child: ConstrainedBox(
               constraints: BoxConstraints(maxHeight: maxDialogHeight),
               child: Padding(
-                padding: const EdgeInsets.all(AppTokens.gap20),
+                padding: const EdgeInsets.all(FUITokens.gap20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -73,16 +73,16 @@ class SharedDialog {
                           decoration: BoxDecoration(
                             color: visuals.background,
                             borderRadius: BorderRadius.circular(
-                              AppTokens.radiusMd,
+                              FUITokens.radiusMd,
                             ),
                           ),
                           child: Icon(
                             icon ?? visuals.icon,
-                            size: AppTokens.iconMd,
+                            size: FUITokens.iconMd,
                             color: visuals.color,
                           ),
                         ),
-                        const SizedBox(width: AppTokens.gap12),
+                        const SizedBox(width: FUITokens.gap12),
                         Expanded(
                           child: Padding(
                             padding: const EdgeInsets.only(top: 6),
@@ -98,7 +98,7 @@ class SharedDialog {
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppTokens.gap14),
+                    const SizedBox(height: FUITokens.gap14),
                     Flexible(
                       child: SingleChildScrollView(
                         child: Text(
@@ -110,26 +110,26 @@ class SharedDialog {
                         ),
                       ),
                     ),
-                    const SizedBox(height: AppTokens.gap20),
+                    const SizedBox(height: FUITokens.gap20),
                     Row(
                       children: [
                         if (!isSingleAction) ...[
                           Expanded(
-                            child: AppButton(
+                            child: FUIButton(
                               label: cancelText,
                               variant:
                                   cancelButtonVariant ??
-                                  AppButtonVariant.secondary,
+                                  FUIButtonVariant.secondary,
                               onPressed: () {
                                 if (cancelAction != null) cancelAction();
                                 Navigator.of(ctx).pop(false);
                               },
                             ),
                           ),
-                          const SizedBox(width: AppTokens.gap10),
+                          const SizedBox(width: FUITokens.gap10),
                         ],
                         Expanded(
-                          child: AppButton(
+                          child: FUIButton(
                             label: confirmText,
                             variant:
                                 confirmButtonVariant ??
@@ -158,14 +158,14 @@ class SharedDialog {
     return result ?? false;
   }
 
-  static AppButtonVariant _defaultConfirmButtonVariant(
+  static FUIButtonVariant _defaultConfirmButtonVariant(
     SharedDialogVariant variant,
   ) {
     return switch (variant) {
-      SharedDialogVariant.danger => AppButtonVariant.danger,
+      SharedDialogVariant.danger => FUIButtonVariant.danger,
       SharedDialogVariant.info ||
       SharedDialogVariant.success ||
-      SharedDialogVariant.warning => AppButtonVariant.primary,
+      SharedDialogVariant.warning => FUIButtonVariant.primary,
     };
   }
 
@@ -177,6 +177,7 @@ class SharedDialog {
     String completeMessage = '',
     String completeButtonText = '打开',
     bool barrierDismissible = false,
+    FutureOr<void> Function()? onCancel,
     required Future<bool> Function(SharedProgressController controller) task,
   }) async {
     _dismissPrevious();
@@ -217,11 +218,11 @@ class SharedDialog {
               vertical: 24,
             ),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppTokens.radiusXl),
+              borderRadius: BorderRadius.circular(FUITokens.radiusXl),
               side: BorderSide(color: colors.border),
             ),
             child: Padding(
-              padding: const EdgeInsets.all(AppTokens.gap20),
+              padding: const EdgeInsets.all(FUITokens.gap20),
               child: ValueListenableBuilder<int>(
                 valueListenable: controller._notifier,
                 builder: (ctx, _, _) {
@@ -243,10 +244,10 @@ class SharedDialog {
                       ? colors.successSoft
                       : colors.primarySoft;
                   final icon = cancelled || failed
-                      ? AppIcons.close
+                      ? FUIIcons.close
                       : isDone
-                      ? AppIcons.check
-                      : AppIcons.update;
+                      ? FUIIcons.check
+                      : FUIIcons.update;
 
                   return Column(
                     mainAxisSize: MainAxisSize.min,
@@ -261,16 +262,16 @@ class SharedDialog {
                             decoration: BoxDecoration(
                               color: iconBackground,
                               borderRadius: BorderRadius.circular(
-                                AppTokens.radiusMd,
+                                FUITokens.radiusMd,
                               ),
                             ),
                             child: Icon(
                               icon,
-                              size: AppTokens.iconMd,
+                              size: FUITokens.iconMd,
                               color: iconColor,
                             ),
                           ),
-                          const SizedBox(width: AppTokens.gap12),
+                          const SizedBox(width: FUITokens.gap12),
                           Expanded(
                             child: Padding(
                               padding: const EdgeInsets.only(top: 6),
@@ -286,7 +287,7 @@ class SharedDialog {
                           ),
                         ],
                       ),
-                      const SizedBox(height: AppTokens.gap14),
+                      const SizedBox(height: FUITokens.gap14),
                       if (isDone || cancelled)
                         Text(
                           cancelled
@@ -304,7 +305,7 @@ class SharedDialog {
                       else ...[
                         ClipRRect(
                           borderRadius: BorderRadius.circular(
-                            AppTokens.radiusXs,
+                            FUITokens.radiusXs,
                           ),
                           child: LinearProgressIndicator(
                             value: progress > 0 ? progress : null,
@@ -313,7 +314,7 @@ class SharedDialog {
                             backgroundColor: colors.surfacePressed,
                           ),
                         ),
-                        const SizedBox(height: AppTokens.gap12),
+                        const SizedBox(height: FUITokens.gap12),
                         Text(
                           message,
                           style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
@@ -321,31 +322,34 @@ class SharedDialog {
                           ),
                         ),
                       ],
-                      const SizedBox(height: AppTokens.gap20),
+                      const SizedBox(height: FUITokens.gap20),
                       if (isDone)
-                        AppButton(
+                        FUIButton(
                           label: success ? completeButtonText : '关闭',
                           variant: success
-                              ? AppButtonVariant.primary
-                              : AppButtonVariant.secondary,
+                              ? FUIButtonVariant.primary
+                              : FUIButtonVariant.secondary,
                           fullWidth: true,
                           onPressed: () => Navigator.of(ctx).pop(success),
                         )
                       else if (cancelled)
-                        AppButton(
+                        FUIButton(
                           label: '关闭',
-                          variant: AppButtonVariant.secondary,
+                          variant: FUIButtonVariant.secondary,
                           fullWidth: true,
                           onPressed: () => Navigator.of(ctx).pop(false),
                         )
                       else
-                        AppButton(
+                        FUIButton(
                           label: cancelText,
-                          variant: AppButtonVariant.secondary,
+                          variant: FUIButtonVariant.secondary,
                           fullWidth: true,
                           onPressed: () {
                             controller.cancel();
                             Navigator.of(ctx).pop(false);
+                            if (onCancel != null) {
+                              unawaited(Future<void>.sync(onCancel));
+                            }
                           },
                         ),
                     ],
@@ -397,26 +401,26 @@ class _SharedDialogVisuals {
 
   static _SharedDialogVisuals resolve(
     SharedDialogVariant variant,
-    AppPalette colors,
+    FUIPalette colors,
   ) {
     return switch (variant) {
       SharedDialogVariant.info => _SharedDialogVisuals(
-        icon: AppIcons.info,
+        icon: FUIIcons.info,
         color: colors.info,
         background: colors.infoSoft,
       ),
       SharedDialogVariant.success => _SharedDialogVisuals(
-        icon: AppIcons.check,
+        icon: FUIIcons.check,
         color: colors.success,
         background: colors.successSoft,
       ),
       SharedDialogVariant.warning => _SharedDialogVisuals(
-        icon: AppIcons.warning,
+        icon: FUIIcons.warning,
         color: colors.warning,
         background: colors.warningSoft,
       ),
       SharedDialogVariant.danger => _SharedDialogVisuals(
-        icon: AppIcons.error,
+        icon: FUIIcons.error,
         color: colors.danger,
         background: colors.dangerSoft,
       ),

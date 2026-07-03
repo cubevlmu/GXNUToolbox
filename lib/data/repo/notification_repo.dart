@@ -33,4 +33,18 @@ class NotificationRepo {
       );
     });
   }
+
+  Future<void> markRead(List<String> ids) {
+    return _helper.runWithLoginRetry(
+      'mark notifications read',
+      () => Api.markNotificationsRead(ids: ids),
+    );
+  }
+
+  Future<void> delete(List<String> ids) {
+    return _helper.runWithLoginRetry(
+      'delete notifications',
+      () => Api.deleteNotifications(ids: ids),
+    );
+  }
 }

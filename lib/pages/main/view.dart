@@ -8,9 +8,8 @@ import 'package:class_tool/pages/home/view.dart';
 import 'package:class_tool/pages/main/controller.dart';
 import 'package:class_tool/pages/settings/controller.dart';
 import 'package:class_tool/pages/settings/view.dart';
-import 'package:class_tool/ui/app_bottom_tab_bar.dart';
-import 'package:class_tool/ui/app_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:fin_ui/fui.dart';
 import 'package:get/get.dart';
 
 class MainPage extends StatefulWidget {
@@ -55,41 +54,48 @@ class _MainPageState extends State<MainPage> {
 
   @override
   Widget build(BuildContext context) {
-    const pages = [HomePage(), ClassesPage(), FeaturesPage(), SettingsPage()];
-
     return Obx(() {
       final selectedIndex = controller.selectedIndex.value;
 
-      return Scaffold(
-        body: RepaintBoundary(
-          child: IndexedStack(index: selectedIndex, children: pages),
-        ),
-        bottomNavigationBar: AppBottomTabBar(
-          selectedIndex: selectedIndex,
-          onSelected: controller.onDestinationSelected,
-          items: const [
-            AppBottomTabItem(
-              icon: AppIcons.home,
-              selectedIcon: AppIcons.homeFilled,
+      return FuiNavigationShell(
+        selectedIndex: selectedIndex,
+        onSelected: controller.onDestinationSelected,
+        enableRail: true,
+        autoExtendRail: false,
+        items: const [
+          FuiNavigationItem(
+            destination: FuiNavigationDestination(
+              icon: FUIIcons.home,
+              selectedIcon: FUIIcons.homeFilled,
               label: '首页',
             ),
-            AppBottomTabItem(
-              icon: AppIcons.calendar,
-              selectedIcon: AppIcons.calendarFilled,
+            page: HomePage(),
+          ),
+          FuiNavigationItem(
+            destination: FuiNavigationDestination(
+              icon: FUIIcons.calendar,
+              selectedIcon: FUIIcons.calendarFilled,
               label: '课表',
             ),
-            AppBottomTabItem(
-              icon: AppIcons.apps,
-              selectedIcon: AppIcons.appsFilled,
+            page: ClassesPage(),
+          ),
+          FuiNavigationItem(
+            destination: FuiNavigationDestination(
+              icon: FUIIcons.apps,
+              selectedIcon: FUIIcons.appsFilled,
               label: '功能',
             ),
-            AppBottomTabItem(
-              icon: AppIcons.settings,
-              selectedIcon: AppIcons.settingsFilled,
+            page: FeaturesPage(),
+          ),
+          FuiNavigationItem(
+            destination: FuiNavigationDestination(
+              icon: FUIIcons.settings,
+              selectedIcon: FUIIcons.settingsFilled,
               label: '设置',
             ),
-          ],
-        ),
+            page: SettingsPage(),
+          ),
+        ],
       );
     });
   }

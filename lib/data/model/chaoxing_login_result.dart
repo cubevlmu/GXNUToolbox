@@ -15,10 +15,7 @@ class ChaoxingLoginResult {
 }
 
 class RsaKey {
-  const RsaKey({
-    required this.modulusHex,
-    required this.exponentHex,
-  });
+  const RsaKey({required this.modulusHex, required this.exponentHex});
 
   final String modulusHex;
   final String exponentHex;

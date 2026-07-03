@@ -106,15 +106,17 @@ TodayCourseSnapshot buildTodayCourseSnapshot({
     currentWeekText: currentWeek > 0 ? '第$currentWeek周' : '--',
     headlineText: _buildHeadline(currentWeek, todayMeta),
     items: todayCourses
-        .map((course) => TodayCourseItemSnapshot(
-              timeText: _findStartTime(course.section, meta, periodSettings),
-              titleText: course.courseName.trim().isEmpty
-                  ? '课程待定'
-                  : course.courseName.trim(),
-              roomText: course.classroomName.trim().isEmpty
-                  ? '教室待定'
-                  : course.classroomName.trim(),
-            ))
+        .map(
+          (course) => TodayCourseItemSnapshot(
+            timeText: _findStartTime(course.section, meta, periodSettings),
+            titleText: course.courseName.trim().isEmpty
+                ? '课程待定'
+                : course.courseName.trim(),
+            roomText: course.classroomName.trim().isEmpty
+                ? '教室待定'
+                : course.classroomName.trim(),
+          ),
+        )
         .toList(growable: false),
     nextItem: nextCourse == null
         ? null
@@ -136,7 +138,8 @@ ClassTableCourse? _findNextUpcomingCourse({
   List<ClassPeriodSetting>? periodSettings,
   required DateTime now,
 }) {
-  final sorted = [...todayCourses]..sort((a, b) => a.section.compareTo(b.section));
+  final sorted = [...todayCourses]
+    ..sort((a, b) => a.section.compareTo(b.section));
 
   for (final course in sorted) {
     final start = _parseSectionDateTime(

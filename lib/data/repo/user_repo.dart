@@ -25,6 +25,7 @@ class UserRepo {
   Future<void>? _setupTask;
   Future<bool>? _recoverTask;
   bool _isHandling = false;
+  Future<void> Function()? onSessionExpiredUnrecoverable;
 
   UserRepoState get state => _state;
   bool get isLogin => _state == UserRepoState.loggedIn;
@@ -263,7 +264,15 @@ class UserRepo {
 
   Future<bool> _performRecoverFromExpiredLogin() async {
     await handleLoginExpired();
-    return isLogin;
+    if (isLogin) {
+      return true;
+    }
+
+    final handler = onSessionExpiredUnrecoverable;
+    if (handler != null) {
+      await handler();
+    }
+    return false;
   }
 
   Future<void> restoreOfflineSession() async {

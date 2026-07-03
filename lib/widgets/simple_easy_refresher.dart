@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:class_tool/ui/app_context.dart';
-import 'package:class_tool/ui/app_icons.dart';
-import 'package:class_tool/ui/app_tokens.dart';
+import 'package:fin_ui/app_context.dart';
+import 'package:fin_ui/app_icons.dart';
+import 'package:fin_ui/app_tokens.dart';
 import 'package:easy_refresh/easy_refresh.dart';
 import 'package:flutter/material.dart';
 
@@ -64,20 +64,20 @@ class SimpleEasyRefresher extends StatelessWidget {
       failedText: '加载失败',
       messageText: ' ',
       showMessage: false,
-      spacing: AppTokens.gap8,
-      iconDimension: AppTokens.iconMd,
+      spacing: FUITokens.gap8,
+      iconDimension: FUITokens.iconMd,
       textStyle: textStyle,
-      iconTheme: IconThemeData(size: AppTokens.iconSm, color: colors.primary),
+      iconTheme: IconThemeData(size: FUITokens.iconSm, color: colors.primary),
       pullIconBuilder: (context, state, animation) {
         return Transform.rotate(
           angle: animation * 3.1415926,
-          child: Icon(AppIcons.chevronDown, color: colors.primary),
+          child: Icon(FUIIcons.chevronDown, color: colors.primary),
         );
       },
-      succeededIcon: Icon(AppIcons.check, color: colors.primary),
-      failedIcon: Icon(AppIcons.warning, color: colors.danger),
-      noMoreIcon: Icon(AppIcons.checkmark, color: colors.textTertiary),
-      progressIndicatorSize: AppTokens.iconSm,
+      succeededIcon: Icon(FUIIcons.check, color: colors.primary),
+      failedIcon: Icon(FUIIcons.warning, color: colors.danger),
+      noMoreIcon: Icon(FUIIcons.checkmark, color: colors.textTertiary),
+      progressIndicatorSize: FUITokens.iconSm,
       progressIndicatorStrokeWidth: 2,
     );
   }

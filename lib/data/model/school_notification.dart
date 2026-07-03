@@ -76,6 +76,34 @@ class SchoolNotificationItem {
   bool get isPinned => pinnedStatus == '1';
   String get readStatusLabel => isRead ? '已读' : '未读';
 
+  SchoolNotificationItem copyWith({
+    String? id,
+    String? title,
+    String? content,
+    String? releaseDate,
+    String? noticeType,
+    String? readStatus,
+    String? collectStatus,
+    String? pinnedStatus,
+    bool? isNew,
+  }) {
+    return SchoolNotificationItem(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      releaseDate: releaseDate ?? this.releaseDate,
+      noticeType: noticeType ?? this.noticeType,
+      readStatus: readStatus ?? this.readStatus,
+      collectStatus: collectStatus ?? this.collectStatus,
+      pinnedStatus: pinnedStatus ?? this.pinnedStatus,
+      isNew: isNew ?? this.isNew,
+    );
+  }
+
+  SchoolNotificationItem markRead() {
+    return copyWith(readStatus: '1', isNew: false);
+  }
+
   factory SchoolNotificationItem.fromJson(Map<String, dynamic> json) {
     return SchoolNotificationItem(
       id: json['id']?.toString() ?? '',
