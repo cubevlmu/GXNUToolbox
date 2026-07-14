@@ -1,0 +1,69 @@
+name: class_tool
+description: "GXNU class table app"
+
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 0.8.7
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+    
+  gx_update_client:
+    path: packages/gx_update_client
+  fin_ui: ^0.1.1
+
+  get: ^4.7.3
+  dio: ^5.3.2
+  dio_cookie_manager: ^3.2.0
+  cookie_jar: ^4.0.8
+  connectivity_plus: ^4.0.2
+  path_provider: 2.1.5
+
+  path: ^1.9.0
+  logger: ^2.4.0
+  hive: ^2.2.3
+  drift: ^2.22.1
+  sqlite3_flutter_libs: ^0.5.26
+  html: ^0.15.6
+  flutter_secure_storage: ^9.2.4
+  package_info_plus: ^8.0.2
+  home_widget: ^0.9.0
+  workmanager: ^0.9.0+3
+  flutter_local_notifications: ^21.0.0
+  timezone: ^0.11.0
+  add_2_calendar: ^3.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_launcher_icons: ^0.14.4
+  build_runner: ^2.4.13
+  drift_dev: ^2.22.1
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/logo.png
+    - assets/images/logo_foreground.png
+    - assets/images/icon.png
+
+analyzer:
+  strong-mode:
+    implicit-casts: false
+    implicit-dynamic: false
+
+flutter_launcher_icons:
+  android: true
+  windows:
+    generate: true
+  image_path: "assets/images/logo.png"
+  adaptive_icon_background: "#FDFDFD"
+  adaptive_icon_foreground: "assets/images/logo_foreground.png"

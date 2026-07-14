@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#FDFDFD</color>
+    <color name="widget_card_background">#FCFDFF</color>
+    <color name="widget_card_border">#E5EAF2</color>
+    <color name="widget_course_background">#F8FAFC</color>
+    <color name="widget_time_badge_background">#EFF6FF</color>
+    <color name="widget_icon_button_background">#EFF6FF</color>
+    <color name="widget_text_primary">#0F172A</color>
+    <color name="widget_text_secondary">#475569</color>
+    <color name="widget_text_tertiary">#64748B</color>
+    <color name="widget_text_accent">#2563EB</color>
+    <color name="widget_badge_text">#2563EB</color>
+</resources>
