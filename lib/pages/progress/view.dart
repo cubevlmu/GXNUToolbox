@@ -395,18 +395,14 @@ class _CourseTile extends StatelessWidget {
                       FUITag(label: item.categoryLabel),
                     if (item.courseType.isNotEmpty)
                       FUITag(label: item.courseType),
-                    if (item.semester.isNotEmpty)
-                      FUITag(label: item.semester),
+                    if (item.semester.isNotEmpty) FUITag(label: item.semester),
                   ],
                 ),
               ],
             ),
           ),
           const SizedBox(width: FUITokens.gap10),
-          FUITag(
-            label: item.displayResult,
-            variant: _statusVariant(item),
-          ),
+          FUITag(label: item.displayResult, variant: _statusVariant(item)),
         ],
       ),
     );

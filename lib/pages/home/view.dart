@@ -646,6 +646,15 @@ class _HomeTaskDetailSheet extends StatelessWidget {
             children: [
               Expanded(
                 child: FUIButton(
+                  label: '编辑',
+                  icon: Icons.edit_outlined,
+                  variant: FUIButtonVariant.secondary,
+                  onPressed: () => _edit(context),
+                ),
+              ),
+              const SizedBox(width: FUITokens.gap8),
+              Expanded(
+                child: FUIButton(
                   label: '删除',
                   icon: FUIIcons.delete,
                   variant: FUIButtonVariant.danger,
@@ -695,6 +704,27 @@ class _HomeTaskDetailSheet extends StatelessWidget {
       if (!context.mounted) return;
       FUIToast.error(context, message: e.toString().split('\n').first);
     }
+  }
+
+  Future<void> _edit(BuildContext context) async {
+    final homeController = Get.find<HomeController>();
+    final navigator = Navigator.of(context);
+    final rootContext = navigator.context;
+    navigator.pop();
+    final course = CourseNoteCourseDraft(
+      courseKey: entry.course.courseKey,
+      courseName: entry.course.courseName,
+      teacherName: entry.course.teacherName,
+      classroom: entry.course.classroom,
+      semester: entry.course.semester,
+      rawCourseId: entry.course.rawCourseId,
+    );
+    await showCourseNoteEditorSheet(
+      context: rootContext,
+      course: course,
+      initialEntry: entry,
+      onSave: homeController.saveTask,
+    );
   }
 
   Future<void> _delete(BuildContext context) async {

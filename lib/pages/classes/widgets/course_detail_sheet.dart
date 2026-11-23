@@ -18,6 +18,125 @@ import 'package:class_tool/widgets/app_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+Future<void> showConflictCoursesSheet({
+  required BuildContext context,
+  required List<CourseBlock> courses,
+  required String weekdayLabel,
+}) {
+  return showAppBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    child: ListView(
+      shrinkWrap: true,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '同时段冲突课程 (${courses.length}门)',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
+            FUIIconButton(
+              icon: FUIIcons.close,
+              tooltip: '关闭',
+              variant: FUIIconButtonVariant.ghost,
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+          ],
+        ),
+        const SizedBox(height: FUITokens.gap12),
+        for (var i = 0; i < courses.length; i++) ...[
+          _ConflictCourseOptionCard(
+            course: courses[i],
+            onTap: () {
+              final navigator = Navigator.of(context);
+              final rootContext = navigator.context;
+              navigator.pop();
+              showCourseDetailSheet(
+                context: rootContext,
+                course: courses[i],
+                weekdayLabel: weekdayLabel,
+              );
+            },
+          ),
+          if (i != courses.length - 1) const SizedBox(height: FUITokens.gap10),
+        ],
+      ],
+    ),
+  );
+}
+
+class _ConflictCourseOptionCard extends StatelessWidget {
+  const _ConflictCourseOptionCard({required this.course, required this.onTap});
+
+  final CourseBlock course;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final endSection = course.startSection + course.sectionSpan - 1;
+    final sectionLabel = course.sectionSpan <= 1
+        ? '第${course.startSection}节'
+        : '第${course.startSection}-$endSection节';
+    final metaParts = <String>[
+      if (course.classroom.isNotEmpty) course.classroom,
+      if (course.teacher.isNotEmpty) course.teacher,
+      if (course.weeks.isNotEmpty) course.weeks,
+    ];
+
+    return FUISurface(
+      onTap: onTap,
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 36,
+            decoration: BoxDecoration(
+              color: course.color,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          const SizedBox(width: FUITokens.gap12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  course.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                if (metaParts.isNotEmpty) ...[
+                  const SizedBox(height: FUITokens.gap4),
+                  Text(
+                    metaParts.join(' · '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: FUITokens.gap8),
+          FUITag(label: sectionLabel, variant: FUITagVariant.primary),
+        ],
+      ),
+    );
+  }
+}
+
 Future<void> showCourseDetailSheet({
   required BuildContext context,
   required CourseBlock course,

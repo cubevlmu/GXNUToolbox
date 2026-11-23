@@ -477,8 +477,8 @@ class _NetworkGuardInterceptor extends Interceptor {
   final Connectivity connectivity;
 
   Future<bool> _isConnected() async {
-    final result = await connectivity.checkConnectivity();
-    return result != ConnectivityResult.none;
+    final results = await connectivity.checkConnectivity();
+    return results.any((r) => r != ConnectivityResult.none);
   }
 
   @override

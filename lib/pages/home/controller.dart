@@ -119,6 +119,10 @@ class HomeController extends GetxController {
     return _courseNoteRepo.setDone(entry.note.id, isDone);
   }
 
+  Future<void> saveTask(CourseNoteDraft draft) {
+    return _courseNoteRepo.save(draft);
+  }
+
   Future<void> deleteTask(CourseNoteEntry entry) {
     return _courseNoteRepo.delete(entry.note.id);
   }

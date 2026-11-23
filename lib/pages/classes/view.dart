@@ -3,6 +3,7 @@ import 'package:class_tool/pages/classes/table_schedule_page.dart';
 import 'package:class_tool/pages/classes/widgets/course_detail_sheet.dart';
 import 'package:class_tool/pages/classes/widgets/schedule_picker_sheet.dart';
 import 'package:class_tool/data/model/class_table.dart';
+import 'package:fin_ui/app_button.dart';
 import 'package:fin_ui/app_context.dart';
 import 'package:fin_ui/app_empty_state.dart';
 import 'package:fin_ui/app_icon_button.dart';
@@ -10,6 +11,7 @@ import 'package:fin_ui/app_icons.dart';
 import 'package:fin_ui/app_refresh.dart';
 import 'package:fin_ui/app_surface.dart';
 import 'package:fin_ui/app_tag.dart';
+import 'package:fin_ui/app_toast.dart';
 import 'package:fin_ui/app_tokens.dart';
 import 'package:fin_ui/fui_navigation.dart';
 import 'package:flutter/gestures.dart';
@@ -26,6 +28,14 @@ class ClassesPage extends StatefulWidget {
 class _ClassesPageState extends State<ClassesPage> {
   int _selectedWeekday = DateTime.now().weekday;
 
+  Future<void> _refreshWithFeedback() async {
+    final controller = Get.find<ClassesController>();
+    final ok = await controller.refreshSchedule();
+    if (!ok && mounted && controller.hasScheduleData) {
+      FUIToast.error(context, message: '课表更新失败，当前显示缓存课表');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -40,8 +50,10 @@ class _ClassesPageState extends State<ClassesPage> {
               children: [
                 GetBuilder<ClassesController>(
                   id: 'classes-header',
-                  builder: (controller) =>
-                      _ClassesHeader(controller: controller),
+                  builder: (controller) => _ClassesHeader(
+                    controller: controller,
+                    onRefresh: _refreshWithFeedback,
+                  ),
                 ),
                 const SizedBox(height: FUITokens.gap12),
                 GetBuilder<ClassesController>(
@@ -56,7 +68,7 @@ class _ClassesPageState extends State<ClassesPage> {
             child: Stack(
               children: [
                 FUIRefresh(
-                  onRefresh: Get.find<ClassesController>().refreshSchedule,
+                  onRefresh: _refreshWithFeedback,
                   refreshOnStart: false,
                   loadEnabled: false,
                   childBuilder: (context, physics) => ScrollConfiguration(
@@ -78,6 +90,7 @@ class _ClassesPageState extends State<ClassesPage> {
                           return _ClassesFeedbackState(
                             title: '课表加载失败',
                             subtitle: controller.scheduleError,
+                            onRetry: _refreshWithFeedback,
                           );
                         }
 
@@ -91,13 +104,26 @@ class _ClassesPageState extends State<ClassesPage> {
                           );
                         }
 
-                        return _AgendaScheduleView(
-                          controller: controller,
-                          physics: physics,
-                          selectedWeekday: _selectedWeekday,
-                          onWeekdaySelected: (value) {
-                            setState(() => _selectedWeekday = value);
-                          },
+                        return Column(
+                          children: [
+                            if (controller.scheduleError.isNotEmpty)
+                              _ScheduleSyncWarningBanner(
+                                message: '课表更新失败，当前显示本地缓存',
+                                isLoading: controller.isLoading,
+                                onRetry: _refreshWithFeedback,
+                                onDismiss: controller.clearScheduleError,
+                              ),
+                            Expanded(
+                              child: _AgendaScheduleView(
+                                controller: controller,
+                                physics: physics,
+                                selectedWeekday: _selectedWeekday,
+                                onWeekdaySelected: (value) {
+                                  setState(() => _selectedWeekday = value);
+                                },
+                              ),
+                            ),
+                          ],
                         );
                       },
                     ),
@@ -196,9 +222,10 @@ class _ClassesToolbar extends StatelessWidget {
 }
 
 class _ClassesHeader extends StatelessWidget {
-  const _ClassesHeader({required this.controller});
+  const _ClassesHeader({required this.controller, required this.onRefresh});
 
   final ClassesController controller;
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -237,7 +264,7 @@ class _ClassesHeader extends StatelessWidget {
           icon: FUIIcons.refresh,
           tooltip: '刷新课表',
           variant: FUIIconButtonVariant.ghost,
-          onPressed: controller.isLoading ? null : controller.refreshSchedule,
+          onPressed: controller.isLoading ? null : onRefresh,
         ),
         const SizedBox(width: FUITokens.gap8),
         FUIIconButton(
@@ -476,6 +503,7 @@ class _SelectedDaySchedule extends StatelessWidget {
                     course: courses[i],
                     weekdayLabel: weekdayLabel,
                     periodSettings: periodSettings,
+                    hasTimeConflict: _hasTimeConflict(courses, i),
                   ),
                   if (i != courses.length - 1)
                     Divider(height: 1, color: colors.border),
@@ -484,6 +512,20 @@ class _SelectedDaySchedule extends StatelessWidget {
             ),
     );
   }
+
+  bool _hasTimeConflict(List<CourseBlock> items, int index) {
+    final target = items[index];
+    final targetEnd = target.startSection + target.sectionSpan;
+    for (var i = 0; i < items.length; i++) {
+      if (i == index) continue;
+      final other = items[i];
+      final otherEnd = other.startSection + other.sectionSpan;
+      if (target.startSection < otherEnd && other.startSection < targetEnd) {
+        return true;
+      }
+    }
+    return false;
+  }
 }
 
 class _CompactCourseRow extends StatelessWidget {
@@ -491,11 +533,13 @@ class _CompactCourseRow extends StatelessWidget {
     required this.course,
     required this.weekdayLabel,
     required this.periodSettings,
+    this.hasTimeConflict = false,
   });
 
   final CourseBlock course;
   final String weekdayLabel;
   final List<ClassPeriodSetting> periodSettings;
+  final bool hasTimeConflict;
 
   @override
   Widget build(BuildContext context) {
@@ -576,9 +620,19 @@ class _CompactCourseRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: FUITokens.gap8),
-            FUITag(
-              label: _sectionRangeText(course),
-              variant: FUITagVariant.primary,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FUITag(
+                  label: _sectionRangeText(course),
+                  variant: FUITagVariant.primary,
+                ),
+                if (hasTimeConflict) ...[
+                  const SizedBox(height: FUITokens.gap6),
+                  const FUITag(label: '时段冲突', variant: FUITagVariant.warning),
+                ],
+              ],
             ),
           ],
         ),
@@ -748,21 +802,104 @@ class _SelectorRow extends StatelessWidget {
   }
 }
 
+class _ScheduleSyncWarningBanner extends StatelessWidget {
+  const _ScheduleSyncWarningBanner({
+    required this.message,
+    required this.isLoading,
+    required this.onRetry,
+    required this.onDismiss,
+  });
+
+  final String message;
+  final bool isLoading;
+  final VoidCallback onRetry;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: FUISurface(
+        backgroundColor: colors.warningSoft,
+        borderColor: colors.warning.withValues(alpha: 0.35),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            Icon(FUIIcons.warning, size: 16, color: colors.warning),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: isLoading ? null : onRetry,
+              child: Text(
+                isLoading ? '刷新中...' : '重新刷新',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: onDismiss,
+              child: Icon(
+                FUIIcons.close,
+                size: 16,
+                color: colors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ClassesFeedbackState extends StatelessWidget {
-  const _ClassesFeedbackState({required this.title, required this.subtitle});
+  const _ClassesFeedbackState({
+    required this.title,
+    required this.subtitle,
+    this.onRetry,
+  });
 
   final String title;
   final String subtitle;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: FUIEmptyState(
-          title: title,
-          message: subtitle,
-          icon: FUIIcons.calendar,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FUIEmptyState(
+              title: title,
+              message: subtitle,
+              icon: FUIIcons.calendar,
+            ),
+            if (onRetry != null) ...[
+              const SizedBox(height: FUITokens.gap16),
+              FUIButton(
+                label: '重新刷新',
+                icon: FUIIcons.refresh,
+                onPressed: onRetry,
+              ),
+            ],
+          ],
         ),
       ),
     );

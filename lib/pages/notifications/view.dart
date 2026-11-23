@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:class_tool/data/model/school_notification.dart';
 import 'package:class_tool/pages/notifications/controller.dart';
+import 'package:fin_ui/app_button.dart';
 import 'package:fin_ui/app_context.dart';
+import 'package:fin_ui/app_dialog.dart';
 import 'package:fin_ui/app_empty_state.dart';
 import 'package:fin_ui/app_icon_button.dart';
 import 'package:fin_ui/app_icons.dart';
@@ -10,6 +12,7 @@ import 'package:fin_ui/app_page.dart';
 import 'package:fin_ui/app_refresh.dart';
 import 'package:fin_ui/app_surface.dart';
 import 'package:fin_ui/app_tag.dart';
+import 'package:fin_ui/app_toast.dart';
 import 'package:fin_ui/app_tokens.dart';
 import 'package:fin_ui/fui_page_head.dart';
 import 'package:class_tool/widgets/app_bottom_sheet.dart';
@@ -95,7 +98,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       : null,
                 ),
                 const SizedBox(height: FUITokens.gap16),
-                _ListHeader(total: controller.total),
+                _ListHeader(
+                  total: controller.total,
+                  canMarkAllRead: canInteract && controller.hasUnread,
+                  canClearAll: canInteract && controller.hasData,
+                  onMarkAllRead: () => _markAllAsRead(context, controller),
+                  onClearAll: () => _confirmClearAll(context, controller),
+                ),
                 const SizedBox(height: FUITokens.gap8),
                 for (final item in controller.items) ...[
                   _NotificationCard(
@@ -126,6 +135,61 @@ class _NotificationsPageState extends State<NotificationsPage> {
       child: _NotificationDetailSheet(item: displayItem),
     );
   }
+
+  Future<void> _markAllAsRead(
+    BuildContext context,
+    NotificationsController controller,
+  ) async {
+    final ok = await controller.markAllAsRead();
+    if (!context.mounted) return;
+    if (ok) {
+      FUIToast.success(context, message: '已全部标为已读');
+    } else {
+      FUIToast.error(context, message: '一键已读失败，请稍后重试');
+    }
+  }
+
+  Future<void> _confirmClearAll(
+    BuildContext context,
+    NotificationsController controller,
+  ) async {
+    final count = controller.items.length;
+    if (count == 0) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return FUIDialog(
+          title: '一键清理通知',
+          icon: FUIIcons.delete,
+          content: Text('确定删除当前列表中的 $count 条通知吗？删除后无法恢复。'),
+          actions: [
+            FUIButton(
+              label: '取消',
+              variant: FUIButtonVariant.secondary,
+              onPressed: () => Navigator.of(ctx).pop(false),
+            ),
+            FUIButton(
+              label: '清理',
+              variant: FUIButtonVariant.danger,
+              onPressed: () => Navigator.of(ctx).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+
+    final ok = await controller.clearAllNotifications();
+    if (!context.mounted) return;
+    if (ok) {
+      FUIToast.success(context, message: '已清理通知');
+    } else {
+      FUIToast.error(context, message: '清理失败，请稍后重试');
+    }
+  }
 }
 
 class _NotificationHeader extends StatelessWidget {
@@ -151,9 +215,19 @@ class _NotificationHeader extends StatelessWidget {
 }
 
 class _ListHeader extends StatelessWidget {
-  const _ListHeader({required this.total});
+  const _ListHeader({
+    required this.total,
+    required this.canMarkAllRead,
+    required this.canClearAll,
+    required this.onMarkAllRead,
+    required this.onClearAll,
+  });
 
   final int total;
+  final bool canMarkAllRead;
+  final bool canClearAll;
+  final VoidCallback onMarkAllRead;
+  final VoidCallback onClearAll;
 
   @override
   Widget build(BuildContext context) {
@@ -162,19 +236,37 @@ class _ListHeader extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(
-            '通知列表',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          child: Row(
+            children: [
+              Text(
+                '通知列表',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(width: FUITokens.gap8),
+              Text(
+                '共 $total 条',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
-        Text(
-          '共 $total 条',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: colors.textSecondary,
-            fontWeight: FontWeight.w600,
-          ),
+        FUIButton(
+          label: '一键已读',
+          small: true,
+          variant: FUIButtonVariant.secondary,
+          onPressed: canMarkAllRead ? onMarkAllRead : null,
+        ),
+        const SizedBox(width: FUITokens.gap8),
+        FUIButton(
+          label: '一键清理',
+          small: true,
+          variant: FUIButtonVariant.danger,
+          onPressed: canClearAll ? onClearAll : null,
         ),
       ],
     );

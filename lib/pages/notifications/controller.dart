@@ -30,6 +30,8 @@ class NotificationsController extends GetxController {
   int get totalPages => _totalPages.value;
   int get total => _total.value;
   bool get hasData => _items.isNotEmpty;
+  bool get hasUnread =>
+      _items.any((item) => !item.isRead && item.id.isNotEmpty);
   bool get hasMore => page < totalPages;
 
   @override
@@ -188,6 +190,76 @@ class NotificationsController extends GetxController {
       _error.value = e.toString();
       update(<Object>['notification-content']);
       LogUtil.errorE('[NotificationsController] delete failed', e, s);
+    }
+  }
+
+  Future<bool> markAllAsRead() async {
+    final unreadIds = _items
+        .where((item) => !item.isRead && item.id.isNotEmpty)
+        .map((item) => item.id)
+        .toList(growable: false);
+    if (unreadIds.isEmpty) {
+      return true;
+    }
+
+    final previousItems = List<SchoolNotificationItem>.from(_items);
+    for (var i = 0; i < _items.length; i++) {
+      if (!_items[i].isRead) {
+        _items[i] = _items[i].markRead();
+      }
+    }
+    update(<Object>['notification-content']);
+
+    try {
+      await _notificationRepo.markRead(unreadIds);
+      LogUtil.info(
+        '[NotificationsController] mark all read success count=${unreadIds.length}',
+      );
+      return true;
+    } catch (e, s) {
+      if (!isClosed) {
+        _items.assignAll(previousItems);
+        _error.value = e.toString();
+        update(<Object>['notification-content']);
+      }
+      LogUtil.errorE('[NotificationsController] mark all read failed', e, s);
+      return false;
+    }
+  }
+
+  Future<bool> clearAllNotifications() async {
+    final ids = _items
+        .where((item) => item.id.isNotEmpty)
+        .map((item) => item.id)
+        .toList(growable: false);
+    if (ids.isEmpty) {
+      return true;
+    }
+
+    final previousItems = List<SchoolNotificationItem>.from(_items);
+    final previousTotal = _total.value;
+    _items.clear();
+    _total.value = (_total.value - ids.length).clamp(0, _total.value);
+    update(<Object>['notification-content']);
+
+    try {
+      await _notificationRepo.delete(ids);
+      LogUtil.info(
+        '[NotificationsController] clear all success count=${ids.length}',
+      );
+      if (_total.value > 0 && hasMore) {
+        await refreshNotifications();
+      }
+      return true;
+    } catch (e, s) {
+      if (!isClosed) {
+        _items.assignAll(previousItems);
+        _total.value = previousTotal;
+        _error.value = e.toString();
+        update(<Object>['notification-content']);
+      }
+      LogUtil.errorE('[NotificationsController] clear all failed', e, s);
+      return false;
     }
   }
 

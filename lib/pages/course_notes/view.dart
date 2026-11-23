@@ -210,7 +210,10 @@ class _CourseNotesPageState extends State<CourseNotesPage> {
                         );
                       }
                     },
-                    onDelete: () => controller.delete(entry),
+                    onEdit: () =>
+                        _openEditor(context, controller, initialEntry: entry),
+                    onDelete: () =>
+                        _confirmDeleteSingle(context, controller, entry),
                   ),
                   const SizedBox(height: FUITokens.gap10),
                 ],
@@ -223,19 +226,65 @@ class _CourseNotesPageState extends State<CourseNotesPage> {
 
   Future<void> _openEditor(
     BuildContext context,
-    CourseNotesController controller,
-  ) async {
-    final course = controller.createCourse;
-    await showAppBottomSheet<void>(
+    CourseNotesController controller, {
+    CourseNoteEntry? initialEntry,
+  }) async {
+    final course = initialEntry != null
+        ? CourseNoteCourseDraft(
+            courseKey: initialEntry.course.courseKey,
+            courseName: initialEntry.course.courseName,
+            teacherName: initialEntry.course.teacherName,
+            classroom: initialEntry.course.classroom,
+            semester: initialEntry.course.semester,
+            rawCourseId: initialEntry.course.rawCourseId,
+          )
+        : controller.createCourse;
+    await showCourseNoteEditorSheet(
       context: context,
-      isScrollControlled: true,
-      child: _CourseNoteEditor(
-        course: course,
-        onSave: (draft) async {
-          await controller.save(draft);
-        },
-      ),
+      course: course,
+      initialEntry: initialEntry,
+      onSave: controller.save,
     );
+  }
+
+  Future<void> _confirmDeleteSingle(
+    BuildContext context,
+    CourseNotesController controller,
+    CourseNoteEntry entry,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return FUIDialog(
+          title: '删除任务',
+          icon: FUIIcons.delete,
+          content: Text('确定删除「${entry.note.title}」吗？删除后不会再提醒。'),
+          actions: [
+            FUIButton(
+              label: '取消',
+              variant: FUIButtonVariant.secondary,
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            FUIButton(
+              label: '删除',
+              variant: FUIButtonVariant.danger,
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+    try {
+      await controller.delete(entry);
+      if (!context.mounted) return;
+      FUIToast.success(context, message: '已删除任务');
+    } catch (e) {
+      if (!context.mounted) return;
+      FUIToast.error(context, message: e.toString().split('\n').first);
+    }
   }
 
   void _setSelectionMode(bool value) {
@@ -639,6 +688,7 @@ class _CourseNoteCard extends StatelessWidget {
     required this.onAddToToday,
     required this.onRemoveFromToday,
     required this.onExport,
+    required this.onEdit,
     required this.onDelete,
   });
 
@@ -652,6 +702,7 @@ class _CourseNoteCard extends StatelessWidget {
   final VoidCallback onAddToToday;
   final VoidCallback onRemoveFromToday;
   final VoidCallback onExport;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   @override
@@ -663,7 +714,7 @@ class _CourseNoteCard extends StatelessWidget {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: selectionMode ? onSelect : null,
+      onTap: selectionMode ? onSelect : onEdit,
       child: FUISurface(
         padding: const EdgeInsets.fromLTRB(10, 8, 8, 10),
         child: Row(
@@ -772,6 +823,12 @@ class _CourseNoteCard extends StatelessWidget {
                           : onAddToToday,
                     ),
                   FUIIconButton(
+                    icon: Icons.edit_outlined,
+                    tooltip: '编辑',
+                    variant: FUIIconButtonVariant.ghost,
+                    onPressed: onEdit,
+                  ),
+                  FUIIconButton(
                     icon: FUIIcons.calendarAdd,
                     tooltip: '导入日历',
                     variant: FUIIconButtonVariant.ghost,
@@ -792,10 +849,32 @@ class _CourseNoteCard extends StatelessWidget {
   }
 }
 
+Future<void> showCourseNoteEditorSheet({
+  required BuildContext context,
+  required CourseNoteCourseDraft course,
+  CourseNoteEntry? initialEntry,
+  required Future<void> Function(CourseNoteDraft draft) onSave,
+}) {
+  return showAppBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    child: _CourseNoteEditor(
+      course: course,
+      initialEntry: initialEntry,
+      onSave: onSave,
+    ),
+  );
+}
+
 class _CourseNoteEditor extends StatefulWidget {
-  const _CourseNoteEditor({required this.course, required this.onSave});
+  const _CourseNoteEditor({
+    required this.course,
+    this.initialEntry,
+    required this.onSave,
+  });
 
   final CourseNoteCourseDraft course;
+  final CourseNoteEntry? initialEntry;
   final Future<void> Function(CourseNoteDraft draft) onSave;
 
   @override
@@ -811,11 +890,21 @@ class _CourseNoteEditorState extends State<_CourseNoteEditor> {
   bool _exportCalendar = false;
   bool _saving = false;
 
+  bool get _isEditing => widget.initialEntry != null;
   bool get _isGeneralTask => widget.course.courseKey == generalTaskCourseKey;
 
   @override
   void initState() {
     super.initState();
+    final initial = widget.initialEntry;
+    if (initial != null) {
+      _titleController.text = initial.note.title;
+      _contentController.text = initial.note.content;
+      _type = initial.type;
+      _dueAt = initial.note.dueAt;
+      _remindAt = initial.note.remindAt;
+      return;
+    }
     if (_isGeneralTask) {
       _type = CourseNoteType.todo;
     }
@@ -836,7 +925,9 @@ class _CourseNoteEditorState extends State<_CourseNoteEditor> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
       children: [
         Text(
-          _isGeneralTask ? '新增普通任务' : '新增课程记录',
+          _isEditing
+              ? (_isGeneralTask ? '编辑普通任务' : '编辑课程记录')
+              : (_isGeneralTask ? '新增普通任务' : '新增课程记录'),
           style: Theme.of(
             context,
           ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
@@ -955,12 +1046,14 @@ class _CourseNoteEditorState extends State<_CourseNoteEditor> {
     try {
       await widget.onSave(
         CourseNoteDraft(
+          id: widget.initialEntry?.note.id,
           course: widget.course,
           type: _type,
           title: title,
           content: _contentController.text,
           dueAt: _dueAt,
           remindAt: _remindAt,
+          linkedClassDate: widget.initialEntry?.note.linkedClassDate,
           exportCalendar: _exportCalendar,
         ),
       );

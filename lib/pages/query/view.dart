@@ -683,9 +683,8 @@ class _GradeFilterSheetState extends State<GradeFilterSheet> {
                       value: filter.semester,
                       options: widget.options.startSemesters,
                       onChanged: (value) => setState(
-                        () => filter = filter.copyWith(
-                          semester: value ?? '001',
-                        ),
+                        () =>
+                            filter = filter.copyWith(semester: value ?? '001'),
                       ),
                     ),
                     _DropdownField(

@@ -49,6 +49,34 @@ class ClassTablePageContext {
       semesters: semesters,
     );
   }
+
+  factory ClassTablePageContext.fromJson(Map<String, dynamic> json) {
+    final rawUser = json['userContext'];
+    final rawSemesters = json['semesters'];
+    return ClassTablePageContext(
+      userContext: rawUser is Map<String, dynamic>
+          ? ClassTableUserContext.fromJson(rawUser)
+          : const ClassTableUserContext(
+              selectedSemester: '',
+              userId: '',
+              campusId: '',
+              selectedCampusId: '',
+            ),
+      semesters: rawSemesters is List
+          ? rawSemesters
+                .whereType<Map<String, dynamic>>()
+                .map(ClassTableSemester.fromJson)
+                .toList(growable: false)
+          : const <ClassTableSemester>[],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'userContext': userContext.toJson(),
+      'semesters': semesters.map((item) => item.toJson()).toList(),
+    };
+  }
 }
 
 class ClassTableUserContext {
@@ -63,6 +91,24 @@ class ClassTableUserContext {
   final String userId;
   final String campusId;
   final String selectedCampusId;
+
+  factory ClassTableUserContext.fromJson(Map<String, dynamic> json) {
+    return ClassTableUserContext(
+      selectedSemester: json['selectedSemester']?.toString() ?? '',
+      userId: json['userId']?.toString() ?? '',
+      campusId: json['campusId']?.toString() ?? '',
+      selectedCampusId: json['selectedCampusId']?.toString() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'selectedSemester': selectedSemester,
+      'userId': userId,
+      'campusId': campusId,
+      'selectedCampusId': selectedCampusId,
+    };
+  }
 }
 
 class ClassTableSemester {
@@ -75,6 +121,22 @@ class ClassTableSemester {
   final String value;
   final String label;
   final bool isActive;
+
+  factory ClassTableSemester.fromJson(Map<String, dynamic> json) {
+    return ClassTableSemester(
+      value: json['value']?.toString() ?? '',
+      label: json['label']?.toString() ?? '',
+      isActive: json['isActive'] == true,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'value': value,
+      'label': label,
+      'isActive': isActive,
+    };
+  }
 }
 
 String _inputValue(dynamic document, String id) {

@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:class_tool/data/model/course_note.dart';
+import 'package:class_tool/data/services/morning_briefing_service.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 class CourseNoteReminderService {
@@ -18,14 +18,14 @@ class CourseNoteReminderService {
     if (_initialized) {
       return;
     }
-    tz_data.initializeTimeZones();
+    MorningBriefingService.ensureTimeZoneInitialized();
     if (!Platform.isAndroid) {
       _initialized = true;
       return;
     }
 
     const settings = InitializationSettings(
-      android: AndroidInitializationSettings('ic_notification'),
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
     );
     await _plugin.initialize(settings: settings);
     const channel = AndroidNotificationChannel(
@@ -69,17 +69,24 @@ class CourseNoteReminderService {
       channelDescription: '课程作业、备注和待办提醒',
       importance: Importance.high,
       priority: Priority.high,
-      icon: 'ic_notification',
     );
 
     try {
+      final androidPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      final canExact =
+          await androidPlugin?.canScheduleExactNotifications() ?? false;
       await _plugin.zonedSchedule(
         id: notificationIdForNote(entry.note.id),
         title: title,
         body: body,
         scheduledDate: tz.TZDateTime.from(remindAt, tz.local),
         notificationDetails: NotificationDetails(android: details),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        androidScheduleMode: canExact
+            ? AndroidScheduleMode.exactAllowWhileIdle
+            : AndroidScheduleMode.inexactAllowWhileIdle,
       );
     } catch (e, s) {
       LogUtil.warnE('[CourseNoteReminder] schedule failed', e, s);

@@ -4,6 +4,78 @@ import 'package:fin_ui/app_colors.dart';
 import 'package:fin_ui/app_context.dart';
 import 'package:flutter/material.dart';
 
+class CourseSlotCluster {
+  const CourseSlotCluster({
+    required this.dayIndex,
+    required this.startSection,
+    required this.sectionSpan,
+    required this.courses,
+  });
+
+  final int dayIndex;
+  final int startSection;
+  final int sectionSpan;
+  final List<CourseBlock> courses;
+
+  bool get hasConflict => courses.length > 1;
+  CourseBlock get primaryCourse => courses.first;
+}
+
+List<CourseSlotCluster> computeCourseSlotClusters(List<CourseBlock> courses) {
+  if (courses.isEmpty) {
+    return const <CourseSlotCluster>[];
+  }
+
+  final byDay = <int, List<CourseBlock>>{};
+  for (final course in courses) {
+    byDay.putIfAbsent(course.dayIndex, () => <CourseBlock>[]).add(course);
+  }
+
+  final clusters = <CourseSlotCluster>[];
+  for (final entry in byDay.entries) {
+    final sorted = List<CourseBlock>.from(entry.value)
+      ..sort((a, b) {
+        final startCompare = a.startSection.compareTo(b.startSection);
+        if (startCompare != 0) {
+          return startCompare;
+        }
+        final spanCompare = b.sectionSpan.compareTo(a.sectionSpan);
+        if (spanCompare != 0) {
+          return spanCompare;
+        }
+        return a.title.compareTo(b.title);
+      });
+
+    var clusterStart = 0;
+    while (clusterStart < sorted.length) {
+      final minStart = sorted[clusterStart].startSection;
+      var maxEnd = minStart + sorted[clusterStart].sectionSpan;
+      var clusterEnd = clusterStart + 1;
+      while (clusterEnd < sorted.length &&
+          sorted[clusterEnd].startSection < maxEnd) {
+        final end =
+            sorted[clusterEnd].startSection + sorted[clusterEnd].sectionSpan;
+        if (end > maxEnd) {
+          maxEnd = end;
+        }
+        clusterEnd++;
+      }
+
+      clusters.add(
+        CourseSlotCluster(
+          dayIndex: entry.key,
+          startSection: minStart,
+          sectionSpan: maxEnd - minStart,
+          courses: sorted.sublist(clusterStart, clusterEnd),
+        ),
+      );
+      clusterStart = clusterEnd;
+    }
+  }
+
+  return clusters;
+}
+
 class ScheduleTableContent extends StatelessWidget {
   const ScheduleTableContent({
     super.key,
@@ -95,37 +167,59 @@ class ScheduleTableContent extends StatelessWidget {
                           sectionHeight: sectionHeight,
                         ),
                         Stack(
-                          children: controller.visibleCourseBlocks
-                              .map(
-                                (course) => Positioned(
-                                  left:
-                                      leftColumnWidth +
-                                      course.dayIndex * dayColumnWidth +
-                                      metrics.courseInset,
-                                  top:
-                                      metrics.headerHeight +
-                                      (course.startSection - 1) *
-                                          sectionHeight +
-                                      metrics.courseInset,
-                                  width:
-                                      dayColumnWidth - metrics.courseInset * 2,
-                                  height:
-                                      course.sectionSpan * sectionHeight -
-                                      metrics.courseInset * 2,
-                                  child: _CourseBlockCard(
-                                    course: course,
-                                    metrics: metrics,
-                                    onTap: () => showCourseDetailSheet(
-                                      context: context,
-                                      course: course,
-                                      weekdayLabel: controller
-                                          .days[course.dayIndex]
-                                          .weekdayText,
-                                    ),
-                                  ),
-                                ),
-                              )
-                              .toList(growable: false),
+                          children:
+                              computeCourseSlotClusters(
+                                    controller.visibleCourseBlocks,
+                                  )
+                                  .map((cluster) {
+                                    final weekdayLabel =
+                                        controller.days.length >
+                                            cluster.dayIndex
+                                        ? controller
+                                              .days[cluster.dayIndex]
+                                              .weekdayText
+                                        : '';
+                                    return Positioned(
+                                      left:
+                                          leftColumnWidth +
+                                          cluster.dayIndex * dayColumnWidth +
+                                          metrics.courseInset,
+                                      top:
+                                          metrics.headerHeight +
+                                          (cluster.startSection - 1) *
+                                              sectionHeight +
+                                          metrics.courseInset,
+                                      width:
+                                          dayColumnWidth -
+                                          metrics.courseInset * 2,
+                                      height:
+                                          cluster.sectionSpan * sectionHeight -
+                                          metrics.courseInset * 2,
+                                      child: _CourseBlockCard(
+                                        course: cluster.primaryCourse,
+                                        conflictCount: cluster.hasConflict
+                                            ? cluster.courses.length
+                                            : 0,
+                                        metrics: metrics,
+                                        onTap: () {
+                                          if (cluster.hasConflict) {
+                                            showConflictCoursesSheet(
+                                              context: context,
+                                              courses: cluster.courses,
+                                              weekdayLabel: weekdayLabel,
+                                            );
+                                            return;
+                                          }
+                                          showCourseDetailSheet(
+                                            context: context,
+                                            course: cluster.primaryCourse,
+                                            weekdayLabel: weekdayLabel,
+                                          );
+                                        },
+                                      ),
+                                    );
+                                  })
+                                  .toList(growable: false),
                         ),
                       ],
                     ),
@@ -295,11 +389,13 @@ class _CourseBlockCard extends StatelessWidget {
     required this.course,
     required this.metrics,
     required this.onTap,
+    this.conflictCount = 0,
   });
 
   final CourseBlock course;
   final _ScheduleMetrics metrics;
   final VoidCallback onTap;
+  final int conflictCount;
 
   @override
   Widget build(BuildContext context) {
@@ -343,7 +439,19 @@ class _CourseBlockCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: course.color,
                 borderRadius: BorderRadius.circular(metrics.cardRadius),
+                border: conflictCount > 1
+                    ? Border.all(
+                        color: context.colors.warning.withValues(alpha: 0.85),
+                        width: 1.4,
+                      )
+                    : null,
                 boxShadow: [
+                  if (conflictCount > 1)
+                    BoxShadow(
+                      color: context.colors.warning.withValues(alpha: 0.22),
+                      blurRadius: 0,
+                      offset: const Offset(2, 2),
+                    ),
                   BoxShadow(
                     color: context.colors.textPrimary.withValues(alpha: 0.08),
                     blurRadius: 10,
@@ -354,6 +462,30 @@ class _CourseBlockCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (conflictCount > 1) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: context.colors.warning,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '冲突·$conflictCount门',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Colors.white,
+                          fontSize: (bodyFontSize - 1).clamp(8.5, 11.0),
+                          fontWeight: FontWeight.w800,
+                          height: 1.15,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                  ],
                   Text(
                     course.title,
                     maxLines: titleLines,

@@ -96,6 +96,8 @@ class ClassesController extends GetxController {
   final Rx<TodayCourseSnapshot?> _homeSnapshot = Rx<TodayCourseSnapshot?>(null);
   int _requestVersion = 0;
   String _todaySemester = '';
+  bool _hasSyncedFromNetwork = false;
+  final RxBool _isShowingCachedData = false.obs;
 
   List<ScheduleOption> get semesters => _semesters;
   List<ScheduleOption> get weeks => _weeks;
@@ -111,7 +113,63 @@ class ClassesController extends GetxController {
       : (_selectedWeek.value > 0 ? '第${_selectedWeek.value}周' : '');
   bool get isHoliday => _isHoliday.value;
   bool get isLoading => _isLoading.value;
+  bool get hasSyncedFromNetwork => _hasSyncedFromNetwork;
+  bool get isShowingCachedData => _isShowingCachedData.value;
   String get scheduleError => _scheduleError.value;
+
+  @override
+  void onInit() {
+    super.onInit();
+    restoreFromCache();
+  }
+
+  void restoreFromCache() {
+    final cached = _classRepo.loadCachedOverview();
+    if (cached == null) {
+      return;
+    }
+
+    _selectedSemester.value = cached.semester;
+    _selectedWeek.value = cached.week;
+    _isHoliday.value = cached.isHoliday;
+    _classTableMeta.value = cached.metaResponse.data;
+    _rawSemesters.assignAll(cached.semesters);
+    _currentWeekMeta.assignAll(cached.weekMeta);
+    _currentWeekCourses.assignAll(cached.courses);
+    _isShowingCachedData.value = true;
+    _scheduleError.value = '';
+
+    _syncDerivedState(cached.semesters);
+    _rememberTodaySemesterIfApplicable(cached.semester);
+
+    if (_homeSnapshot.value == null) {
+      final snapshot = buildTodayCourseSnapshot(
+        semester: cached.semester,
+        currentWeek: cached.week,
+        weekMeta: cached.weekMeta,
+        weekCourses: cached.courses,
+        meta: cached.metaResponse.data,
+        periodSettings: effectivePeriodSettings,
+      );
+      _homeSnapshot.value = snapshot;
+      homeSyncTick.value++;
+    }
+
+    syncTick.value++;
+    update(<Object>['classes-header', 'schedule-table']);
+    LogUtil.info(
+      '[ClassesController] restored cached schedule semester=${cached.semester} week=${cached.week} courses=${cached.courses.length}',
+    );
+  }
+
+  void clearScheduleError() {
+    if (_scheduleError.value.isEmpty) {
+      return;
+    }
+    _scheduleError.value = '';
+    update(<Object>['schedule-table']);
+  }
+
   bool get hasScheduleData =>
       _semesters.isNotEmpty ||
       _classTableMeta.value != null ||
@@ -168,7 +226,7 @@ class ClassesController extends GetxController {
     return selectedWeekday != (today ?? DateTime.now().weekday);
   }
 
-  Future<void> syncScheduleOverview({
+  Future<bool> syncScheduleOverview({
     bool forceRefresh = false,
     bool syncExternalOutputs = false,
   }) async {
@@ -176,7 +234,7 @@ class ClassesController extends GetxController {
       LogUtil.warn(
         '[ClassesController] skip schedule sync because user is not logged in',
       );
-      return;
+      return false;
     }
 
     final version = ++_requestVersion;
@@ -224,7 +282,7 @@ class ClassesController extends GetxController {
       }
       await bellScheduleTask;
       if (!_isActiveRequest(version)) {
-        return;
+        return false;
       }
 
       _selectedSemester.value = effectiveSemester;
@@ -234,11 +292,20 @@ class ClassesController extends GetxController {
       _rawSemesters.assignAll(context.semesters);
       _currentWeekMeta.assignAll(weekMeta);
       _currentWeekCourses.assignAll(courses);
+      _hasSyncedFromNetwork = true;
+      _isShowingCachedData.value = false;
       _scheduleError.value = '';
       _isLoading.value = false;
 
       _syncDerivedState(context.semesters);
       _rememberTodaySemesterIfApplicable(effectiveSemester);
+      unawaited(
+        _classRepo.saveLatestOverviewPointer(
+          semester: effectiveSemester,
+          week: resolvedWeek,
+          isHoliday: termWeek.isHoliday,
+        ),
+      );
       if (syncExternalOutputs) {
         final snapshot = buildTodayCourseSnapshot(
           semester: effectiveSemester,
@@ -259,15 +326,20 @@ class ClassesController extends GetxController {
       LogUtil.info(
         '[ClassesController] syncScheduleOverview success semester=$selectedSemester week=$selectedWeek courses=${currentWeekCourses.length}',
       );
+      return true;
     } catch (e, s) {
       if (!_isActiveRequest(version)) {
-        return;
+        return false;
       }
       _isLoading.value = false;
-      _scheduleError.value = e.toString();
+      if (hasScheduleData) {
+        _isShowingCachedData.value = true;
+      }
+      _scheduleError.value = _formatScheduleError(e);
       syncTick.value++;
       update(<Object>['classes-header', 'schedule-table']);
       LogUtil.errorE('[ClassesController] syncScheduleOverview failed', e, s);
+      return false;
     }
   }
 
@@ -298,21 +370,31 @@ class ClassesController extends GetxController {
     if (value.isEmpty || value == selectedSemester) {
       return;
     }
+    final previousSemester = _selectedSemester.value;
     _selectedSemester.value = value;
-    await syncScheduleOverview(forceRefresh: true, syncExternalOutputs: false);
+    final ok = await syncScheduleOverview(
+      forceRefresh: true,
+      syncExternalOutputs: false,
+    );
+    if (!ok && hasScheduleData && _selectedSemester.value == value) {
+      _selectedSemester.value = previousSemester;
+      update(<Object>['classes-header', 'schedule-table']);
+    }
   }
 
-  Future<void> changeWeek(String value) async {
+  Future<bool> changeWeek(String value) async {
     final parsed = int.tryParse(
       value.replaceAll('第', '').replaceAll('周', '').trim(),
     );
     if (parsed == null || parsed <= 0 || parsed == _selectedWeek.value) {
-      return;
+      return false;
     }
     if (!_userRepo.isLogin) {
-      return;
+      return false;
     }
 
+    final previousWeek = _selectedWeek.value;
+    final previousHoliday = _isHoliday.value;
     final version = ++_requestVersion;
     _isLoading.value = true;
     _scheduleError.value = '';
@@ -336,7 +418,7 @@ class ClassesController extends GetxController {
       final weekMeta = await weekMetaTask;
       final courseResponse = await courseResponseTask;
       if (!_isActiveRequest(version)) {
-        return;
+        return false;
       }
 
       _currentWeekMeta.assignAll(weekMeta);
@@ -349,15 +431,19 @@ class ClassesController extends GetxController {
       LogUtil.info(
         '[ClassesController] changeWeek success week=$parsed courses=${currentWeekCourses.length}',
       );
+      return true;
     } catch (e, s) {
       if (!_isActiveRequest(version)) {
-        return;
+        return false;
       }
+      _selectedWeek.value = previousWeek;
+      _isHoliday.value = previousHoliday;
       _isLoading.value = false;
-      _scheduleError.value = e.toString();
+      _scheduleError.value = _formatScheduleError(e);
       syncTick.value++;
       update(<Object>['classes-header', 'schedule-table']);
       LogUtil.errorE('[ClassesController] changeWeek failed', e, s);
+      return false;
     }
   }
 
@@ -409,8 +495,20 @@ class ClassesController extends GetxController {
     update(<Object>['classes-header', 'schedule-table']);
   }
 
-  Future<void> refreshSchedule() async {
-    await syncScheduleOverview(forceRefresh: true, syncExternalOutputs: true);
+  Future<bool> refreshSchedule() {
+    return syncScheduleOverview(forceRefresh: true, syncExternalOutputs: true);
+  }
+
+  String _formatScheduleError(Object error) {
+    final raw = error.toString().trim();
+    if (raw.isEmpty) {
+      return '课表更新失败，请检查网络后重试';
+    }
+    final firstLine = raw.split('\n').first.trim();
+    if (firstLine.length > 80) {
+      return '课表更新失败，请检查网络后重试';
+    }
+    return firstLine;
   }
 
   int? _parseWeekLabel(String raw) {
@@ -459,6 +557,10 @@ class ClassesController extends GetxController {
   }
 
   List<CourseBlock> _buildCourseBlocks(List<ClassTableCourse> courses) {
+    return buildCourseBlocks(courses);
+  }
+
+  static List<CourseBlock> buildCourseBlocks(List<ClassTableCourse> courses) {
     final sorted = List<ClassTableCourse>.from(courses)
       ..sort((a, b) {
         final dayCompare = uiWeekdayFromSchoolWeekday(
@@ -467,75 +569,116 @@ class ClassesController extends GetxController {
         if (dayCompare != 0) {
           return dayCompare;
         }
-        return a.section.compareTo(b.section);
+        final sectionCompare = a.section.compareTo(b.section);
+        if (sectionCompare != 0) {
+          return sectionCompare;
+        }
+        return _courseMergeIdentity(a).compareTo(_courseMergeIdentity(b));
       });
 
-    final palette = <Color>[
-      const Color(0xFFDAF3E4),
-      const Color(0xFFE8F5D4),
-      const Color(0xFFF8E5C0),
-      const Color(0xFFDDECFD),
-      const Color(0xFFE9E3FF),
-      const Color(0xFFE0F2CB),
-      const Color(0xFFFDE3E0),
-      const Color(0xFFD9F0EB),
-      const Color(0xFFE6EBFE),
-      const Color(0xFFF9ECD2),
-      const Color(0xFFF6DFEA),
-      const Color(0xFFDDF4D9),
-      const Color(0xFFEAF0FF),
-      const Color(0xFFFBE8C8),
-      const Color(0xFFFFE2D9),
+    const palette = <Color>[
+      Color(0xFFDAF3E4),
+      Color(0xFFE8F5D4),
+      Color(0xFFF8E5C0),
+      Color(0xFFDDECFD),
+      Color(0xFFE9E3FF),
+      Color(0xFFE0F2CB),
+      Color(0xFFFDE3E0),
+      Color(0xFFD9F0EB),
+      Color(0xFFE6EBFE),
+      Color(0xFFF9ECD2),
+      Color(0xFFF6DFEA),
+      Color(0xFFDDF4D9),
+      Color(0xFFEAF0FF),
+      Color(0xFFFBE8C8),
+      Color(0xFFFFE2D9),
     ];
 
     final merged = <CourseBlock>[];
+    final activeBlockIndexByCourseKey = <String, int>{};
+
     for (final course in sorted) {
-      if (merged.isNotEmpty && _canMerge(merged.last, course)) {
-        final previous = merged.removeLast();
-        merged.add(
-          CourseBlock(
+      final dayIndex = uiWeekdayFromSchoolWeekday(course.weekday) - 1;
+      final identity = _courseMergeIdentity(course);
+      final lookupKey = '$dayIndex|$identity';
+      final activeIndex = activeBlockIndexByCourseKey[lookupKey];
+
+      if (activeIndex != null) {
+        final previous = merged[activeIndex];
+        final previousEnd = previous.startSection + previous.sectionSpan;
+        if (course.section < previousEnd) {
+          // Skip duplicate entries for the exact same section of the same course.
+          continue;
+        }
+        if (previousEnd == course.section) {
+          merged[activeIndex] = CourseBlock(
             dayIndex: previous.dayIndex,
             startSection: previous.startSection,
             sectionSpan: previous.sectionSpan + 1,
             title: previous.title,
-            teacher: previous.teacher,
-            classroom: previous.classroom,
-            weeks: previous.weeks,
+            teacher: previous.teacher.isNotEmpty
+                ? previous.teacher
+                : course.teacherName,
+            classroom: previous.classroom.isNotEmpty
+                ? previous.classroom
+                : course.classroomName,
+            weeks: previous.weeks.isNotEmpty
+                ? previous.weeks
+                : _buildWeeksLabel(course),
             color: previous.color,
-          ),
-        );
-        continue;
+          );
+          continue;
+        }
       }
 
+      final colorSeed = course.courseCode.trim().isNotEmpty
+          ? course.courseCode.trim()
+          : (course.teachingClassId.trim().isNotEmpty
+                ? course.teachingClassId.trim()
+                : course.courseName.trim());
       merged.add(
         CourseBlock(
-          dayIndex: uiWeekdayFromSchoolWeekday(course.weekday) - 1,
+          dayIndex: dayIndex,
           startSection: course.section,
           sectionSpan: 1,
           title: course.courseName,
           teacher: course.teacherName,
           classroom: course.classroomName,
           weeks: _buildWeeksLabel(course),
-          color:
-              palette[course.teachingClassId.hashCode.abs() % palette.length],
+          color: palette[colorSeed.hashCode.abs() % palette.length],
         ),
       );
+      activeBlockIndexByCourseKey[lookupKey] = merged.length - 1;
     }
+
+    merged.sort((a, b) {
+      final dayCompare = a.dayIndex.compareTo(b.dayIndex);
+      if (dayCompare != 0) {
+        return dayCompare;
+      }
+      final sectionCompare = a.startSection.compareTo(b.startSection);
+      if (sectionCompare != 0) {
+        return sectionCompare;
+      }
+      return a.title.compareTo(b.title);
+    });
 
     return merged;
   }
 
-  bool _canMerge(CourseBlock previous, ClassTableCourse next) {
-    final nextDayIndex = uiWeekdayFromSchoolWeekday(next.weekday) - 1;
-    return previous.dayIndex == nextDayIndex &&
-        previous.startSection + previous.sectionSpan == next.section &&
-        previous.title == next.courseName &&
-        previous.classroom == next.classroomName &&
-        previous.teacher == next.teacherName &&
-        previous.weeks == _buildWeeksLabel(next);
+  static String _courseMergeIdentity(ClassTableCourse course) {
+    final code = course.courseCode.trim();
+    if (code.isNotEmpty) {
+      return 'code:$code';
+    }
+    final teachingClassId = course.teachingClassId.trim();
+    if (teachingClassId.isNotEmpty) {
+      return 'jxb:$teachingClassId';
+    }
+    return 'name:${course.courseName.trim()}';
   }
 
-  String _buildWeeksLabel(ClassTableCourse course) {
+  static String _buildWeeksLabel(ClassTableCourse course) {
     if (course.isOddWeekOnly) {
       return '${course.weekRangeText}(单周)';
     }

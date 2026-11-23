@@ -29,8 +29,11 @@ const String _dailyRefreshUniquePrefix = 'today_courses_widget_daily_refresh_';
 const String _debugDailyRefreshUniqueName =
     'today_courses_widget_daily_refresh_debug';
 const String _pendingRetryUniqueName = 'today_courses_widget_pending_retry';
+const String _periodicRefreshUniqueName =
+    'today_courses_widget_periodic_refresh';
 const String _dailyRefreshTaskName = 'todayCoursesWidgetDailyRefresh';
 const String _pendingRetryTaskName = 'todayCoursesWidgetPendingRetry';
+const String _periodicRefreshTaskName = 'todayCoursesWidgetPeriodicRefresh';
 const String _manualDebugReason = 'manual_debug';
 const String _scheduledDebugReason = 'scheduled_debug';
 const String _autoSyncEnabledKey = 'today_courses_widget_auto_sync_enabled';
@@ -101,7 +104,7 @@ class TodayCoursesWidgetRepo {
   bool _workmanagerInitialized = false;
   Future<void>? _initializeTask;
   Future<bool>? _syncTask;
-  StreamSubscription<ConnectivityResult>? _connectivitySub;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   bool get isAutoSyncEnabled =>
       StorageUtils.settings.get(_autoSyncEnabledKey) == true;
@@ -156,8 +159,8 @@ class TodayCoursesWidgetRepo {
       LogUtil.warnE('[TodayCoursesWidget] restore widget cache failed', e, s);
     }
 
-    _connectivitySub = Connectivity().onConnectivityChanged.listen((result) {
-      if (result != ConnectivityResult.none) {
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
+      if (results.any((r) => r != ConnectivityResult.none)) {
         _retryPendingSyncIfNeeded();
       }
     });
@@ -238,7 +241,10 @@ class TodayCoursesWidgetRepo {
     await cancelAutoSync();
   }
 
-  Future<void> scheduleNextDailyRefresh({bool cancelPrevious = true}) async {
+  Future<void> scheduleNextDailyRefresh({
+    bool cancelPrevious = true,
+    bool forceNextDay = false,
+  }) async {
     if (!Platform.isAndroid) {
       return;
     }
@@ -249,8 +255,13 @@ class TodayCoursesWidgetRepo {
 
     final now = DateTime.now();
     var nextRun = DateTime(now.year, now.month, now.day, 7);
-    if (!nextRun.isAfter(now)) {
-      nextRun = nextRun.add(const Duration(days: 1));
+    if (forceNextDay || !nextRun.isAfter(now)) {
+      nextRun = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        7,
+      ).add(const Duration(days: 1));
     }
 
     final workName = _dailyWorkNameFor(nextRun);
@@ -281,13 +292,18 @@ class TodayCoursesWidgetRepo {
         workName,
         _dailyRefreshTaskName,
         initialDelay: delay,
-        inputData: <String, dynamic>{
-          'scheduledFor': nextRun.toIso8601String(),
-        },
+        inputData: <String, dynamic>{'scheduledFor': nextRun.toIso8601String()},
         constraints: Constraints(networkType: NetworkType.connected),
         backoffPolicy: BackoffPolicy.exponential,
         backoffPolicyDelay: _workRetryBackoffDelay,
         existingWorkPolicy: ExistingWorkPolicy.replace,
+      );
+      await Workmanager().registerPeriodicTask(
+        _periodicRefreshUniqueName,
+        _periodicRefreshTaskName,
+        frequency: const Duration(hours: 6),
+        constraints: Constraints(networkType: NetworkType.connected),
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
       );
       await StorageUtils.settings.put(_scheduledDailyWorkNameKey, workName);
       await StorageUtils.settings.put(_lastScheduledAtKey, _nowIso());
@@ -304,9 +320,13 @@ class TodayCoursesWidgetRepo {
 
   Future<void> _scheduleNextDailyRefreshBestEffort({
     bool cancelPrevious = true,
+    bool forceNextDay = false,
   }) async {
     try {
-      await scheduleNextDailyRefresh(cancelPrevious: cancelPrevious);
+      await scheduleNextDailyRefresh(
+        cancelPrevious: cancelPrevious,
+        forceNextDay: forceNextDay,
+      );
     } catch (e, s) {
       LogUtil.warnE('[TodayCoursesWidget] schedule next daily failed', e, s);
     }
@@ -378,6 +398,7 @@ class TodayCoursesWidgetRepo {
     await Workmanager().cancelByUniqueName(_legacyDailyRefreshUniqueName);
     await Workmanager().cancelByUniqueName(_debugDailyRefreshUniqueName);
     await Workmanager().cancelByUniqueName(_pendingRetryUniqueName);
+    await Workmanager().cancelByUniqueName(_periodicRefreshUniqueName);
     await StorageUtils.settings.delete(_scheduledDailyWorkNameKey);
     await StorageUtils.settings.delete(_lastScheduledAtKey);
     await StorageUtils.settings.delete(_lastScheduledRunAtKey);
@@ -489,7 +510,7 @@ class TodayCoursesWidgetRepo {
       await StorageUtils.settings.put(_pendingSyncKey, false);
       await Workmanager().cancelByUniqueName(_pendingRetryUniqueName);
       await _recordSyncSuccess();
-      if (reason == _dailyRefreshTaskName) {
+      if (_shouldShowMorningBriefingForReason(reason)) {
         try {
           await MorningBriefingService.show(snapshot);
         } catch (e, s) {
@@ -535,8 +556,22 @@ class TodayCoursesWidgetRepo {
     } finally {
       await _scheduleNextDailyRefreshBestEffort(
         cancelPrevious: reason != _dailyRefreshTaskName,
+        forceNextDay: reason == _dailyRefreshTaskName,
       );
     }
+  }
+
+  bool _shouldShowMorningBriefingForReason(String reason) {
+    if (reason == _dailyRefreshTaskName || reason == _scheduledDebugReason) {
+      return true;
+    }
+    if (reason == 'pending_retry' ||
+        reason == _pendingRetryTaskName ||
+        reason == _periodicRefreshTaskName) {
+      return DateTime.now().hour >= 7 &&
+          !MorningBriefingService.hasShownToday();
+    }
+    return false;
   }
 
   Future<void> updateFromCurrentSchedule({
@@ -576,6 +611,9 @@ class TodayCoursesWidgetRepo {
           : (snapshot.items.isEmpty ? '今天没有课程安排' : snapshot.headlineText),
     );
     await _updateWidget();
+    if (MorningBriefingService.isEnabled) {
+      unawaited(MorningBriefingService.scheduleDaily(snapshot: snapshot));
+    }
   }
 
   Future<void> clearAndUpdate({String statusText = '登录后可查看今日课程'}) async {
@@ -743,8 +781,8 @@ class TodayCoursesWidgetRepo {
   }
 
   Future<bool> _hasNetworkConnection() async {
-    final connectivityResult = await Connectivity().checkConnectivity();
-    return connectivityResult != ConnectivityResult.none;
+    final connectivityResults = await Connectivity().checkConnectivity();
+    return connectivityResults.any((r) => r != ConnectivityResult.none);
   }
 
   Future<void> _showCachedOrError({

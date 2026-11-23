@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:class_tool/data/api/api_diagnostics.dart';
 import 'package:class_tool/data/model/home_quick_action.dart';
 import 'package:class_tool/data/services/morning_briefing_service.dart';
-import 'package:class_tool/data/services/app_update_service.dart';
 import 'package:class_tool/data/services/debug_time_service.dart';
 import 'package:class_tool/data/repo/today_courses_widget_repo.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
@@ -48,8 +47,7 @@ enum CourseDetailPresentation { page, sheet }
 
 enum ButtonGroupAlignmentPreference { automatic, leading, centered }
 
-extension ButtonGroupAlignmentPreferenceX
-    on ButtonGroupAlignmentPreference {
+extension ButtonGroupAlignmentPreferenceX on ButtonGroupAlignmentPreference {
   AlignmentGeometry get alignment {
     return switch (this) {
       ButtonGroupAlignmentPreference.automatic ||
@@ -179,8 +177,6 @@ class SettingsController extends GetxController {
   final RxBool autoWidgetSyncEnabled =
       Get.find<TodayCoursesWidgetRepo>().isAutoSyncEnabled.obs;
   final RxBool morningBriefingEnabled = MorningBriefingService.isEnabled.obs;
-  final RxBool startupUpdatePromptEnabled =
-      AppUpdateService.startupOptionalUpdatePromptEnabled.obs;
   final RxBool developerModeEnabled = _loadDeveloperModeEnabled().obs;
   late final Rxn<DateTime> debugClientTimeOverride =
       _debugTimeService.clientTimeOverride;
@@ -365,14 +361,6 @@ class SettingsController extends GetxController {
     }
     final actual = await MorningBriefingService.setEnabled(enabled);
     morningBriefingEnabled.value = actual;
-  }
-
-  Future<void> changeStartupUpdatePrompt(bool enabled) async {
-    if (startupUpdatePromptEnabled.value == enabled) {
-      return;
-    }
-    startupUpdatePromptEnabled.value = enabled;
-    await AppUpdateService.setStartupOptionalUpdatePromptEnabled(enabled);
   }
 
   bool registerDeveloperModeTap() {
@@ -565,9 +553,7 @@ class SettingsController extends GetxController {
   }
 
   static ButtonGroupAlignmentPreference _loadButtonGroupAlignment() {
-    final raw = StorageUtils.settings
-        .get(_buttonGroupAlignmentKey)
-        ?.toString();
+    final raw = StorageUtils.settings.get(_buttonGroupAlignmentKey)?.toString();
     for (final item in ButtonGroupAlignmentPreference.values) {
       if (item.name == raw) {
         return item;

@@ -1,14 +1,19 @@
 import 'dart:io';
 
 import 'package:class_tool/data/model/today_course_snapshot.dart';
+import 'package:class_tool/data/services/today_snapshot_cache.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:class_tool/utils/storage_utils.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tz_data;
+import 'package:timezone/timezone.dart' as tz;
 
 const String _morningBriefingEnabledKey = 'morning_briefing_enabled';
 const String _morningBriefingChannelId = 'morning_briefing';
 const String _notificationPermissionRequestedKey =
     'notification_permission_requested_once';
+const String _lastMorningBriefingDateKey = 'morning_briefing_last_shown_date';
+const int _morningBriefingNotificationId = 1001;
 
 class MorningBriefingService {
   const MorningBriefingService._();
@@ -17,29 +22,49 @@ class MorningBriefingService {
       FlutterLocalNotificationsPlugin();
 
   static bool _initialized = false;
+  static bool _timeZoneInitialized = false;
 
   static bool get isEnabled =>
       StorageUtils.settings.get(_morningBriefingEnabledKey) == true;
+
+  static bool hasShownToday() {
+    final lastDate =
+        StorageUtils.settings.get(_lastMorningBriefingDateKey)?.toString() ??
+        '';
+    return lastDate == _dateText(DateTime.now());
+  }
+
+  static void ensureTimeZoneInitialized() {
+    if (_timeZoneInitialized) {
+      return;
+    }
+    tz_data.initializeTimeZones();
+    try {
+      tz.setLocalLocation(tz.getLocation('Asia/Shanghai'));
+    } catch (_) {}
+    _timeZoneInitialized = true;
+  }
 
   static Future<void> initialize() async {
     if (_initialized) {
       return;
     }
 
+    ensureTimeZoneInitialized();
     if (!Platform.isAndroid) {
       _initialized = true;
       return;
     }
 
     const settings = InitializationSettings(
-      android: AndroidInitializationSettings('ic_notification'),
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
     );
     await _plugin.initialize(settings: settings);
 
     const channel = AndroidNotificationChannel(
       _morningBriefingChannelId,
       '早安课表提醒',
-      description: '每日同步完成后的课程提醒',
+      description: '每日早间课程提醒',
       importance: Importance.high,
     );
     await _plugin
@@ -49,6 +74,10 @@ class MorningBriefingService {
         ?.createNotificationChannel(channel);
     await _requestNotificationPermissionIfNeeded();
     _initialized = true;
+
+    if (isEnabled) {
+      await scheduleDaily();
+    }
   }
 
   static Future<bool> setEnabled(bool enabled) async {
@@ -65,13 +94,86 @@ class MorningBriefingService {
 
     await StorageUtils.settings.put(_morningBriefingEnabledKey, enabled);
     try {
-      if (!enabled) {
-        await _plugin.cancel(id: 1001);
+      if (enabled) {
+        await scheduleDaily();
+      } else {
+        await _plugin.cancel(id: _morningBriefingNotificationId);
       }
     } catch (e, s) {
-      LogUtil.warnE("Failed to set notification enabled.", e, s);
+      LogUtil.warnE('Failed to set morning briefing enabled.', e, s);
     }
     return enabled;
+  }
+
+  static Future<void> scheduleDaily({TodayCourseSnapshot? snapshot}) async {
+    if (!Platform.isAndroid || !isEnabled) {
+      return;
+    }
+
+    await initialize();
+    final effectiveSnapshot = snapshot ?? TodaySnapshotCache.load();
+    final title = effectiveSnapshot != null
+        ? _buildTitle(effectiveSnapshot)
+        : '早上好，点击查看今日课表';
+    final body = effectiveSnapshot != null
+        ? _buildBody(effectiveSnapshot)
+        : '记得查看今天的课程与教室安排。';
+
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduledDate = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      7,
+    );
+    if (!scheduledDate.isAfter(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+
+    final scheduleMode = await _resolveScheduleMode();
+    final androidDetails = AndroidNotificationDetails(
+      _morningBriefingChannelId,
+      '早安课表提醒',
+      channelDescription: '每日早间课程提醒',
+      importance: Importance.high,
+      priority: Priority.high,
+      styleInformation: BigTextStyleInformation(body),
+    );
+
+    try {
+      await _plugin.zonedSchedule(
+        id: _morningBriefingNotificationId,
+        title: title,
+        body: body,
+        scheduledDate: scheduledDate,
+        notificationDetails: NotificationDetails(android: androidDetails),
+        androidScheduleMode: scheduleMode,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+      LogUtil.info(
+        '[MorningBriefing] scheduled daily at $scheduledDate mode=$scheduleMode',
+      );
+    } catch (e, s) {
+      LogUtil.warnE('[MorningBriefing] scheduleDaily failed', e, s);
+    }
+  }
+
+  static Future<AndroidScheduleMode> _resolveScheduleMode() async {
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (androidPlugin == null) {
+      return AndroidScheduleMode.inexactAllowWhileIdle;
+    }
+    try {
+      final canExact = await androidPlugin.canScheduleExactNotifications();
+      if (canExact == true) {
+        return AndroidScheduleMode.exactAllowWhileIdle;
+      }
+    } catch (_) {}
+    return AndroidScheduleMode.inexactAllowWhileIdle;
   }
 
   static Future<bool> _requestNotificationPermissionIfNeeded({
@@ -113,19 +215,28 @@ class MorningBriefingService {
     final androidDetails = AndroidNotificationDetails(
       _morningBriefingChannelId,
       '早安课表提醒',
-      channelDescription: '每日同步完成后的课程提醒',
+      channelDescription: '每日早间课程提醒',
       importance: Importance.high,
       priority: Priority.high,
-      icon: 'ic_notification',
       styleInformation: BigTextStyleInformation(body),
     );
 
     await _plugin.show(
-      id: 1001,
+      id: _morningBriefingNotificationId,
       title: title,
       body: body,
       notificationDetails: NotificationDetails(android: androidDetails),
     );
+    await StorageUtils.settings.put(
+      _lastMorningBriefingDateKey,
+      _dateText(DateTime.now()),
+    );
+  }
+
+  static String _dateText(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
   }
 
   static String _buildTitle(TodayCourseSnapshot snapshot) {

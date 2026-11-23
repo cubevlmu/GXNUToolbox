@@ -4,6 +4,8 @@
  * Copyright (c) 2026 by FlybirdGames, All Rights Reserved. 
  */
 
+import 'dart:async';
+
 import 'package:class_tool/data/api/api.dart';
 import 'package:class_tool/data/model/class_meta.dart';
 import 'package:class_tool/data/model/class_table.dart';
@@ -11,8 +13,31 @@ import 'package:class_tool/data/model/class_table_context.dart';
 import 'package:class_tool/data/model/class_table_course.dart';
 import 'package:class_tool/data/repo/repo_request_helper.dart';
 import 'package:class_tool/data/repo/user_repo.dart';
+import 'package:class_tool/data/services/schedule_cache_service.dart';
 import 'package:class_tool/utils/log_util.dart';
 import 'package:get/get.dart';
+
+class CachedScheduleOverview {
+  const CachedScheduleOverview({
+    required this.semester,
+    required this.week,
+    required this.isHoliday,
+    required this.savedAt,
+    required this.semesters,
+    required this.metaResponse,
+    required this.weekMeta,
+    required this.courses,
+  });
+
+  final String semester;
+  final int week;
+  final bool isHoliday;
+  final DateTime savedAt;
+  final List<ClassTableSemester> semesters;
+  final ClassTableMetaResponse metaResponse;
+  final List<ClassMeta> weekMeta;
+  final List<ClassTableCourse> courses;
+}
 
 class ClassRepo {
   ClassRepo({UserRepo? userRepo}) : this._(userRepo ?? Get.find<UserRepo>());
@@ -75,6 +100,20 @@ class ClassRepo {
       return cached;
     }
 
+    if (!forceRefresh) {
+      final diskCached = ScheduleCacheService.loadPageContext(
+        userId: currentUserId,
+        semester: targetSemester,
+      );
+      if (diskCached != null) {
+        LogUtil.debug(
+          '[ClassRepo] syncBaseContext reuse disk cache semester=$targetSemester',
+        );
+        _pageContext = diskCached;
+        return diskCached;
+      }
+    }
+
     final activeTask = _syncBaseContextTask;
     if (activeTask != null && _syncBaseContextTaskSemester == targetSemester) {
       LogUtil.debug(
@@ -94,6 +133,17 @@ class ClassRepo {
         selectedCampusId: currentSelectedCampusId,
       );
       _pageContext = context;
+      unawaited(
+        ScheduleCacheService.savePageContext(
+          context,
+          userId: currentUserId.isNotEmpty
+              ? currentUserId
+              : context.userContext.userId,
+          semester: targetSemester.isNotEmpty
+              ? targetSemester
+              : context.userContext.selectedSemester,
+        ),
+      );
       LogUtil.info(
         '[ClassRepo] syncBaseContext success semesters=${context.semesters.length} userId=${context.userContext.userId} xqid=${context.userContext.campusId} xqid1=${context.userContext.selectedCampusId}',
       );
@@ -131,6 +181,16 @@ class ClassRepo {
         _metaResponse = cached;
         return cached;
       }
+      final diskCached = ScheduleCacheService.loadMeta(
+        userId: currentUserId,
+        semester: effectiveSemester,
+      );
+      if (diskCached != null) {
+        LogUtil.debug('[ClassRepo] fetchMeta reuse disk cache key=$key');
+        _metaCache[key] = diskCached;
+        _metaResponse = diskCached;
+        return diskCached;
+      }
     }
 
     return _helper.dedupe(_metaTasks, key, () {
@@ -145,6 +205,13 @@ class ClassRepo {
         );
         _metaCache[key] = response;
         _metaResponse = response;
+        unawaited(
+          ScheduleCacheService.saveMeta(
+            userId: currentUserId,
+            semester: effectiveSemester,
+            response: response,
+          ),
+        );
         LogUtil.info(
           '[ClassRepo] fetchMeta success currentWeek=${response.data.currentWeek}',
         );
@@ -172,6 +239,16 @@ class ClassRepo {
         LogUtil.debug('[ClassRepo] fetchWeekMeta reuse cached key=$key');
         return cached;
       }
+      final diskCached = ScheduleCacheService.loadWeekMeta(
+        userId: currentUserId,
+        semester: effectiveSemester,
+        week: week,
+      );
+      if (diskCached != null) {
+        LogUtil.debug('[ClassRepo] fetchWeekMeta reuse disk cache key=$key');
+        _weekMetaCache[key] = diskCached;
+        return diskCached;
+      }
     }
 
     return _helper.dedupe(_weekMetaTasks, key, () {
@@ -184,6 +261,14 @@ class ClassRepo {
           week: week,
         );
         _weekMetaCache[key] = list;
+        unawaited(
+          ScheduleCacheService.saveWeekMeta(
+            userId: currentUserId,
+            semester: effectiveSemester,
+            week: week,
+            items: list,
+          ),
+        );
         LogUtil.info('[ClassRepo] fetchWeekMeta success count=${list.length}');
         return list;
       });
@@ -209,6 +294,16 @@ class ClassRepo {
         LogUtil.debug('[ClassRepo] fetchCourses reuse cached key=$key');
         return cached;
       }
+      final diskCached = ScheduleCacheService.loadCourses(
+        userId: currentUserId,
+        semester: effectiveSemester,
+        week: week,
+      );
+      if (diskCached != null) {
+        LogUtil.debug('[ClassRepo] fetchCourses reuse disk cache key=$key');
+        _courseCache[key] = diskCached;
+        return diskCached;
+      }
     }
 
     return _helper.dedupe(_courseTasks, key, () {
@@ -223,12 +318,107 @@ class ClassRepo {
           campusId: currentCampusId,
         );
         _courseCache[key] = response;
+        unawaited(
+          ScheduleCacheService.saveCourses(
+            userId: currentUserId,
+            semester: effectiveSemester,
+            week: week,
+            response: response,
+          ),
+        );
         LogUtil.info(
           '[ClassRepo] fetchCourses success count=${response.data.courses.length}',
         );
         return response;
       });
     });
+  }
+
+  CachedScheduleOverview? loadCachedOverview() {
+    final uid = currentUserId;
+    if (uid.isEmpty) {
+      return null;
+    }
+
+    final pointer = ScheduleCacheService.loadLatestPointer(uid);
+    final semester = (pointer != null && pointer.semester.isNotEmpty)
+        ? pointer.semester
+        : currentSemester;
+    if (semester.isEmpty) {
+      return null;
+    }
+
+    final metaResponse = ScheduleCacheService.loadMeta(
+      userId: uid,
+      semester: semester,
+    );
+    if (metaResponse == null) {
+      return null;
+    }
+
+    final context = ScheduleCacheService.loadPageContext(
+      userId: uid,
+      semester: semester,
+    );
+    if (context != null) {
+      _pageContext ??= context;
+    }
+    _metaResponse ??= metaResponse;
+    _metaCache[_cacheKey('meta', semester)] = metaResponse;
+
+    final isHoliday = pointer?.isHoliday ?? false;
+    final week = (pointer != null && pointer.week > 0)
+        ? pointer.week
+        : metaResponse.data.currentWeek;
+
+    List<ClassMeta> weekMeta = const <ClassMeta>[];
+    List<ClassTableCourse> courses = const <ClassTableCourse>[];
+    if (!isHoliday && week > 0) {
+      weekMeta =
+          ScheduleCacheService.loadWeekMeta(
+            userId: uid,
+            semester: semester,
+            week: week,
+          ) ??
+          const <ClassMeta>[];
+      final courseResponse = ScheduleCacheService.loadCourses(
+        userId: uid,
+        semester: semester,
+        week: week,
+      );
+      if (courseResponse != null) {
+        courses = courseResponse.data.courses;
+        _courseCache[_cacheKey('courses', semester, week: week)] =
+            courseResponse;
+      }
+      if (weekMeta.isNotEmpty) {
+        _weekMetaCache[_cacheKey('weekMeta', semester, week: week)] = weekMeta;
+      }
+    }
+
+    return CachedScheduleOverview(
+      semester: semester,
+      week: week,
+      isHoliday: isHoliday,
+      savedAt: pointer?.savedAt ?? DateTime.now(),
+      semesters: context?.semesters ?? pageContext?.semesters ?? const [],
+      metaResponse: metaResponse,
+      weekMeta: weekMeta,
+      courses: courses,
+    );
+  }
+
+  Future<void> saveLatestOverviewPointer({
+    required String semester,
+    required int week,
+    required bool isHoliday,
+  }) async {
+    await ScheduleCacheService.saveLatestPointer(
+      userId: currentUserId,
+      semester: semester,
+      week: week,
+      isHoliday: isHoliday,
+    );
   }
 
   void clearCaches() {

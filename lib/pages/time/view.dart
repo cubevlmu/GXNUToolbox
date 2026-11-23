@@ -139,10 +139,9 @@ class _CampusSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = Get.find<SettingsController>();
     return Obx(() {
-      final selectedIndex = controller.selectedCampusIndex.value.clamp(
-        0,
-        controller.campuses.length - 1,
-      ).toInt();
+      final selectedIndex = controller.selectedCampusIndex.value
+          .clamp(0, controller.campuses.length - 1)
+          .toInt();
       return FUIButtonGroupTabBar(
         selectedIndex: selectedIndex,
         items: [

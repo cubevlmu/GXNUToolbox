@@ -10,11 +10,11 @@ import 'package:fin_ui/app_section.dart';
 import 'package:fin_ui/app_segmented_control.dart';
 import 'package:fin_ui/app_tile.dart';
 import 'package:fin_ui/app_toast.dart';
-import 'package:class_tool/widgets/app_update_prompt.dart';
 import 'package:fin_ui/app_tokens.dart';
 import 'package:fin_ui/fui_navigation.dart';
 import 'package:fin_ui/fui_page_head.dart';
 import 'package:class_tool/utils/shared_dialog.dart';
+import 'package:class_tool/widgets/github_update_prompt.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -203,13 +203,11 @@ class _AppearanceSettingsPage extends StatelessWidget {
                 () => FUISegmentedControl<ButtonGroupAlignmentPreference>(
                   value: controller.buttonGroupAlignment.value,
                   items: [
-                    for (final item
-                        in ButtonGroupAlignmentPreference.values)
+                    for (final item in ButtonGroupAlignmentPreference.values)
                       FUISegmentedItem(
                         value: item,
                         label: item.label,
-                        icon:
-                            item == ButtonGroupAlignmentPreference.centered
+                        icon: item == ButtonGroupAlignmentPreference.centered
                             ? FUIIcons.apps
                             : FUIIcons.list,
                       ),
@@ -687,27 +685,11 @@ class _GeneralSettingsPage extends StatelessWidget {
         FUISection(
           title: '更新',
           children: [
-            Obx(
-              () => _ToggleTile(
-                icon: FUIIcons.update,
-                title: '启动更新提醒',
-                subtitle: controller.startupUpdatePromptEnabled.value
-                    ? '普通新版本会在启动时提示'
-                    : '普通新版本静默跳过',
-                description: '关闭后仍会校验版本；强制更新、版本停用或封禁仍会提示并按原流程处理。',
-                value: controller.startupUpdatePromptEnabled.value,
-                onChanged: controller.changeStartupUpdatePrompt,
-              ),
-            ),
             FUITile(
               icon: FUIIcons.update,
               title: '检查更新',
-              subtitle: '点击查询最新版本',
-              onTap: () => AppUpdatePrompt.checkNow(
-                context,
-                showLatestToast: true,
-                logTag: 'SettingsPage',
-              ),
+              subtitle: '从 GitHub Release 检查最新 APK',
+              onTap: () => GithubUpdatePrompt.checkNow(context),
             ),
           ],
         ),
@@ -859,9 +841,7 @@ class _DebugSettingsPage extends StatelessWidget {
       await SharedDialog.showConfirmDialog(
         context,
         title: success ? '小组件同步成功' : '小组件同步未完成',
-        content: success
-            ? '课表数据和桌面小组件已刷新。'
-            : '已保留现有缓存，请在“小组件同步诊断”中查看失败原因。',
+        content: success ? '课表数据和桌面小组件已刷新。' : '已保留现有缓存，请在“小组件同步诊断”中查看失败原因。',
         confirmText: '知道了',
         cancelText: '',
         variant: success
